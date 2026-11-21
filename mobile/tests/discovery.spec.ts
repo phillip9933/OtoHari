@@ -1,3 +1,5 @@
+import { emptyTrackRating } from './fixtures/emptyBoardRead';
+import { minimizePlayer } from './fixtures/minimizePlayer';
 import { chooseOption } from './fixtures/inlineChoice';
 import { fileURLToPath } from 'node:url';
 import { expect, test } from '@playwright/test';
@@ -102,7 +104,15 @@ test('a listener explores DN charts and genres, follows an artist and plays libr
 					total: 2
 				});
 			}
-			expect(url.searchParams.get('q')).toBe('Golden Hour');
+			const title = url.searchParams.get('q');
+			if (title === 'Blue Hour' || title === 'Silver Skies') {
+				const id = title === 'Blue Hour' ? 'local-blue' : 'radio-one';
+				return json({
+					items: [{ id, title, artist_name: artistName, album_title: 'Moonrise' }],
+					total: 1
+				});
+			}
+			expect(title).toBe('Golden Hour');
 			return json({ items: [], total: 0 });
 		}
 
@@ -238,7 +248,7 @@ test('a listener explores DN charts and genres, follows an artist and plays libr
 						disc_number: 1,
 						track_number: 1,
 						source: 'local',
-						track_source_id: 'local-one',
+						track_source_id: 'local-blue',
 						duration: 0.3
 					}
 				]
@@ -280,7 +290,11 @@ test('a listener explores DN charts and genres, follows an artist and plays libr
 				tracks: [unavailable]
 			} satisfies Schema['RadioPlanResponse']);
 		}
-		if (path === '/stream/local/radio-one' || path === '/stream/local/local-one')
+		if (
+			['/stream/local/radio-one', '/stream/local/local-one', '/stream/local/local-blue'].includes(
+				path
+			)
+		)
 			return route.fulfill({
 				path: fileURLToPath(
 					new URL('../../server/tests/fixtures/library/management_full.wav', import.meta.url)
@@ -506,6 +520,7 @@ test('a listener explores DN charts and genres, follows an artist and plays libr
 				json: { error: { code: 'NOT_FOUND', message: 'Missing' } }
 			});
 		if (path === '/albums/' + group + '/editions') return json({ items: [] });
+		if (await emptyTrackRating(route)) return;
 		throw new Error('Unexpected DroppedNeedle request ' + path);
 	});
 	await page.goto('/');
@@ -536,7 +551,7 @@ test('a listener explores DN charts and genres, follows an artist and plays libr
 	expect(reads.filter((p) => p === '/discover')).toHaveLength(1);
 	await page.getByRole('button', { name: 'Play Silver Moon', exact: true }).click();
 	await expect(page.getByRole('heading', { name: 'Silver Moon', exact: true })).toBeVisible();
-	await page.getByRole('button', { name: 'Close player' }).click();
+	await minimizePlayer(page);
 	const backToBoard = page.getByRole('button', { name: 'Back to Discover', exact: true });
 	async function view(label: string) {
 		if (await backToBoard.isVisible()) await backToBoard.click();
@@ -597,7 +612,7 @@ test('a listener explores DN charts and genres, follows an artist and plays libr
 	).toBeDisabled();
 	await page.getByRole('button', { name: 'Play Blue Hour', exact: true }).click();
 	await expect(page.getByRole('heading', { name: 'Blue Hour', exact: true })).toBeVisible();
-	await page.getByRole('button', { name: 'Close player' }).click();
+	await minimizePlayer(page);
 	await page.getByRole('button', { name: 'Play artist radio' }).click();
 	await expect(page.getByRole('heading', { name: 'Silver Skies', exact: true })).toBeVisible();
 	await page.getByRole('button', { name: 'Show play queue' }).click();

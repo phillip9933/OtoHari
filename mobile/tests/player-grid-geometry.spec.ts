@@ -10,14 +10,30 @@ import {
 } from '../src/lib/player/grid';
 import { playerOptions } from '../src/lib/player/layout';
 
-test('preset has a headerless grid, five equal controls and free space for another action', () => {
+test('the starter grid arranges artwork, rating, transport and utility actions', () => {
 	const layout = defaultGridLayout();
 	expect(isPlayerGrid(layout)).toBe(true);
-	expect(layout.some(({ id }) => id === 'player-heading')).toBe(false);
-	expect(layout.filter(({ grid }) => grid.y === 30).map(({ grid }) => grid.w)).toEqual([
-		6, 6, 6, 6, 6
+	expect(layout.find(({ id }) => id === 'player-artwork')?.grid).toEqual({
+		x: 0,
+		y: 0,
+		w: 30,
+		h: 22
+	});
+	expect(layout.filter(({ grid }) => grid.y === 31).map(({ id }) => id)).toEqual([
+		'player-repeat',
+		'player-previous',
+		'player-toggle',
+		'player-next',
+		'player-shuffle'
 	]);
-	expect(emptyGridSpace(layout, 6, 4)).toEqual({ x: 12, y: 36, w: 6, h: 4 });
+	expect(layout.filter(({ grid }) => grid.y === 36).map(({ id }) => id)).toEqual([
+		'player-lyrics',
+		'player-output',
+		'player-queue'
+	]);
+	const rating = layout.find(({ id }) => id === 'player-rating')!;
+	expect(rating.grid.x * 2 + rating.grid.w).toBe(30);
+	expect(emptyGridSpace(layout, 2, 2)).toBeDefined();
 	const play = layout.find(({ id }) => id === 'player-toggle')!;
 	expect(gridFits(play.grid, layout)).toBe(false);
 	expect(gridFits(play.grid, layout, play.id)).toBe(true);

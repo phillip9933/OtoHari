@@ -1,3 +1,4 @@
+import { minimizePlayer } from './fixtures/minimizePlayer';
 import { chooseOption } from './fixtures/inlineChoice';
 import { test, expect, type Page } from '@playwright/test';
 import { seedOfflineMusic } from './fixtures/offlineMusic';
@@ -222,8 +223,7 @@ test('explicit offline Search finds saved metadata, local playlists, actions and
 	await button(page, 'Back to search').click();
 	await scope(page, 'Songs').click();
 	await button(page, 'Play Ámber song 00').click();
-	await expect(button(page, 'Close player')).toBeVisible();
-	await button(page, 'Close player').click();
+	await minimizePlayer(page);
 	await expect(box(page)).toHaveValue('amber');
 	expect(fixture.blocked).toEqual([]);
 	fixture.set('online');

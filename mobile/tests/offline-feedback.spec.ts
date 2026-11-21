@@ -249,11 +249,13 @@ test('airplane edits immediately qualify for a smart playlist and only the origi
 	await page.context().setOffline(true);
 	await button(page, 'Play all').click();
 	await button(page, 'More actions').click();
-	await button(page, 'Remove track from favorites').click();
-	await button(page, 'Rate 5 stars').click();
-	await expect(button(page, 'Favorite track')).toHaveAttribute('aria-pressed', 'false');
-	await button(page, 'Close More actions').click();
-	await button(page, 'Close player').click();
+	const actions = page.getByRole('dialog', { name: 'More actions', exact: true });
+	await actions.getByRole('button', { name: 'Remove track from favorites', exact: true }).click();
+	await actions.getByRole('button', { name: 'Rate 5 stars', exact: true }).click();
+	await expect(
+		actions.getByRole('button', { name: 'Favorite track', exact: true })
+	).toHaveAttribute('aria-pressed', 'false');
+	await actions.getByRole('button', { name: 'Close player', exact: true }).click();
 	await button(page, 'Library').click();
 	await button(page, 'Browse Playlists').click();
 	await expect(page.getByText('No matching playlists.', { exact: true })).toBeVisible();

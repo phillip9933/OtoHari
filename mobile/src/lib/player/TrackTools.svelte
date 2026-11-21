@@ -363,7 +363,7 @@
 			}
 			if (stored && wantFeedback) observed = await trackFeedback(scope, id).catch(() => []);
 			if (!live) return;
-			if (wantFavorite || wantQuality)
+			if (wantQuality || (wantFavorite && !(stored && mode === 'field')))
 				void findTrack().catch((e) => {
 					if (live && !stored) libraryError = errorMessage(e);
 				});

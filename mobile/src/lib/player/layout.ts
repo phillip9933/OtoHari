@@ -165,7 +165,7 @@ export function previousPlayerDefaults(): Section[] {
 		);
 }
 
-export function playerDefaults(): Section[] {
+export function legacyRowDefaults(): Section[] {
 	const body = previousPlayerDefaults().filter(
 		(s) => !['player-sleep', 'player-lyrics', 'player-more'].includes(s.id)
 	);

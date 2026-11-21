@@ -1,3 +1,4 @@
+import { minimizePlayer } from './fixtures/minimizePlayer';
 import { chooseOption } from './fixtures/inlineChoice';
 import { emptyBoardRead } from './fixtures/emptyBoardRead';
 import { expect, test, type Page, type Route } from '@playwright/test';
@@ -135,7 +136,7 @@ for (const issue of [
 			held = route;
 		});
 		await button(page, 'Play Existing').click();
-		await button(page, 'Close player').click();
+		await minimizePlayer(page);
 		await button(page, 'Play all').click();
 		if (issue === 'cancel' || issue === 'navigation' || issue === 'later play') {
 			await expect.poll(() => Boolean(held)).toBe(true);
@@ -145,7 +146,8 @@ for (const issue of [
 			if (issue === 'navigation') await button(page, 'Back to Library').click();
 			if (issue === 'later play') await button(page, 'Play Existing').click();
 			await held!.fulfill({ json: { items: [song('Late'), song('Later')], total: 3, next: null } });
-			if (issue === 'later play') await expect(button(page, 'Close player')).toBeVisible();
+			if (issue === 'later play')
+				await expect(page.getByRole('region', { name: 'Now playing', exact: true })).toBeVisible();
 			else await expect(button(page, 'Open player for Existing')).toBeVisible();
 		} else {
 			const alert = page.getByRole('alert');

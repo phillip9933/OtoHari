@@ -74,6 +74,9 @@ test('editing the queue keeps the current entry and repeat all wraps to the visi
 		'aria-pressed',
 		'true'
 	);
-	await page.locator('[data-part="transport"]').getByRole('button', { name: 'Next track' }).click();
+	await page
+		.getByRole('region', { name: 'Now playing' })
+		.getByRole('button', { name: 'Next track', exact: true })
+		.click();
 	await expect.poll(() => played[3]).toBe('Second');
 });

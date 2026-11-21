@@ -1,3 +1,4 @@
+import { playerWithoutFeedback } from './fixtures/playerWithoutFeedback';
 import { emptyBoardRead } from './fixtures/emptyBoardRead';
 import { expect, test } from '@playwright/test';
 import { fileURLToPath } from 'node:url';
@@ -12,6 +13,7 @@ test('personal history keeps repeated listens and only replays unique local reco
 	page
 }) => {
 	const server = 'https://music.example/dn';
+	await playerWithoutFeedback(page, server, 'owner');
 	const melody = 'f921927a-9dd9-453c-aa4c-431ae00dab84';
 	const track = (title: string, listened_at: string, musicbrainz_id: string | null) => ({
 		kind: 'track' as const,

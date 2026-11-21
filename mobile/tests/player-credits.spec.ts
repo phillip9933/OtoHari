@@ -26,17 +26,17 @@ const track = (i: number) => ({
 });
 const tracks = Array.from({ length: 36 }, (_, i) => track(i));
 async function fixture(page: Page, group = false) {
-	if (group)
-		await page.addInitScript(
-			({ server, user }) => {
-				const ids = ['player-track', 'player-transport'];
-				localStorage.setItem(
-					'dn.mobile.layout.v1.' + JSON.stringify([server, user, 'player']),
-					JSON.stringify(ids.map((id) => ({ id, preview: true, title: '' })))
-				);
-			},
-			{ server, user }
-		);
+	await page.addInitScript(
+		({ server, user, group }) => {
+			const credits = group ? ['player-track'] : ['player-title', 'player-artist', 'player-album'];
+			const ids = ['player-close', ...credits, 'player-transport'];
+			localStorage.setItem(
+				'dn.mobile.layout.v1.' + JSON.stringify([server, user, 'player']),
+				JSON.stringify(ids.map((id) => ({ id, preview: true, title: '' })))
+			);
+		},
+		{ server, user, group }
+	);
 	const reads: string[] = [],
 		audio: string[] = [];
 	await page.route(server + '/api/v3/**', async (route) => {

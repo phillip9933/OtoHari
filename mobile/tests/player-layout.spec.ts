@@ -1,3 +1,4 @@
+import { legacyRowDefaults } from '../src/lib/player/layout';
 import { chooseOption } from './fixtures/inlineChoice';
 import { verticalSwipe } from './fixtures/verticalSwipe';
 import { touchRange } from './fixtures/touchRange';
@@ -218,14 +219,15 @@ test('signal path shows the library source separately from the observed stream, 
 const editorButton = (page: Page, name: string) => page.getByRole('button', { name, exact: true });
 
 async function customize(page: Page, name: string) {
-	await editorButton(page, 'Customize ' + name).click();
+	await editorButton(page, 'Select ' + name).click();
+	await editorButton(page, 'Edit item').click();
 	await expect(page.getByRole('dialog')).toBeVisible();
 }
 
 async function addFeature(page: Page, name: string) {
 	await editorButton(page, 'Add item').click();
 	await page.getByRole('dialog').getByRole('button', { name, exact: true }).click();
-	await expect(page.getByRole('button', { name: 'Customize ' + name, exact: true })).toBeAttached();
+	await expect(page.getByRole('button', { name: 'Select ' + name, exact: true })).toBeAttached();
 	if (await editorButton(page, 'Done').isVisible()) await editorButton(page, 'Done').click();
 }
 
@@ -234,12 +236,20 @@ async function removeField(page: Page, name: string) {
 	await editorButton(page, 'Remove item').click();
 }
 
+async function closeThroughMore(page: Page) {
+	await editorButton(page, 'More actions').click();
+	await page.getByRole('dialog').getByRole('button', { name: 'Close player', exact: true }).click();
+}
+
 async function openEditor(page: Page) {
 	const shortcut = page
 		.locator('[data-part=now-playing]')
 		.getByRole('button', { name: 'Player settings', exact: true });
 	if (await shortcut.isVisible()) await shortcut.click();
-	else {
+	else if (await editorButton(page, 'More actions').isVisible()) {
+		await editorButton(page, 'More actions').click();
+		await editorButton(page, 'Edit player layout').click();
+	} else {
 		const grid = page.locator('[data-part=now-playing]');
 		const area = (await grid.boundingBox())!;
 		await verticalSwipe(
@@ -303,7 +313,7 @@ for (const [surface, palette] of [
 			const lyrics = live.getByRole('button', { name: 'Lyrics', exact: true });
 			await expect(lyrics).toBeVisible();
 			await checkIcons(live);
-			for (const name of ['Lyrics', 'Sleep timer', 'More actions']) {
+			for (const name of ['Lyrics', 'Show play queue', 'More actions']) {
 				const target = (await live.getByRole('button', { name, exact: true }).boundingBox())!;
 				expect(Math.min(target.width, target.height)).toBeGreaterThanOrEqual(44);
 			}
@@ -343,7 +353,7 @@ for (const [surface, palette] of [
 			await live.getByRole('button', { name: 'Hide play queue' }).click();
 			await expect(lyrics).toBeVisible();
 			await page.setViewportSize({ width: 390, height: 844 });
-			await live.getByRole('button', { name: 'Close player' }).click();
+			await closeThroughMore(page);
 			const dock = page.getByRole('navigation', { name: 'Music' });
 			await expect(dock).toHaveCSS('border-top-width', '0px');
 			await expect(dock).not.toHaveCSS('box-shadow', /inset/);
@@ -351,7 +361,7 @@ for (const [surface, palette] of [
 			await expect(dock).toHaveCSS('background-image', surface === 'solid' ? 'none' : /gradient/);
 			await expect(dock).toHaveCSS('backdrop-filter', surface === 'blur' ? 'blur(14px)' : 'none');
 			await page.getByRole('button', { name: 'Open player for Night Train' }).click();
-			await live.getByRole('button', { name: 'Player settings' }).click();
+			await openEditor(page);
 			const sample = page.locator('[data-part="sample-player"]');
 			await expect(sample.locator('button[aria-label="Cast and audio output"]')).toBeVisible();
 			await checkIcons(sample);
@@ -495,7 +505,7 @@ test('a listener saves, cancels and restores the Now Playing grid independently 
 	const button = (name: string) => editorButton(page, name);
 	await openEditor(page);
 	await removeField(page, 'Artwork');
-	await removeField(page, 'Album');
+	await removeField(page, 'Artist');
 	await customize(page, 'Track title');
 	await page.getByLabel('Section title').fill('On the turntable');
 	await button('Done').click();
@@ -533,6 +543,7 @@ test('clearing the grid keeps playback and queue reachable and the listener can 
 	await expect(tiles.first()).toBeVisible();
 	while (await tiles.count()) {
 		await tiles.last().click();
+		await editorButton(page, 'Edit item').click();
 		await editorButton(page, 'Remove item').click();
 	}
 	await editorButton(page, 'Save layout').click();
@@ -552,7 +563,7 @@ test('current track tools rate, favorite and inspect DN audio and save songs whi
 }) => {
 	const calls = await fixture(page);
 	await play(page);
-	expect(calls.lookups).toEqual([]);
+	await expect.poll(() => calls.lookups).toEqual(['Night Train']);
 	await page.getByRole('button', { name: 'Track details for Night Train' }).click();
 	const format = page
 		.getByRole('dialog', { name: 'Track details' })
@@ -562,23 +573,24 @@ test('current track tools rate, favorite and inspect DN audio and save songs whi
 	await expect(format.getByText('44.1 kHz', { exact: true })).toBeVisible();
 	await page.getByRole('button', { name: 'Close Track details' }).click();
 	await page.getByRole('button', { name: 'More actions', exact: true }).click();
-	await page.getByRole('button', { name: 'Favorite track', exact: true }).click();
-	await expect(page.getByRole('button', { name: 'Remove track from favorites' })).toBeVisible();
-	await page.getByRole('button', { name: 'Rate 4 stars' }).click();
-	await expect(page.getByRole('button', { name: 'Rate 4 stars' })).toHaveAttribute(
+	const actions = page.getByRole('dialog', { name: 'More actions' });
+	await actions.getByRole('button', { name: 'Favorite track', exact: true }).click();
+	await expect(actions.getByRole('button', { name: 'Remove track from favorites' })).toBeVisible();
+	await actions.getByRole('button', { name: 'Rate 4 stars' }).click();
+	await expect(actions.getByRole('button', { name: 'Rate 4 stars' })).toHaveAttribute(
 		'aria-pressed',
 		'true'
 	);
 	expect(calls.ratings).toEqual({ t0: 4 });
 	expect(calls.favorites).toEqual({ t0: true });
-	await expect(page.getByRole('button', { name: 'Clear rating' })).toHaveCount(0);
-	await page.getByRole('button', { name: 'Rate 4 stars' }).click();
+	await expect(actions.getByRole('button', { name: 'Clear rating' })).toHaveCount(0);
+	await actions.getByRole('button', { name: 'Rate 4 stars' }).click();
 	await expect.poll(() => calls.ratings.t0).toBe(0);
 	await page.getByRole('button', { name: 'Close More actions' }).click();
 	await page.getByRole('button', { name: 'Lyrics', exact: true }).click();
 	await page.getByRole('button', { name: 'Seek to lyric At the station' }).click();
 	await expect(page.getByRole('slider', { name: 'Playback position' })).toHaveValue('32');
-	expect(calls.lookups).toEqual(['Night Train', 'Night Train']);
+	expect(calls.lookups).toEqual(['Night Train', 'Night Train', 'Night Train']);
 	await page.getByRole('button', { name: 'More actions', exact: true }).click();
 	await page.getByRole('button', { name: 'Add to playlist', exact: true }).click();
 	let dialog = page.getByRole('dialog').last();
@@ -602,7 +614,9 @@ test('current track tools rate, favorite and inspect DN audio and save songs whi
 	await page.getByRole('button', { name: 'Hide play queue' }).click();
 	await expect(page.getByRole('slider', { name: 'Playback position' })).toHaveValue('32');
 	await expect(
-		page.locator('[data-part=transport]').getByRole('button', { name: 'Play', exact: true })
+		page
+			.locator('[data-section-id=player-toggle]')
+			.getByRole('button', { name: 'Play', exact: true })
 	).toBeVisible();
 });
 
@@ -618,6 +632,7 @@ test('a listener sizes independent metadata tiles and saves a live text template
 	await removeField(page, 'Artwork');
 	await customize(page, 'Track title');
 	await page.getByText('Position and size', { exact: true }).click();
+	await page.getByLabel('Column', { exact: true }).fill('1');
 	await page.getByLabel('Width in cells').fill('18');
 	await page.getByLabel('Row', { exact: true }).fill('3');
 	await button('Done').click();
@@ -707,18 +722,19 @@ test('independent queue, favorite and playlist fields control the current DN tra
 	await play(page);
 	const region = page.locator('[data-part=now-playing]'),
 		button = (name: string) => page.getByRole('button', { name, exact: true });
-	await region.getByRole('button', { name: 'Player settings' }).click();
+	await openEditor(page);
 	await removeField(page, 'Artwork');
-	await addFeature(page, 'Track rating');
+	await addFeature(page, 'Audio quality');
 	await customize(page, 'Track rating');
 	await page.getByText('Position and size', { exact: true }).click();
+	await page.getByLabel('Column', { exact: true }).fill('1');
 	await page.getByLabel('Width in cells').fill('30');
 	await button('Done').click();
 	for (const name of ['Add to playlist', 'Offline download', 'Seek bar', 'Duration'])
 		await addFeature(page, name);
 	await button('Save layout').click();
 	const quality = region.locator('[data-section-id=player-quality] [data-part=audio-quality]');
-	await expect(quality).toHaveText('PCM', { useInnerText: true });
+	await expect(quality).toContainText('PCM', { useInnerText: true });
 	await expect(quality).toHaveAttribute('title', 'Lossless · PCM · 16-bit · 8 kHz · 128 kbps');
 	const download = region.locator('[data-section-id=player-download]');
 	await download.getByRole('button', { name: 'Save offline', exact: true }).click();
@@ -778,7 +794,7 @@ test('Android Back discards a sample layout and returns to the empty player from
 	await page.keyboard.press('Escape');
 	await expect(player.getByRole('heading', { name: 'Nothing playing' })).toBeVisible();
 	await player.getByRole('button', { name: 'Player settings' }).click();
-	await expect(page.getByRole('button', { name: 'Customize Artwork', exact: true })).toBeVisible();
+	await expect(page.getByRole('button', { name: 'Select Artwork', exact: true })).toBeVisible();
 	await page.keyboard.press('Escape');
 	await expect(player.getByRole('heading', { name: 'Nothing playing' })).toBeVisible();
 	await page.keyboard.press('Escape');
@@ -873,12 +889,17 @@ test('an older header keeps its control sizes and accessible inspector focus whe
 	await button('Player settings').click();
 	await expect(sample.locator('[data-player-grid]')).toBeVisible();
 	await geometry(sample, 'player-queue', 36);
-	const field = button('Customize Close player');
+	const field = button('Select Close player');
 	await field.focus();
 	await field.press('Enter');
-	await expect(page.getByRole('dialog')).toBeVisible();
+	await expect(field).toHaveAttribute('aria-pressed', 'true');
+	await expect(page.getByRole('dialog')).toBeHidden();
+	const edit = button('Edit item');
+	await edit.focus();
+	await edit.press('Enter');
+	await expect(page.getByRole('dialog', { name: 'Close player' })).toBeVisible();
 	await page.keyboard.press('Escape');
-	await expect(field).toBeFocused();
+	await expect(edit).toBeFocused();
 	await customize(page, 'Player heading');
 	await page.getByText('Position and size', { exact: true }).click();
 	await page.getByLabel('Width in cells').fill('1');
@@ -960,6 +981,11 @@ test('the waveform measures the playing file and its time labels can be chosen i
 test('a counted sleep timer advances once per natural ending and finish-last lets the current song play out', async ({
 	page
 }) => {
+	// This listener placed the timer directly on the player.
+	await page.addInitScript(({ key, layout }) => localStorage.setItem(key, JSON.stringify(layout)), {
+		key: 'dn.mobile.layout.v1.' + JSON.stringify([server, 'alex', 'player']),
+		layout: legacyRowDefaults()
+	});
 	await fixture(page);
 	await play(page);
 	const live = page.locator('[data-part=now-playing]');
@@ -1005,6 +1031,11 @@ test('a counted sleep timer advances once per natural ending and finish-last let
 test('sleep timers pause the browser queue at a wall-clock deadline and before an automatic repeat or next track', async ({
 	page
 }) => {
+	// This listener placed the timer directly on the player.
+	await page.addInitScript(({ key, layout }) => localStorage.setItem(key, JSON.stringify(layout)), {
+		key: 'dn.mobile.layout.v1.' + JSON.stringify([server, 'alex', 'player']),
+		layout: legacyRowDefaults()
+	});
 	await fixture(page);
 	await play(page);
 	const button = (name: string) => page.getByRole('button', { name, exact: true });
@@ -1132,7 +1163,9 @@ test('a clean grid preview preserves the draft, editor scroll and keyboard focus
 	await expect(live.getByRole('heading', { name: 'Night Train' })).toBeVisible();
 	await expect(live.getByRole('heading', { name: 'Draft sleeve' })).toHaveCount(0);
 	await expect(
-		live.locator('[data-part=transport]').getByRole('button', { name: 'Pause', exact: true })
+		live
+			.locator('[data-section-id=player-toggle]')
+			.getByRole('button', { name: 'Pause', exact: true })
 	).toBeVisible();
 	const time = await page.evaluate(
 		() => (window as unknown as { fixtureAudio: HTMLAudioElement }).fixtureAudio.currentTime
@@ -1148,7 +1181,7 @@ test('the clean preview keeps every player tile and Back inside the screen in bo
 	await fixture(page);
 	await play(page);
 	const button = (name: string) => page.getByRole('button', { name, exact: true });
-	await button('Player settings').click();
+	await openEditor(page);
 	await customize(page, 'Playback position');
 	await chooseOption(page.getByLabel('Seek bar style'), 'waveform');
 	await button('Done').click();
@@ -1287,9 +1320,7 @@ test('touch users can fit the player, pull the queue down from a track and dismi
 	async function allRowsFit() {
 		return view.evaluate((root) => {
 			const frame = root.getBoundingClientRect();
-			return [
-				...root.querySelectorAll('[data-part=player-row],[data-part=player-header-row]')
-			].every((row) => {
+			return [...root.querySelectorAll('[data-player-grid] [data-section-id]')].every((row) => {
 				const r = row.getBoundingClientRect();
 				return (
 					r.height > 0 &&
@@ -1439,7 +1470,7 @@ test('Home scrolling, dragging up to Now Playing and reversing a mini-player pul
 	const openPatch = await coverPatch(),
 		playerFrame = await page.screenshot();
 	const expandedY = await screenTop(art);
-	await page.getByRole('button', { name: 'Close player' }).tap();
+	await closeThroughMore(page);
 	await page.getByRole('navigation', { name: 'Music' }).getByRole('button', { name: 'Home' }).tap();
 	const home = page.getByRole('heading', { name: 'Home', exact: true });
 	const main = page.getByRole('main');
@@ -1539,7 +1570,7 @@ test('pulling directly on player controls follows every held position without ac
 	const player = page.locator('[data-panel-layer=player]');
 	const queue = page.locator('[data-panel-layer=queue]');
 	const mini = page.getByRole('region', { name: 'Current track' });
-	await page.getByRole('button', { name: 'Close player' }).tap();
+	await closeThroughMore(page);
 	const touch = await touchRange(page);
 	try {
 		const start = await touch.point(mini.getByRole('button', { name: 'Play', exact: true }));
@@ -1631,7 +1662,7 @@ test('a mini-player queue tap slides, can be caught and held, and finishes at th
 	}, server);
 	await fixture(page);
 	await play(page);
-	await page.getByRole('button', { name: 'Close player' }).tap();
+	await closeThroughMore(page);
 	const open = page.getByRole('button', { name: 'Open play queue', exact: true });
 	const queue = page.locator('[data-panel-layer=queue]');
 	const height = page.viewportSize()!.height;
@@ -2096,7 +2127,7 @@ test('track details distinguish DN source format, actual playback and each devic
 	);
 	await expect(sheet.getByText('File path', { exact: true })).toHaveCount(0);
 	await expect(sheet.getByText('Play count', { exact: true })).toHaveCount(0);
-	expect(calls.lookups).toEqual(['Night Train']);
+	expect(calls.lookups).toEqual(['Night Train', 'Night Train']);
 	const copy = {
 		id: 't0',
 		title: 'Night Train',
@@ -2169,12 +2200,6 @@ test('the saved player grid keeps proportional tiles, fixed and fill icons, lyri
 }) => {
 	const { defaultGridLayout } = await import('../src/lib/player/grid');
 	const gridLayout = defaultGridLayout();
-	gridLayout.push({
-		id: 'player-rating',
-		title: '',
-		preview: true,
-		grid: { x: 12, y: 36, w: 6, h: 4 }
-	});
 	const fill = gridLayout.find((s) => s.id === 'player-next')!;
 	fill.iconMode = 'fill';
 	fill.padding = 5;
@@ -2202,6 +2227,18 @@ test('the saved player grid keeps proportional tiles, fixed and fill icons, lyri
 		{ width: 844, height: 390 }
 	]) {
 		await page.setViewportSize(viewport);
+		const timeline = grid.locator('[data-section-id=player-timeline]');
+		await expect
+			.poll(() =>
+				timeline.evaluate((tile) => {
+					const bounds = tile.getBoundingClientRect();
+					return [...tile.querySelectorAll('time')].every((node) => {
+						const time = node.getBoundingClientRect();
+						return time.top >= bounds.top - 1 && time.bottom <= bounds.bottom + 1;
+					});
+				})
+			)
+			.toBe(true);
 		await expect
 			.poll(async () => grid.evaluate((el) => el.getBoundingClientRect().width))
 			.toBeLessThanOrEqual(viewport.width);
@@ -2219,7 +2256,7 @@ test('the saved player grid keeps proportional tiles, fixed and fill icons, lyri
 					return Math.max(
 						Math.abs(next.width - play.width),
 						Math.abs(next.icon - (Math.min(next.width, next.height) - 10)),
-						Math.abs(play.icon - 34)
+						Math.abs(play.icon - Math.min(42, play.width, play.height))
 					);
 				})
 			)

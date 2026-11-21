@@ -1,3 +1,4 @@
+import { minimizePlayer } from './fixtures/minimizePlayer';
 import { chooseOption } from './fixtures/inlineChoice';
 import { expect, test, type CDPSession, type Page } from '@playwright/test';
 import { fileURLToPath } from 'node:url';
@@ -195,7 +196,7 @@ test('compact player controls fit at 320px and return from the real queue to the
 		.click();
 	await page.getByRole('button', { name: 'Play album', exact: true }).click();
 	const now = page.getByRole('region', { name: 'Now playing' });
-	await now.getByRole('button', { name: 'Close player' }).click();
+	await minimizePlayer(page);
 	const mini = page.getByRole('region', { name: 'Current track' });
 	const dock = page.getByRole('navigation', { name: 'Music' });
 	await expect(mini).toHaveCSS('box-shadow', 'none');
@@ -314,7 +315,7 @@ test('compact player settings follow the listener, persist after sign-in, and co
 		.click();
 	const now = page.getByRole('region', { name: 'Now playing' });
 	await now.getByRole('button', { name: 'Pause', exact: true }).click();
-	await now.getByRole('button', { name: 'Close player' }).click();
+	await minimizePlayer(page);
 	const mini = page.getByRole('region', { name: 'Current track' });
 	await expect(mini.getByRole('button')).toHaveCount(2);
 	await expect(mini.getByRole('button', { name: 'Open player for On device' })).toBeVisible();
@@ -496,7 +497,7 @@ test('artwork and mini-player horizontal swipes change tracks while taps still o
 	const box = (await art.boundingBox())!;
 	await swipe(touch, box.x + box.width * 0.65, box.y + box.height / 2, -85, 4);
 	await expect(now.getByText('Overtones', { exact: true }).first()).toBeVisible();
-	await now.getByRole('button', { name: 'Close player' }).click();
+	await minimizePlayer(page);
 	const openMini = mini.getByRole('button', { name: 'Open player for Overtones' });
 	const b = (await openMini.boundingBox())!;
 	await swipe(touch, b.x + b.width * 0.3, b.y + b.height / 2, 97, 4);
@@ -559,7 +560,7 @@ test('DN conversion and local fades apply to playback through the normal album a
 			.click();
 		await page.getByRole('button', { name: 'Play album', exact: true }).click();
 		await expect(page.getByRole('region', { name: 'Now playing' })).toBeVisible();
-		await page.getByRole('button', { name: 'Close player', exact: true }).click();
+		await minimizePlayer(page);
 		await expect(page.getByRole('navigation', { name: 'Music' })).toBeVisible();
 	}
 	await play();
@@ -653,7 +654,7 @@ test('a queued track uses the new network profile without interrupting the track
 	await expect
 		.poll(() => fixture.streams)
 		.toEqual(['?format=opus&max_bitrate=192', '?format=mp3&max_bitrate=96']);
-	await page.getByRole('button', { name: 'Close player', exact: true }).click();
+	await minimizePlayer(page);
 	await settings(page, 'Streaming and fades');
 	await expect(page.getByText('Connected through cellular data.')).toBeVisible();
 	await page.evaluate(() => window.setFixtureConnection('wifi'));

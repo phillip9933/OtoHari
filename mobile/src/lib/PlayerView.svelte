@@ -2,6 +2,7 @@
 	import { uiText, uiFormat, tr } from './i18n';
 
 	import {
+		ChevronDown,
 		ListMusic,
 		ListPlus,
 		EllipsisVertical,
@@ -296,7 +297,7 @@
 			glyph={$store.playing ? Pause : Play}
 			label={$store.playing ? uiText('Pause') : uiText('Play')}
 			size={36}
-			fill
+			fill={$store.playing || section?.icon !== 'play'}
 			playback={$store.playing ? 'pause' : 'play'}
 		/>
 	</button>
@@ -980,6 +981,15 @@
 								onsettings?.();
 							}}><SlidersHorizontal />{uiText('Edit player layout')}</button
 						>{/if}
+					<button
+						class="sheet-action"
+						onclick={() => {
+							sheet = null;
+							oncollapse();
+						}}
+					>
+						<ChevronDown />{uiText('Close player')}
+					</button>
 				</div>
 			{/if}
 		</PlayerSheet>

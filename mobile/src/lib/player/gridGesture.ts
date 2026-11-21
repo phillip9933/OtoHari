@@ -129,3 +129,78 @@ export function gridGesture(node: HTMLElement, events: Gesture) {
 		}
 	};
 }
+
+export const MAX_GRID_ZOOM = 3;
+
+export function gridZoom(stage: HTMLElement, onZoom: (scale: number) => void) {
+	const player = stage.querySelector<HTMLElement>('[data-part="sample-player"]')!;
+	let scale = 1;
+	let pinching = false;
+	let pinch: { distance: number; scale: number; x: number; y: number } | undefined;
+	function anchorAt(x: number, y: number) {
+		const bounds = player.getBoundingClientRect();
+		return { x: (x - bounds.left) / bounds.width, y: (y - bounds.top) / bounds.height };
+	}
+	function position(next: number, anchor: { x: number; y: number }, x: number, y: number) {
+		const limited = Math.min(MAX_GRID_ZOOM, Math.max(1, next));
+		if (limited !== scale) {
+			scale = limited;
+			stage.style.setProperty('--grid-zoom', String(scale));
+			onZoom(scale);
+		}
+		const bounds = player.getBoundingClientRect();
+		stage.scrollLeft += bounds.left + anchor.x * bounds.width - x;
+		stage.scrollTop += bounds.top + anchor.y * bounds.height - y;
+	}
+	function touchesInGrid(event: TouchEvent) {
+		return [...event.touches].filter((touch) => stage.contains(touch.target as Node));
+	}
+	function fingers(event: TouchEvent) {
+		const touches = touchesInGrid(event);
+		if (touches.length !== 2) return;
+		const [a, b] = touches;
+		return {
+			x: (a.clientX + b.clientX) / 2,
+			y: (a.clientY + b.clientY) / 2,
+			distance: Math.max(1, Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY))
+		};
+	}
+	function start(event: TouchEvent) {
+		const pair = fingers(event);
+		if (!pair) return;
+		if (event.cancelable) event.preventDefault();
+		pinching = true;
+		pinch = { ...anchorAt(pair.x, pair.y), scale, distance: pair.distance };
+	}
+	function move(event: TouchEvent) {
+		if (!pinching) return;
+		if (event.cancelable) event.preventDefault();
+		const pair = fingers(event);
+		if (pair && pinch)
+			position((pinch.scale * pair.distance) / pinch.distance, pinch, pair.x, pair.y);
+	}
+	function end(event: TouchEvent) {
+		if (!pinching) return;
+		if (event.cancelable) event.preventDefault();
+		pinch = undefined;
+		if (!touchesInGrid(event).length) pinching = false;
+		else start(event);
+	}
+	const listeners = new AbortController();
+	const options = { signal: listeners.signal, passive: false };
+	stage.addEventListener('touchstart', start, options);
+	stage.addEventListener('touchmove', move, options);
+	stage.addEventListener('touchend', end, options);
+	stage.addEventListener('touchcancel', end, options);
+	return {
+		set(next: number) {
+			const bounds = stage.getBoundingClientRect();
+			const x = bounds.left + bounds.width / 2,
+				y = bounds.top + bounds.height / 2;
+			position(next, anchorAt(x, y), x, y);
+		},
+		destroy() {
+			listeners.abort();
+		}
+	};
+}

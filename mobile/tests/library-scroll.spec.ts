@@ -1,3 +1,4 @@
+import { playerWithoutFeedback } from './fixtures/playerWithoutFeedback';
 import { chooseOption } from './fixtures/inlineChoice';
 import { test, expect, type Page } from '@playwright/test';
 import { fileURLToPath } from 'node:url';
@@ -69,6 +70,7 @@ test('the alphabet jumps across opaque pages and stays available for downloaded 
 	await expect(button(page, 'Zen 00090')).toBeInViewport();
 });
 async function connect(page: Page, size = 3025) {
+	await playerWithoutFeedback(page, server, 'listener');
 	const requests: URL[] = [],
 		streams: string[] = [];
 	let fail = 0;
@@ -258,7 +260,7 @@ test('a long scrolling and selecting session mounts a bounded number of track ro
 	await expect(button(page, 'Play Track 02385')).toBeVisible();
 	const offset = await main.evaluate((m) => m.scrollTop);
 	await button(page, 'Play Track 02385').click();
-	await expect(button(page, 'Close player')).toBeVisible();
+	await expect(page.getByRole('region', { name: 'Now playing', exact: true })).toBeVisible();
 	await expect.poll(() => s.streams[0]).toBe('f2385');
 	await button(page, 'Show play queue').click();
 	await expect(page.locator('[data-part=play-queue] strong')).toContainText(['Track 02385']);

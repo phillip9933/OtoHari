@@ -1,3 +1,4 @@
+import { minimizePlayer } from './fixtures/minimizePlayer';
 import { test, expect, type Page } from '@playwright/test';
 import { localSignIn } from './fixtures/localSignIn';
 import { seedOfflineMusic } from './fixtures/offlineMusic';
@@ -210,8 +211,7 @@ test('offline custom shelves honor exact geometry and membership, play local mus
 	await expect(button(page, 'Play Night')).toBeVisible();
 	await expect(button(page, 'Play Bird')).toHaveCount(0);
 	await button(page, 'Play Glow').click();
-	await expect(button(page, 'Close player')).toBeVisible();
-	await button(page, 'Close player').click();
+	await minimizePlayer(page);
 	await page.keyboard.press('Escape');
 	await button(page, 'Browse Five stars').click();
 	const expanded = page.locator('[data-collection=expanded]');

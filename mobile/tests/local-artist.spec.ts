@@ -1,3 +1,4 @@
+import { minimizePlayer } from './fixtures/minimizePlayer';
 import { chooseOption } from './fixtures/inlineChoice';
 import { emptyBoardRead } from './fixtures/emptyBoardRead';
 import { fileURLToPath } from 'node:url';
@@ -152,7 +153,7 @@ test('a local artist links credited songs, paginated guest appearances and the D
 	expect((await header.boundingBox())!.height).toBeLessThan(125);
 	await page.getByRole('button', { name: 'Play artist', exact: true }).click();
 	await expect(page.getByRole('heading', { name: 'After Hours', exact: true })).toBeVisible();
-	await page.getByRole('button', { name: 'Close player' }).click();
+	await minimizePlayer(page);
 	const view = page.getByLabel('Artist library view');
 	await chooseOption(view, 'appearances');
 	await page
@@ -202,7 +203,7 @@ test('a local artist links credited songs, paginated guest appearances and the D
 	).toBeVisible();
 	await page.getByRole('button', { name: 'Play After Hours', exact: true }).click();
 	await expect(page.getByRole('heading', { name: 'After Hours', exact: true })).toBeVisible();
-	await page.getByRole('button', { name: 'Close player' }).click();
+	await minimizePlayer(page);
 	await expect(view).toHaveAttribute('data-value', 'songs');
 	expect(read).toContain('later appearances');
 	await artistMenu.click();

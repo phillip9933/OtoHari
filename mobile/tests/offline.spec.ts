@@ -1,3 +1,4 @@
+import { minimizePlayer } from './fixtures/minimizePlayer';
 import { chooseOption } from './fixtures/inlineChoice';
 import { expect, test, type Page } from '@playwright/test';
 import { emptyBoardRead } from './fixtures/emptyBoardRead';
@@ -129,7 +130,7 @@ test('saved music survives a new app session, stays private to a listener and pl
 		.poll(() => playing.getByRole('slider', { name: 'Playback position' }).inputValue())
 		.not.toBe('0');
 	expect(env.streams()).toBe(2);
-	await playing.getByRole('button', { name: 'Close player' }).click();
+	await minimizePlayer(page);
 	await offlineView.getByRole('button', { name: 'Select songs' }).click();
 	await offlineView.getByRole('button', { name: 'Select all' }).click();
 	await offlineView.getByRole('button', { name: 'Remove selected' }).click();
@@ -157,7 +158,7 @@ test('completed playback can be cached, pinned and cleared independently of save
 	await page.getByRole('button', { name: 'Play album', exact: true }).click();
 	const playing = page.getByRole('region', { name: 'Now playing' });
 	await playing.getByRole('button', { name: 'Pause', exact: true }).click();
-	await playing.getByRole('button', { name: 'Close player' }).click();
+	await minimizePlayer(page);
 	await offline(page);
 	await page.getByRole('button', { name: 'Playback cache', exact: true }).click();
 	await page.getByRole('button', { name: 'Keep Held over offline', exact: true }).click();
@@ -173,7 +174,7 @@ test('completed playback can be cached, pinned and cleared independently of save
 	await album(page);
 	await page.getByRole('button', { name: 'Play Platform lights', exact: true }).click();
 	await playing.getByRole('button', { name: 'Pause', exact: true }).click();
-	await playing.getByRole('button', { name: 'Close player' }).click();
+	await minimizePlayer(page);
 	await options(page);
 	await page.getByRole('button', { name: 'Clear playback cache', exact: true }).click();
 	await page.getByRole('button', { name: 'Confirm clear cache', exact: true }).click();

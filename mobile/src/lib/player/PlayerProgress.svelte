@@ -77,7 +77,7 @@
 	}
 </script>
 
-<div class="progress" data-seek-style={style} data-part="playback-bar">
+<div class="progress" class:grid={!!section?.grid} data-seek-style={style} data-part="playback-bar">
 	<div
 		class="rail"
 		class:animated={style === 'animated'}
@@ -165,6 +165,9 @@
 		height: clamp(24px, 3.4dvh, 34px);
 		display: flex;
 		align-items: center;
+	}
+	.grid:has(.times) .rail {
+		max-height: max(4px, calc(100cqh - 2 * var(--field-padding, 0px) - 0.9rem));
 	}
 	.rail:focus-within {
 		outline: 2px solid var(--accent);

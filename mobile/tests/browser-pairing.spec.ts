@@ -1,3 +1,4 @@
+import { minimizePlayer } from './fixtures/minimizePlayer';
 import { chooseOption } from './fixtures/inlineChoice';
 import { expect, test as base, type Page } from '@playwright/test';
 import { touchRange } from './fixtures/touchRange';
@@ -474,7 +475,7 @@ test('a download notification waits for browser sign-in and opens Offline music 
 	await expect(page.getByRole('region', { name: 'Now playing' })).toBeVisible();
 
 	// A warm tap leaves the restored song paused and takes the listener out of Settings.
-	await page.getByRole('button', { name: 'Close player', exact: true }).click();
+	await minimizePlayer(page);
 	await page.getByRole('button', { name: 'Settings', exact: true }).click();
 	await expect(heading('Settings')).toBeVisible();
 	await page.evaluate(() => {
@@ -541,7 +542,7 @@ test('the chosen start screen works offline and opens a restored song without st
 	await expect(player.getByText('Night service', { exact: true }).first()).toBeVisible();
 	await expect(player.getByRole('button', { name: 'Play', exact: true })).toBeVisible();
 	expect(await page.evaluate(() => sessionStorage.getItem('toggled-playback'))).toBeNull();
-	await player.getByRole('button', { name: 'Close player' }).click();
+	await minimizePlayer(page);
 	await expect(heading('Library')).toBeVisible();
 	await openInterface();
 	await chooseOption(start, 'library');

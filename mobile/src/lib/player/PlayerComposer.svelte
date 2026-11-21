@@ -1,6 +1,17 @@
 <script lang="ts">
 	import { onMount, tick, untrack } from 'svelte';
-	import { ArrowLeft, Check, Eye, Maximize2, Pencil, Plus, Redo2, Undo2 } from '@lucide/svelte';
+	import {
+		ArrowLeft,
+		Check,
+		Eye,
+		Maximize2,
+		Pencil,
+		Plus,
+		Redo2,
+		Undo2,
+		ZoomIn,
+		ZoomOut
+	} from '@lucide/svelte';
 	import { tr, uiText } from '../i18n';
 	import { available, sectionTitle, type Section } from '../boards/layout';
 	import PlayerView from '../PlayerView.svelte';
@@ -28,7 +39,7 @@
 		type GridRect,
 		type GridSection
 	} from './grid';
-	import { gridGesture } from './gridGesture';
+	import { gridGesture, gridZoom, MAX_GRID_ZOOM } from './gridGesture';
 	import type { PlayerDraft } from './playerDraft';
 
 	let {
@@ -54,12 +65,13 @@
 		future = $state.raw<GridSection[][]>([]);
 	let group: Element | null = null;
 	let stage: HTMLDivElement;
+	let zoom = $state(1);
+	let zoomControls: ReturnType<typeof gridZoom>;
 	let anchor: HTMLElement | null = null;
 	let previewButton: HTMLButtonElement;
 	let templateInput = $state<HTMLTextAreaElement>(null!);
 	let query = $state(''),
-		splitFrom = $state(''),
-		geometryOpen = $state(false);
+		splitFrom = $state('');
 	let space = $derived(
 		emptyGridSpace(items, 6, 4) ?? emptyGridSpace(items, 4, 2) ?? emptyGridSpace(items)
 	);
@@ -149,11 +161,9 @@
 		if (!field) return;
 		commit(items.map((s) => (s.id === selected ? { ...s, ...patch } : s)));
 	}
-	function inspect(id: string, from?: HTMLElement, size = false) {
-		selected = id;
-		anchor = from ?? null;
+	function inspect(from: HTMLElement) {
+		anchor = from;
 		group = null;
-		geometryOpen = size;
 		message = '';
 		panel = 'edit';
 	}
@@ -485,6 +495,9 @@
 			closePanel();
 	}
 	onMount(() => {
+		zoomControls = gridZoom(stage, (scale) => {
+			zoom = scale;
+		});
 		function back(e: Event) {
 			if (e.defaultPrevented) return;
 			if (preview) closePreview();
@@ -513,6 +526,7 @@
 		window.addEventListener('dn-back', back);
 		window.addEventListener('keydown', shortcut);
 		return () => {
+			zoomControls.destroy();
 			window.removeEventListener('dn-back', back);
 			window.removeEventListener('keydown', shortcut);
 		};
@@ -560,20 +574,20 @@
 				class:selected={selected === s.id}
 				data-grid-handle="move"
 				data-field-id={s.id}
-				aria-label={uiText('Customize') + ' ' + sectionTitle(s)}
+				aria-label={uiText('Select') + ' ' + sectionTitle(s)}
 				aria-pressed={selected === s.id}
-				onclick={(e) => inspect(s.id, e.currentTarget)}
+				onclick={() => {
+					selected = s.id;
+					message = '';
+				}}
 				onkeydown={(e) => arrow(e, s)}
-			></button>
-			{#if selected === s.id}
-				<button
-					class="corner"
-					data-grid-handle="resize"
-					data-field-id={s.id}
-					aria-label={uiText('Resize') + ' ' + sectionTitle(s)}
-					onclick={(e) => inspect(s.id, e.currentTarget, true)}><Maximize2 size={12} /></button
-				>
-			{/if}
+			>
+				{#if selected === s.id}
+					<span class="corner" data-grid-handle="resize" data-field-id={s.id} aria-hidden="true">
+						<Maximize2 size={12} />
+					</span>
+				{/if}
+			</button>
 		{/if}
 	{/snippet}
 	{#snippet gridOverlay()}
@@ -591,29 +605,48 @@
 		{/if}
 	{/snippet}
 	<div class="stage" bind:this={stage} use:fitDraft use:gridGesture={{ begin, move, end }}>
-		<PlayerView
-			session={sampleSession}
-			expanded={true}
-			onexpand={() => {}}
-			oncollapse={() => {}}
-			onerror={() => {}}
-			editor={{ sections: draft, selected, overlay, gridOverlay }}
-		/>
+		<div class="zoom-surface">
+			<PlayerView
+				session={sampleSession}
+				expanded={true}
+				onexpand={() => {}}
+				oncollapse={() => {}}
+				onerror={() => {}}
+				editor={{ sections: draft, selected, overlay, gridOverlay }}
+			/>
+		</div>
 	</div>
 	<div class="tools">
 		<button disabled={!space} onclick={(e) => pick(e.currentTarget)}
 			><Plus size={17} />{uiText('Add item')}</button
 		>
-		<button disabled={!field} onclick={(e) => inspect(selected, e.currentTarget)}
+		<button disabled={!field} onclick={(e) => inspect(e.currentTarget)}
 			><Pencil size={15} />{uiText('Edit item')}</button
 		>
+		<div class="zoom-tools" role="group" aria-label={tr('Grid zoom', 'グリッドのズーム')}>
+			<button
+				aria-label={tr('Zoom out', '縮小')}
+				disabled={zoom <= 1}
+				onclick={() => zoomControls.set(zoom - 0.5)}><ZoomOut size={17} /></button
+			>
+			<button
+				class="zoom-level"
+				aria-label={tr('Fit grid to screen', 'グリッドを画面に合わせる')}
+				onclick={() => zoomControls.set(1)}>{Math.round(zoom * 100)}%</button
+			>
+			<button
+				aria-label={tr('Zoom in', '拡大')}
+				disabled={zoom >= MAX_GRID_ZOOM}
+				onclick={() => zoomControls.set(zoom + 0.5)}><ZoomIn size={17} /></button
+			>
+		</div>
 	</div>
 	<p class="hint" role="status">
 		{message ||
 			(space
 				? tr(
-						'Hold to move · Drag the corner to resize',
-						'長押しで移動 · 角をドラッグしてサイズ変更'
+						'Pinch to zoom · Hold to move · Drag the corner to resize',
+						'ピンチで拡大縮小 · 長押しで移動 · 角をドラッグしてサイズ変更'
 					)
 				: tr(
 						'Grid full · Resize or split a tile to make room',
@@ -726,7 +759,7 @@
 						oninput={(e) => modify({ title: e.currentTarget.value })}
 					/></label
 				>
-				<details bind:open={geometryOpen}>
+				<details>
 					<summary>{tr('Position and size', '位置とサイズ')}</summary>
 					<div class="coordinates">
 						{#each [['x', tr('Column', '列'), GRID_COLUMNS], ['y', tr('Row', '行'), GRID_ROWS], ['w', tr('Width in cells', '幅（マス）'), GRID_COLUMNS], ['h', tr('Height in cells', '高さ（マス）'), GRID_ROWS]] as [key, label, max] (key)}
@@ -853,7 +886,20 @@
 		width: 100%;
 		flex: 0 1 54rem;
 		min-height: 16rem;
-		overflow: hidden;
+		overflow: auto;
+		overflow-anchor: none;
+		scrollbar-width: none;
+		touch-action: pan-x pan-y;
+		--canvas-scale: calc(var(--draft-scale, 1) * var(--grid-zoom, 1));
+	}
+	.stage::-webkit-scrollbar {
+		display: none;
+	}
+	.zoom-surface {
+		position: relative;
+		overflow: clip;
+		width: max(100%, calc(var(--draft-width, 100%) * var(--canvas-scale)));
+		height: max(100%, calc(var(--draft-height, 100%) * var(--canvas-scale)));
 	}
 	.stage :global([data-part='sample-player']),
 	.preview-stage :global([data-part='draft-player']) {
@@ -864,7 +910,7 @@
 		height: var(--draft-height, 100%);
 		min-height: 0;
 		max-height: none;
-		transform: translate(-50%, -50%) scale(var(--draft-scale, 1));
+		transform: translate(-50%, -50%) scale(var(--canvas-scale, var(--draft-scale, 1)));
 	}
 	.stage :global([data-player-grid]) {
 		outline: 1px solid var(--line);
@@ -902,7 +948,7 @@
 		border: 0;
 		border-radius: 4px;
 		user-select: none;
-		touch-action: pan-y;
+		touch-action: pan-x pan-y;
 	}
 	.hit.selected,
 	.hit:focus-visible {
@@ -913,11 +959,13 @@
 		outline-offset: -4px;
 	}
 	.corner {
+		display: grid;
+		place-items: center;
 		position: absolute;
 		z-index: 3;
 		inset: auto 0 0 auto;
-		width: min(45%, calc(23px / var(--draft-scale, 1)));
-		height: min(45%, calc(23px / var(--draft-scale, 1)));
+		width: min(45%, calc(23px / var(--canvas-scale, 1)));
+		height: min(45%, calc(23px / var(--canvas-scale, 1)));
 		min-width: 0;
 		min-height: 0;
 		padding: 0;
@@ -960,7 +1008,7 @@
 	}
 	.tools {
 		display: grid;
-		grid-template-columns: 1fr 1fr;
+		grid-template-columns: 1fr 1fr auto;
 	}
 	.tools button,
 	.saves button {
@@ -970,9 +1018,24 @@
 		gap: 0.45rem;
 		min-height: 2.6rem;
 	}
-	.tools button:first-child {
+	.tools > button:first-child {
 		background: color-mix(in srgb, var(--accent) 14%, var(--surface));
 		color: var(--accent);
+	}
+	.zoom-tools {
+		display: flex;
+		align-items: center;
+	}
+	.zoom-tools button {
+		min-width: 2rem;
+		padding: 0.2rem;
+		border: 0;
+		background: transparent;
+		box-shadow: none;
+	}
+	.zoom-level {
+		font-size: 0.76rem;
+		font-variant-numeric: tabular-nums;
 	}
 	.hint,
 	.note {

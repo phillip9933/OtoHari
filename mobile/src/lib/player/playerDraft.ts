@@ -1,6 +1,6 @@
 import { hasSavedPlayerLayout, type Section } from '../boards/layout';
 import { defaultGridLayout, isPlayerGrid, editablePlayerGrid, emptyPlayerTile } from './grid';
-import { previousPlayerDefaults } from './layout';
+import { legacyRowDefaults, previousPlayerDefaults } from './layout';
 import { packPlayerCanvas, playerCanvas } from './composition';
 import { exportPlayerStyle, importPlayerStyle } from './playerStyle';
 
@@ -55,7 +55,8 @@ export async function openPlayerDraft(
 	let db: IDBDatabase | undefined;
 	const owned = new Set<IDBValidKey>();
 	try {
-		baseline = snapshot(saved);
+		// Keep the baseline for an unsaved account stable across starter layout changes.
+		baseline = snapshot(explicit ? saved : legacyRowDefaults());
 		initialFingerprint = exportPlayerStyle(baseGrid, 'compact');
 		previous = initialFingerprint;
 		db = await database();

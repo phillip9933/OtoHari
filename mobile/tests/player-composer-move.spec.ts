@@ -103,8 +103,8 @@ function item(id: string, x: number, y: number, w: number, h: number): Section {
 }
 async function inspect(page: Page, name: string) {
 	const button = (name: string) => page.getByRole('button', { name, exact: true });
-	await button('Customize ' + name).click();
-	if (!(await page.getByRole('dialog').isVisible())) await button('Edit item').click();
+	await button('Select ' + name).click();
+	await button('Edit item').click();
 	return page.getByRole('dialog');
 }
 function tile(page: Page, id: string) {
@@ -120,6 +120,30 @@ async function position(page: Page, id: string): Promise<GridRect> {
 		h: Math.round((rect.height * GRID_ROWS) / canvas.height)
 	};
 }
+
+test('tapping tiles changes the selection and opens details only through Edit item', async ({
+	page
+}) => {
+	const { button } = await startComposer(page, [
+		item('title', 0, 0, 20, 7),
+		item('artist', 0, 7, 20, 7)
+	]);
+	const title = button('Select Track title');
+	const artist = button('Select Artist');
+	const dialog = page.getByRole('dialog');
+	await title.tap();
+	await artist.tap();
+	await expect(artist).toHaveAttribute('aria-pressed', 'true');
+	await expect(title).toHaveAttribute('aria-pressed', 'false');
+	await expect(dialog).toBeHidden();
+	await artist.tap();
+	await expect(dialog).toBeHidden();
+	await expect(button('Undo layout edit')).toBeDisabled();
+	await button('Edit item').tap();
+	await expect(dialog.getByRole('heading', { name: 'Artist', exact: true })).toBeVisible();
+	await button('Done').tap();
+	await expect(artist).toHaveAttribute('aria-pressed', 'true');
+});
 
 test('a held touch moves a tile and undo and redo restore its snapped coordinates', async ({
 	page
@@ -177,9 +201,8 @@ test('resizing a tile leaves its neighbors in place and preview uses the same gr
 		item('toggle', 0, 5, 3, 4),
 		item('next', 10, 5, 3, 4)
 	]);
-	await button('Customize Play or pause').click();
-	await button('Done').click();
-	const handle = button('Resize Play or pause');
+	await button('Select Play or pause').click();
+	const handle = tile(page, 'toggle').locator('[data-grid-handle=resize]');
 	await handle.scrollIntoViewIfNeeded();
 	const h = (await handle.boundingBox())!,
 		canvas = (await page.locator('[data-player-grid]').boundingBox())!;
@@ -187,7 +210,9 @@ test('resizing a tile leaves its neighbors in place and preview uses the same gr
 		y = h.y + h.height / 2;
 	expect(
 		await page.evaluate(
-			({ x, y }) => document.elementFromPoint(x, y)?.closest('button')?.dataset.gridHandle,
+			({ x, y }) =>
+				document.elementFromPoint(x, y)?.closest<HTMLElement>('[data-grid-handle]')?.dataset
+					.gridHandle,
 			{ x, y }
 		)
 	).toBe('resize');

@@ -1,3 +1,4 @@
+import { minimizePlayer } from './fixtures/minimizePlayer';
 import { expect, test } from '@playwright/test';
 import { localSignIn } from './fixtures/localSignIn';
 import { emptyBoardRead } from './fixtures/emptyBoardRead';
@@ -134,8 +135,7 @@ test('a saved artist mix and a station can be pinned, reordered and used after r
 			{ artist_mbid: second, artist_name: 'Aurelia' }
 		]
 	});
-	await expect(page.getByRole('button', { name: 'Close player' })).toBeVisible();
-	await page.getByRole('button', { name: 'Close player' }).click();
+	await minimizePlayer(page);
 	await seedOfflineMusic(page, server, 'listener', true, [
 		{
 			origin: 'downloaded',

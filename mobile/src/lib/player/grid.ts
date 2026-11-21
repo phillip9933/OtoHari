@@ -67,7 +67,7 @@ export function gridIconSize(id: string): number {
 	return id === 'player-toggle' ? 34 : 22;
 }
 
-// Keep the five transport buttons equal and leave an available tile in the utility row.
+// Inset the controls while letting the cover reach both sides of the player.
 export function defaultGridLayout(): GridSection[] {
 	const tile = (
 		name: string,
@@ -84,19 +84,19 @@ export function defaultGridLayout(): GridSection[] {
 		grid: { x, y, w, h }
 	});
 	return [
-		tile('artwork', 0, 0, 30, 18),
-		tile('title', 0, 18, 24, 2, { padding: 3, maxLines: 1 }),
-		tile('artist', 0, 20, 24, 2, { padding: 3, maxLines: 1 }),
-		tile('favorite', 24, 18, 6, 4, { padding: 4 }),
-		tile('album', 0, 22, 18, 2, { padding: 3, maxLines: 1 }),
-		tile('quality', 18, 22, 12, 2, { padding: 3 }),
-		tile('timeline', 0, 24, 30, 6, { padding: 3 }),
-		...['shuffle', 'previous', 'toggle', 'next', 'repeat'].map((id, i) =>
-			tile(id, i * 6, 30, 6, 6, { padding: 4 })
-		),
-		...['lyrics', 'output', 'queue', 'more'].map((id, i) =>
-			tile(id, [0, 6, 18, 24][i], 36, 6, 4, { padding: 4 })
-		)
+		tile('artwork', 0, 0, 30, 22),
+		tile('title', 2, 22, 19, 2, { maxLines: 1 }),
+		tile('artist', 2, 24, 19, 2, { maxLines: 1 }),
+		tile('favorite', 21, 22, 4, 3),
+		tile('more', 25, 22, 4, 3),
+		tile('timeline', 2, 26, 26, 3),
+		tile('rating', 6, 29, 18, 2, { iconSize: 24 }),
+		tile('repeat', 0, 31, 6, 5, { iconSize: 18 }),
+		tile('previous', 6, 31, 6, 5, { iconSize: 28 }),
+		tile('toggle', 12, 31, 6, 5, { icon: 'play', iconSize: 42 }),
+		tile('next', 18, 31, 6, 5, { iconSize: 28 }),
+		tile('shuffle', 24, 31, 6, 5, { iconSize: 18 }),
+		...['lyrics', 'output', 'queue'].map((id, i) => tile(id, 3 + i * 8, 36, 8, 4))
 	];
 }
 

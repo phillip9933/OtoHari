@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
 import type { Section } from '../src/lib/boards/layout';
 import { GRID_ROWS, gridFits, toPlayerGrid } from '../src/lib/player/grid';
-import { playerDefaults } from '../src/lib/player/layout';
+import { legacyRowDefaults } from '../src/lib/player/layout';
 import {
 	expandLegacyTrack,
 	flattenPlayerRows,
@@ -42,7 +42,7 @@ test('player slots, independent metadata and field options survive layout transf
 			flattenPlayerRows([Array.from({ length: 7 }, (_, i) => cell('player-slot-' + (i + 1)))])
 		).map((r) => r.length)
 	).toEqual([6, 1]);
-	expect(playerDefaults().map((s) => s.id)).toContain('player-album');
+	expect(legacyRowDefaults().map((s) => s.id)).toContain('player-album');
 	expect(expandLegacyTrack([cell('player-track', { preview: false })]).map((s) => s.id)).toEqual([
 		'player-title',
 		'player-artist'

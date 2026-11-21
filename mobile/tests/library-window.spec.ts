@@ -1,3 +1,4 @@
+import { playerWithoutFeedback } from './fixtures/playerWithoutFeedback';
 import { expect, test, type Page, type Route } from '@playwright/test';
 import { silentWav } from './fixtures/silentWav';
 import { emptyBoardRead } from './fixtures/emptyBoardRead';
@@ -32,6 +33,7 @@ async function setup(
 	shuffle: boolean,
 	load?: (route: Route, n: number) => Promise<void>
 ) {
+	await playerWithoutFeedback(page, origin, 'owner');
 	const after: string[] = [],
 		played: string[] = [];
 	await page.addInitScript(() => {

@@ -31,7 +31,8 @@ function tiles(page: Page) {
 	return page.locator('[data-player-grid] [data-section-id]');
 }
 async function remove(page: Page, name = 'Artwork') {
-	await page.getByRole('button', { name: 'Customize ' + name, exact: true }).click();
+	await page.getByRole('button', { name: 'Select ' + name, exact: true }).click();
+	await page.getByRole('button', { name: 'Edit item', exact: true }).click();
 	await page.getByRole('button', { name: 'Remove item', exact: true }).click();
 }
 
@@ -94,7 +95,7 @@ test('failed layout saves retain the recoverable draft and a newer saved layout 
 	await expect(rows).toHaveCount(initial - 1);
 	await page.evaluate((k) => localStorage.setItem(k, '[]'), saved);
 	await edit(page);
-	await expect(page.getByRole('button', { name: 'Customize Artwork', exact: true })).toHaveCount(0);
+	await expect(page.getByRole('button', { name: 'Select Artwork', exact: true })).toHaveCount(0);
 	await expect(page.getByText('Recovered your unsaved layout.')).toHaveCount(0);
 });
 

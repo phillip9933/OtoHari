@@ -1,11 +1,28 @@
 import type { Route } from '@playwright/test';
 
-// Strict feature fixtures can serve other visible board shelves after their own routes.
-export async function emptyBoardRead(route: Route) {
+export async function emptyTrackRating(route: Route) {
 	const req = route.request();
-	if (req.method() !== 'GET') return false;
+	if (req.method() !== 'POST' || !new URL(req.url()).pathname.endsWith('/api/v3/ratings/lookup'))
+		return false;
+	const body = req.postDataJSON();
+	if (
+		Object.keys(body).length !== 1 ||
+		!Array.isArray(body.track_ids) ||
+		body.track_ids.length !== 1 ||
+		typeof body.track_ids[0] !== 'string'
+	)
+		return false;
+	await route.fulfill({ json: { tracks: {}, albums: {}, artists: {} } });
+	return true;
+}
+
+// Strict feature fixtures serve other visible shelves and player feedback after their own routes.
+export async function emptyBoardRead(route: Route) {
+	if (await emptyTrackRating(route)) return true;
+	const req = route.request();
 	const path = new URL(req.url()).pathname.split('/api/v3/')[1];
 	if (!path) return false;
+	if (req.method() !== 'GET') return false;
 	if (
 		/^(library\/(artists|albums)\/[^/]+\/artwork|covers\/(artist|release-group)\/[^/]+)$/.test(path)
 	) {

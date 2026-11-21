@@ -5,6 +5,7 @@ import { getJson, type Session } from '../connection';
 import { discoveryWidgets, defaultDiscoveryWidgets } from '../catalog/discoveryWidgets';
 import { libraryWidgets } from '../catalog/libraryWidgets';
 import {
+	defaultGridLayout,
 	isPlayerGrid,
 	PLAYER_GRID_VERSION,
 	upgradeV2GridRect,
@@ -15,7 +16,6 @@ import {
 	playerMeasurements,
 	validMeasurement,
 	playerWidgets,
-	playerDefaults,
 	playerFields,
 	isNavigation,
 	isPlayerIcon,
@@ -90,7 +90,7 @@ export function sectionTitle(section: Section) {
 }
 
 export function defaults(board: LayoutTarget): Section[] {
-	if (board === 'player') return playerDefaults();
+	if (board === 'player') return defaultGridLayout();
 	const ids =
 		board === 'home'
 			? ['library-recently-added', 'library-recently-played', 'discover-top_picks']
