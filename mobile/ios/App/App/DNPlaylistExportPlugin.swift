@@ -4,7 +4,7 @@ import UIKit
 @objc(DNPlaylistExportPlugin)
 public final class DNPlaylistExportPlugin: CAPPlugin, CAPBridgedPlugin, UIDocumentPickerDelegate, UIAdaptivePresentationControllerDelegate {
     public let identifier = "DNPlaylistExportPlugin", jsName = "DNPlaylistExport"
-    public let pluginMethods = ["prepare", "save", "discard", "saveLayout", "saveDiagnostics", "shareDiagnostics"].map { CAPPluginMethod(name: $0, returnType: CAPPluginReturnPromise) }
+    public let pluginMethods: [CAPPluginMethod] = ["prepare", "save", "discard", "saveLayout", "saveDiagnostics", "shareDiagnostics"].map { CAPPluginMethod(name: $0, returnType: CAPPluginReturnPromise) }
 
     private final class Save {
         let id: UUID, call: CAPPluginCall

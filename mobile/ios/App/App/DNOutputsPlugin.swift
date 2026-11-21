@@ -41,7 +41,7 @@ private final class OutputPicker: UIViewController, AVRoutePickerViewDelegate {
 public final class DNOutputsPlugin: CAPPlugin, CAPBridgedPlugin {
     public let identifier = "DNOutputsPlugin"
     public let jsName = "DNOutputs"
-    public let pluginMethods = [CAPPluginMethod(name: "choose", returnType: CAPPluginReturnPromise)]
+    public let pluginMethods: [CAPPluginMethod] = [CAPPluginMethod(name: "choose", returnType: CAPPluginReturnPromise)]
 
     @objc func choose(_ call: CAPPluginCall) {
         DispatchQueue.main.async { [weak self] in

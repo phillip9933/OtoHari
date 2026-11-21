@@ -5,7 +5,7 @@ import UIKit
 @objc(DNLauncherPlugin)
 public final class DNLauncherPlugin: CAPPlugin, CAPBridgedPlugin {
     public let identifier = "DNLauncherPlugin", jsName = "DNLauncher"
-    public let pluginMethods = ["pinPlaylist", "playlistPinned", "takePlaylist", "clearShortcuts"].map {
+    public let pluginMethods: [CAPPluginMethod] = ["pinPlaylist", "playlistPinned", "takePlaylist", "clearShortcuts"].map {
         CAPPluginMethod(name: $0, returnType: CAPPluginReturnPromise)
     }
 
