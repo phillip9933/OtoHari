@@ -23,8 +23,8 @@ async function routes(page: Page) {
 async function edit(page: Page, account = 'alex', address = server) {
 	await localSignIn(page, address, account);
 	await page.getByRole('button', { name: 'Settings', exact: true }).click();
-	await page.getByRole('button', { name: 'Edit Now Playing layout' }).click();
-	await expect(page.getByRole('heading', { name: 'Player layout' })).toBeVisible();
+	await page.getByRole('button', { name: 'Now Playing layout' }).click();
+	await expect(page.getByRole('heading', { name: 'Now Playing layout' })).toBeVisible();
 }
 
 function tiles(page: Page) {

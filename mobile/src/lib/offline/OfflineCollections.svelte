@@ -130,8 +130,9 @@
 		>
 		<button
 			class="text-button"
-			aria-label={'Unpin ' + pin.name}
-			onclick={() => onpins(pins.filter((p) => !same(p, pin)))}>{uiText('Unpin')}</button
+			aria-label={tr(`Stop keeping ${pin.name} offline`, `${pin.name} の自動保存を停止`)}
+			onclick={() => onpins(pins.filter((p) => !same(p, pin)))}
+			>{tr('Stop keeping offline', '自動保存を停止')}</button
 		>
 	</div>
 {/each}
@@ -158,7 +159,9 @@
 	{#if loading}<p role="status">{uiText('Loading collections…')}</p>{/if}
 	{#if error}<p role="status">{error}</p>{/if}
 	{#each candidates.filter((p) => !pins.some((pin) => same(pin, p))) as item (item.id)}
-		<button class="text-button" onclick={() => add(item)}>{uiText('Pin')} {item.name}</button>
+		<button class="text-button" onclick={() => add(item)}
+			>{tr(`Keep ${item.name} offline`, `${item.name} をオフラインで保存`)}</button
+		>
 	{:else}
 		{#if !loading && !error}<p>
 				{kind === 'filter'
@@ -168,16 +171,19 @@
 	{/each}
 	<button class="secondary" onclick={() => (choosing = false)}>{uiText('Done')}</button>
 {:else}
-	<button class="secondary" onclick={() => (choosing = true)}>{uiText('Pin a collection')}</button>
+	<button id="keep-collection-offline" class="secondary" onclick={() => (choosing = true)}
+		>{tr('Keep a collection offline', 'コレクションをオフラインで保存')}</button
+	>
 {/if}
 <p>
 	{Capacitor.getPlatform() === 'ios'
 		? tr(
-				'Your iPhone checks these collections when you return to the app on an allowed network. Shared songs use one copy. Unpinning the last collection removes its automatic downloads.',
-				'許可されたネットワークでアプリに戻ると、ピン留めしたコレクションを確認します。共通の曲は１回だけ保存されます。最後のピンを外すと自動ダウンロードを削除します。'
+				'Your iPhone checks these collections when you return to the app on an allowed network. Shared songs use one copy. Removing a collection deletes its automatic downloads unless another collection still needs them.',
+				'許可されたネットワークでアプリに戻るとコレクションを更新します。自動保存を停止すると、他のコレクションでも使用している曲を除き、自動ダウンロードが削除されます。'
 			)
-		: uiText(
-				'Android checks pinned collections about every six hours on allowed networks. Shared songs use one copy. Unpinning the last collection removes its automatic downloads.'
+		: tr(
+				'Android checks these collections about every six hours on allowed networks. Shared songs use one copy. Removing a collection deletes its automatic downloads unless another collection still needs them.',
+				'Android は許可されたネットワークで約6時間ごとに更新します。自動保存を停止すると、他のコレクションでも使用している曲を除き、自動ダウンロードが削除されます。'
 			)}
 </p>
 

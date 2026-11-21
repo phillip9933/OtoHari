@@ -95,9 +95,13 @@ async function setup(page: Page) {
 	});
 	return state;
 }
+async function switchSettingsPage(page: Page, name: string) {
+	await page.getByRole('button', { name: 'Back', exact: true }).click();
+	await page.getByRole('button', { name, exact: true }).click();
+}
 async function settings(page: Page) {
 	await page.getByRole('button', { name: 'Settings', exact: true }).click();
-	await page.getByRole('button', { name: 'Offline and cache' }).click();
+	await page.getByRole('button', { name: 'Download preferences' }).click();
 	await expect(page.getByLabel('Download source')).toBeVisible();
 }
 async function choose(page: Page, id = playlist) {
@@ -160,6 +164,8 @@ test('selection syncs the full playlist in order, preserves manual copies and is
 	expect(env.ratings).toEqual([100, 3]);
 	await choiceList(page.getByRole('combobox', { name: 'DN playlist', exact: true }));
 	await expect(page.getByRole('option', { name: 'bad/id' })).toHaveCount(0);
+	await page.keyboard.press('Escape');
+	await switchSettingsPage(page, 'Device storage');
 	await page.getByRole('button', { name: 'Open offline music' }).click();
 	const shelf = page.getByRole('region', { name: 'Offline music' });
 	await shelf.getByRole('button', { name: 'Automatic downloads', exact: true }).click();
@@ -168,7 +174,9 @@ test('selection syncs the full playlist in order, preserves manual copies and is
 	env.files = ['new', 's2', 'new'];
 	await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
 	await expect.poll(() => copies(page)).toEqual(['automatic:new', 'automatic:s2', 'downloaded:s0']);
-	await page.getByLabel('Play only offline music').check();
+	await switchSettingsPage(page, 'Offline mode and playback cache');
+	await page.getByRole('checkbox', { name: 'Offline mode', exact: true }).check();
+	await switchSettingsPage(page, 'Download preferences');
 	await expect(page.getByLabel('Download source')).toBeEnabled();
 	await expect(syncButton(page)).toBeDisabled();
 	await localSignIn(page, server, 'another');
@@ -179,7 +187,9 @@ test('selection syncs the full playlist in order, preserves manual copies and is
 	const reads = env.reads;
 	await localSignIn(page, server, 'listener', 'Offline music');
 	await settings(page);
-	await expect(page.getByLabel('Play only offline music')).toBeChecked();
+	await switchSettingsPage(page, 'Offline mode and playback cache');
+	await expect(page.getByRole('checkbox', { name: 'Offline mode', exact: true })).toBeChecked();
+	await switchSettingsPage(page, 'Download preferences');
 	await page.context().setOffline(true);
 	await expect(page.getByRole('combobox', { name: 'DN playlist', exact: true })).toHaveAttribute(
 		'data-value',
@@ -187,6 +197,7 @@ test('selection syncs the full playlist in order, preserves manual copies and is
 	);
 	await choiceList(page.getByRole('combobox', { name: 'DN playlist', exact: true }));
 	await expect(page.getByRole('option', { name: 'listener evening' })).toBeAttached();
+	await page.keyboard.press('Escape');
 	expect(env.reads).toBe(reads);
 	const cold = (await storedTracks(page)).map((row) => row.track);
 	expect(cold.find((t) => t.id === 'new')).toMatchObject({

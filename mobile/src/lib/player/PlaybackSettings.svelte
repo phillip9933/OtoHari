@@ -1,7 +1,6 @@
 <script lang="ts">
-	import { tr, uiText } from '../i18n';
+	import { uiText } from '../i18n';
 	import InlineChoice from '../controls/InlineChoice.svelte';
-	import SoundSettings from './SoundSettings.svelte';
 	import { onMount } from 'svelte';
 	import { Capacitor } from '@capacitor/core';
 	import type { Session } from '../connection';
@@ -14,21 +13,12 @@
 		rates,
 		saveProfiles,
 		streamProfiles,
-		readTrackFade,
-		setTrackFade,
-		fadeLengths,
-		defaultFades,
-		type TrackFades,
 		type Format,
 		type Network,
 		type Profile,
 		type Profiles
 	} from './streaming';
 	let { session }: { session: Session } = $props();
-	const fadeEdges = [
-		{ key: 'fadeInMs', label: 'Fade in' },
-		{ key: 'fadeOutMs', label: 'Fade out' }
-	] as const;
 	const connections = [
 		{ id: 'wifi', name: 'Wi-Fi' },
 		{ id: 'cellular', name: 'Cellular data' }
@@ -38,11 +28,7 @@
 		profileError = $state(''),
 		savingProfile = $state(false),
 		conversion = $state<'on' | 'off' | 'unavailable' | null>(null);
-	let serviceError = $state(''),
-		fadeError = $state(''),
-		fades = $state<TrackFades>({ ...defaultFades }),
-		loadingFades = $state(true),
-		saving = $state(false);
+	let serviceError = $state('');
 	let checks = 0;
 	async function readConversion() {
 		const check = ++checks;
@@ -68,20 +54,6 @@
 			savingProfile = false;
 		}
 	}
-	async function fade(change: Partial<TrackFades>) {
-		if (saving) return;
-		saving = true;
-		fadeError = '';
-		try {
-			const next = { ...fades, ...change };
-			await setTrackFade(next);
-			fades = next;
-		} catch (e) {
-			fadeError = errorMessage(e);
-		} finally {
-			saving = false;
-		}
-	}
 	onMount(() => {
 		profiles = streamProfiles(session);
 		void readConversion();
@@ -102,10 +74,6 @@
 		void detect();
 		// Some native WebViews don't emit a browser connection-change event.
 		const timer = setInterval(detect, 5000);
-		void readTrackFade()
-			.then((v) => (fades = v))
-			.catch((e) => (fadeError = errorMessage(e)))
-			.finally(() => (loadingFades = false));
 		return () => {
 			checks++;
 			generation++;
@@ -115,8 +83,7 @@
 	});
 </script>
 
-<section class="settings-stack" aria-label={uiText('Playback preferences')}>
-	<h2>{uiText('Mobile stream quality')}</h2>
+<section class="settings-stack" aria-label={uiText('Mobile stream quality')}>
 	<p class="connection" role="status">
 		{#if network === 'wifi'}{uiText('Connected through Wi-Fi or Ethernet.')}
 		{:else if network === 'cellular'}{uiText('Connected through cellular data.')}
@@ -125,7 +92,7 @@
 	</p>
 	{#each connections as entry (entry.id)}
 		{@const q = profiles[entry.id]}
-		<h3 class="settings-subheading" id={'stream-' + entry.id}>{uiText(entry.name)}</h3>
+		<h2 id={'stream-' + entry.id}>{uiText(entry.name)}</h2>
 		<fieldset
 			class="settings-panel"
 			data-surface="panel"
@@ -184,82 +151,12 @@
 		<button class="text-button" onclick={readConversion}>{uiText('Check conversion again')}</button>
 	{:else if conversion === 'on'}<p>{uiText('DN can convert streams for both profiles.')}</p>
 	{:else}<p role="status">{uiText('Checking server conversion…')}</p>{/if}
-	<h2 id="audio-playback">{uiText('Audio playback')}</h2>
-	<SoundSettings />
-	<h2 id="track-fades-settings">{uiText('Track fades')}</h2>
-	<div
-		class="settings-panel"
-		data-surface="panel"
-		role="group"
-		aria-labelledby="track-fades-settings"
-	>
-		<label
-			><input
-				type="checkbox"
-				checked={fades.smart}
-				disabled={loadingFades || saving}
-				aria-describedby="smart-fades-help"
-				onchange={(e) => {
-					const requested = e.currentTarget.checked;
-					e.currentTarget.checked = fades.smart;
-					void fade({ smart: requested });
-				}}
-			/>
-			{uiText('Smart fades')}</label
-		>
-		<p id="smart-fades-help">
-			{uiText(
-				'Blend quiet endings and intros or match steady beats for up to eight seconds. Consecutive album tracks and songs with no suitable blend play straight through.'
-			)}
-		</p>
-		<fieldset class="fade-lengths" aria-describedby={fades.smart ? 'fade-lengths-help' : undefined}>
-			<legend>{fades.smart ? uiText('Fallback fades') : uiText('Manual fades')}</legend>
-			{#if fades.smart}<p id="fade-lengths-help">
-					{uiText(
-						'These times apply at the start and end of the queue and whenever the player can’t prepare a smart transition.'
-					)}
-				</p>{/if}
-			{#each fadeEdges as edge (edge.key)}
-				<label>
-					{uiText(edge.label)}
-					<InlineChoice selected={fades[edge.key]} label={uiText(edge.label)}
-						><select
-							value={fades[edge.key]}
-							disabled={loadingFades || saving}
-							onchange={(e) => fade({ [edge.key]: Number(e.currentTarget.value) })}
-						>
-							{#each fadeLengths as ms (ms)}<option value={ms}
-									>{ms ? tr(ms / 1000 + ' seconds', ms / 1000 + ' 秒') : uiText('Off')}</option
-								>{/each}
-						</select></InlineChoice
-					>
-				</label>
-			{/each}
-		</fieldset>
-	</div>
-	{#if fadeError}<p role="alert">{fadeError}</p>{/if}
 </section>
 
 <style>
 	label {
 		display: grid;
 		gap: 0.35rem;
-	}
-	.fade-lengths {
-		display: grid;
-		gap: 0.75rem;
-		min-width: 0;
-		margin: 0;
-		padding: 0;
-		border: 0;
-	}
-	.fade-lengths legend {
-		float: left;
-		width: 100%;
-		padding: 0.75rem 0 0;
-		border-top: 1px solid var(--line);
-		color: var(--heading);
-		font-weight: 600;
 	}
 	.connection {
 		color: var(--text);

@@ -105,7 +105,7 @@ test('listener changes server content visibility while preserving concurrent edi
 	await expect(page.getByText('FLAC', { exact: true })).toBeVisible();
 	await expect(page.getByText('1 GiB', { exact: true })).toBeVisible();
 	await button(page, 'Back').click();
-	await button(page, 'Content preferences').click();
+	await button(page, 'Account-wide content visibility').click();
 	await expect(page.getByLabel('Offline')).toBeDisabled();
 	await page.getByLabel('History').uncheck();
 	pages.home[1].enabled = false;
@@ -115,7 +115,7 @@ test('listener changes server content visibility while preserving concurrent edi
 	await expect((await choiceList(page.getByLabel('Page'))).getByRole('option')).toHaveCount(2);
 	await button(page, 'Back').click();
 	await expect(button(page, 'Edition preferences')).toHaveCount(0);
-	await button(page, 'Web tools').click();
+	await button(page, 'Open in DN web app').click();
 	await expect(page.getByRole('link', { name: 'Backups' })).toHaveCount(0);
 	await expect(page.getByRole('link')).toHaveCount(0);
 	await page.getByText('Content preferences', { exact: true }).click();
@@ -179,7 +179,7 @@ test('admin edits release and edition preferences and can open each deployed web
 	await expect(page.getByRole('status')).toHaveText('Server preferences saved.');
 	expect(state.getTypes().primary_types).toEqual(['album', 'single', 'ep']);
 	await button(page, 'Back').click();
-	await button(page, 'Web tools').click();
+	await button(page, 'Open in DN web app').click();
 	await expect(page.getByRole('link')).toHaveCount(0);
 	const summaries = page.locator('details.settings-disclosure > summary');
 	await expect(summaries).toHaveCount(5);
@@ -211,7 +211,7 @@ test('admin edits release and edition preferences and can open each deployed web
 	await expect(page.getByRole('link', { name: 'Backups' })).toHaveCount(0);
 	await expect(page.getByRole('link', { name: 'Manage artists' })).toBeVisible();
 	await button(page, 'Back').click();
-	await button(page, 'Web tools').click();
+	await button(page, 'Open in DN web app').click();
 	await expect(page.getByRole('link')).toHaveCount(0);
 	await button(page, 'Back').click();
 	await button(page, 'About').click();
@@ -233,7 +233,7 @@ test('Japanese edition pickers and web disclosures use local labels and accept e
 	await expect(page.getByRole('button', { name: /アメリカ.*\(US\)/ })).toBeVisible();
 	await page.keyboard.press('Escape');
 	await button(page, '戻る').click();
-	await button(page, 'ウェブツール').click();
+	await button(page, 'DN のウェブアプリで開く').click();
 	await expect(page.getByRole('link')).toHaveCount(0);
 	const system = page.getByText('システム', { exact: true });
 	await system.focus();

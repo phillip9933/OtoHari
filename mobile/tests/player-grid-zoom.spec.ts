@@ -30,7 +30,7 @@ async function openGrid(page: Page) {
 	});
 	await localSignIn(page, server);
 	await page.getByRole('button', { name: 'Settings', exact: true }).click();
-	await page.getByRole('button', { name: 'Edit Now Playing layout' }).click();
+	await page.getByRole('button', { name: 'Now Playing layout' }).click();
 	const stage = page.locator('[data-part=layout-editor] .stage');
 	await expect(stage.locator('[data-player-grid]')).toBeVisible();
 	return stage;

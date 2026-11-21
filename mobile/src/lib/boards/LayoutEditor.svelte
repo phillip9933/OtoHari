@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { pageTitles } from '../appearance/settingsSearch';
 	import { tr, uiText, uiFormat } from '../i18n';
 	import InlineChoice from '../controls/InlineChoice.svelte';
 	import CollectionDisplayFields from '../catalog/CollectionDisplayFields.svelte';
@@ -10,14 +11,7 @@
 	import FilterSectionDialog from './FilterSectionDialog.svelte';
 	import { filterSummary, type FilterSection } from './filteredSections';
 	import { ArrowUp, ArrowDown, Minus, Plus, SlidersHorizontal } from '@lucide/svelte';
-	import {
-		available,
-		boardNames,
-		defaults,
-		sectionTitle,
-		type Board,
-		type Section
-	} from './layout';
+	import { available, defaults, sectionTitle, type Board, type Section } from './layout';
 	let {
 		board,
 		session,
@@ -93,7 +87,8 @@
 		<button class="text-button" onclick={onback}>{uiText('Cancel')}</button>
 		<button class="primary" onclick={save}>{uiText('Save layout')}</button>
 	</div>
-	<h1>{uiText('Edit')} {uiText(boardNames[board])}</h1>
+	<h1>{uiText(pageTitles[board])}</h1>
+	<p>{uiText('Layout on this device')}</p>
 	{#if error}<p role="alert">{error}</p>{/if}
 	{#if board === 'library'}
 		<details

@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import type { Session } from '../connection';
-	import { uiText } from '../i18n';
+	import { tr, uiText } from '../i18n';
 	import { errorMessage } from '../catalog/catalog';
 	import { player } from '../player';
 
@@ -26,7 +26,7 @@
 	});
 </script>
 
-<div class="settings-panel" data-surface="panel">
+<div id="queue-autoplay" class="settings-panel" data-surface="panel">
 	<label>
 		<input
 			type="checkbox"
@@ -39,7 +39,7 @@
 				void update(next);
 			}}
 		/>
-		{uiText('Autoplay similar library music')}
+		{tr('Autoplay when the queue ends', 'キューの終了時に自動再生')}
 	</label>
 	<p id="queue-autoplay-help">
 		{uiText('When the queue ends, continue with related songs from your DroppedNeedle library.')}

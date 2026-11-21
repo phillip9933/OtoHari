@@ -795,7 +795,7 @@
 								checked={$store.autoplay}
 								onchange={(event) => action(() => player.setAutoplay(event.currentTarget.checked))}
 							/>
-							{uiText('Autoplay similar library music')}</label
+							{tr('Autoplay when the queue ends', 'キューの終了時に自動再生')}</label
 						>
 					{/if}
 					{#if $store.hasPreviousQueue}

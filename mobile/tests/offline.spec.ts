@@ -93,10 +93,14 @@ async function offline(page: Page) {
 	await page.getByRole('button', { name: 'Offline music', exact: true }).click();
 	await expect(page.getByRole('heading', { name: 'Offline music', exact: true })).toBeVisible();
 }
-async function options(page: Page) {
+async function switchSettingsPage(page: Page, name: string) {
+	await page.getByRole('button', { name: 'Back', exact: true }).click();
+	await page.getByRole('button', { name, exact: true }).click();
+}
+async function options(page: Page, name = 'Offline mode and playback cache') {
 	await page.getByRole('button', { name: 'Settings', exact: true }).click();
-	await page.getByRole('button', { name: 'Offline and cache' }).click();
-	await expect(page.getByLabel('Cache songs during playback')).toBeEnabled();
+	await page.getByRole('button', { name, exact: true }).click();
+	await expect(page.getByRole('heading', { name, exact: true })).toBeVisible();
 }
 async function album(page: Page) {
 	await page
@@ -175,7 +179,7 @@ test('completed playback can be cached, pinned and cleared independently of save
 	await page.getByRole('button', { name: 'Play Platform lights', exact: true }).click();
 	await playing.getByRole('button', { name: 'Pause', exact: true }).click();
 	await minimizePlayer(page);
-	await options(page);
+	await options(page, 'Device storage');
 	await page.getByRole('button', { name: 'Clear playback cache', exact: true }).click();
 	await page.getByRole('button', { name: 'Confirm clear cache', exact: true }).click();
 	await expect(page.getByText('Playback cache cleared.', { exact: true })).toBeVisible();
@@ -184,7 +188,7 @@ test('completed playback can be cached, pinned and cleared independently of save
 		page.getByRole('region', { name: 'Offline music' }).getByText('Held over', { exact: true })
 	).toBeVisible();
 	await page.getByRole('button', { name: 'Playback cache', exact: true }).click();
-	await expect(page.getByText(/Enable caching in Offline settings/)).toBeVisible();
+	await expect(page.getByText(/Enable caching in Offline mode and playback cache/)).toBeVisible();
 	expect(env.streams()).toBe(2);
 });
 
@@ -195,7 +199,10 @@ for (const retained of ['cached', 'automatic'] as const) {
 			const env = await fixture(page);
 			const button = (name: string) => page.getByRole('button', { name, exact: true });
 			await login(page);
-			await options(page);
+			await options(
+				page,
+				retained === 'cached' ? 'Offline mode and playback cache' : 'Download preferences'
+			);
 			if (retained === 'cached') {
 				await page.getByLabel('Cache songs during playback').check();
 			} else {
@@ -228,7 +235,7 @@ test('opted-in downloads follow their source, keep manual upgrades and respect r
 }) => {
 	const env = await fixture(page);
 	await login(page);
-	await options(page);
+	await options(page, 'Download preferences');
 	expect(env.streams()).toBe(0);
 	const source = page.getByLabel('Download source');
 	await expect(source).toHaveAttribute('data-value', 'off');
@@ -236,6 +243,7 @@ test('opted-in downloads follow their source, keep manual upgrades and respect r
 	await expect(page.getByText('1 automatic download added.', { exact: true })).toBeVisible();
 	expect(env.streams()).toBe(1);
 	const open = page.getByRole('button', { name: 'Open offline music', exact: true });
+	await switchSettingsPage(page, 'Device storage');
 	await open.click();
 	const shelf = page.getByRole('region', { name: 'Offline music' });
 	await shelf.getByRole('button', { name: 'Automatic downloads', exact: true }).click();
@@ -245,10 +253,11 @@ test('opted-in downloads follow their source, keep manual upgrades and respect r
 	await shelf.getByRole('button', { name: 'Saved downloads', exact: true }).click();
 	await expect(shelf.getByText('Held over', { exact: true })).toBeVisible();
 	expect(env.streams()).toBe(1);
-	await options(page);
+	await options(page, 'Download preferences');
 	await chooseOption(source, 'recent');
 	await expect(page.getByText('1 automatic download added.', { exact: true })).toBeVisible();
 	expect(env.streams()).toBe(2);
+	await switchSettingsPage(page, 'Device storage');
 	await open.click();
 	await shelf.getByRole('button', { name: 'Automatic downloads', exact: true }).click();
 	await expect(shelf.getByText('Platform lights', { exact: true })).toBeVisible();
@@ -256,12 +265,13 @@ test('opted-in downloads follow their source, keep manual upgrades and respect r
 		.getByRole('button', { name: 'Remove offline copy of Platform lights', exact: true })
 		.click();
 	await shelf.getByRole('button', { name: 'Confirm removal', exact: true }).click();
-	await options(page);
+	await options(page, 'Download preferences');
 	await page.getByRole('button', { name: 'Update automatic downloads', exact: true }).click();
 	await expect(page.getByText('No automatic downloads added.', { exact: true })).toBeVisible();
 	expect(env.streams()).toBe(2);
 	await chooseOption(source, 'off');
 	await expect(source).toHaveAttribute('data-value', 'off');
+	await switchSettingsPage(page, 'Device storage');
 	await open.click();
 	await shelf.getByRole('button', { name: 'Saved downloads', exact: true }).click();
 	await expect(shelf.getByText('Held over', { exact: true })).toBeVisible();
@@ -352,8 +362,9 @@ test('older pinned and cached entries keep their provenance and incomplete bytes
 	await expect(shelf.getByText('old cached', { exact: true })).toHaveCount(0);
 	await shelf.getByRole('button', { name: 'Playback cache', exact: true }).click();
 	await expect(shelf.getByText('old cached', { exact: true })).toBeVisible();
-	await options(page);
+	await options(page, 'Download preferences');
 	await expect(page.getByLabel('Download source')).toHaveAttribute('data-value', 'off');
+	await switchSettingsPage(page, 'Device storage');
 	await page.getByRole('button', { name: 'Clear playback cache', exact: true }).click();
 	await page.getByRole('button', { name: 'Confirm clear cache', exact: true }).click();
 	await page.getByRole('button', { name: 'Open offline music', exact: true }).click();
@@ -595,17 +606,23 @@ test('Android keeps source, quality and read-ahead independent and requires a re
 	);
 	await nativeOfflineBridge(page);
 	await login(page);
-	await options(page);
-	await expect(page.getByRole('button', { name: 'Unpin Favorite songs' })).toBeVisible();
+	await options(page, 'Download preferences');
+	await expect(
+		page.getByRole('button', { name: 'Stop keeping Favorite songs offline' })
+	).toBeVisible();
+	await switchSettingsPage(page, 'Offline mode and playback cache');
 	await chooseOption(page.getByRole('combobox', { name: 'Wi-Fi tracks ahead' }), '5');
 	await chooseOption(page.getByRole('combobox', { name: 'Cellular tracks ahead' }), '1');
 	await chooseOption(page.getByRole('combobox', { name: 'Cellular read-ahead speed' }), '128');
 	await expect(
 		page.getByText('Cellular read-ahead uses mobile data', { exact: false })
 	).toBeVisible();
+	await switchSettingsPage(page, 'Device storage');
 	await page.getByRole('button', { name: 'Refresh saved music' }).click();
 	await expect(page.getByText('Updated 4 tracks. 1 unavailable on DN.')).toBeVisible();
 	await expect(page.getByRole('button', { name: 'Share report' })).toHaveCount(0);
+	await expect(page.getByRole('button', { name: 'Review report' })).toHaveCount(0);
+	await switchSettingsPage(page, 'Troubleshooting');
 	await page.getByRole('button', { name: 'Review report' }).click();
 	await expect(page.locator('pre').filter({ hasText: '"cachedTracks":4' })).toBeVisible();
 	expect(await page.evaluate(() => sessionStorage.getItem('shareDiagnostics'))).toBeNull();
@@ -617,13 +634,14 @@ test('Android keeps source, quality and read-ahead independent and requires a re
 	expect(await page.evaluate(() => sessionStorage.getItem('shareDiagnostics'))).toBe(
 		'{"cachedTracks":4}'
 	);
+	await switchSettingsPage(page, 'Download preferences');
 	await chooseOption(page.getByRole('combobox', { name: 'File format' }), 'opus');
 	await chooseOption(page.getByRole('combobox', { name: 'Download bitrate' }), '96');
-	await page.getByRole('button', { name: 'Pin a collection' }).click();
+	await page.getByRole('button', { name: 'Keep a collection offline' }).click();
 	await chooseOption(page.getByRole('combobox', { name: 'Collection type' }), 'artist');
 	await page.getByRole('searchbox', { name: 'Find an artist' }).fill('Nor');
-	await page.getByRole('button', { name: 'Pin North', exact: true }).click();
-	await expect(page.getByRole('button', { name: 'Unpin North' })).toBeVisible();
+	await page.getByRole('button', { name: 'Keep North offline', exact: true }).click();
+	await expect(page.getByRole('button', { name: 'Stop keeping North offline' })).toBeVisible();
 	const stored = await page.evaluate(() =>
 		JSON.parse(sessionStorage.getItem('offlineFixtureOptions') || '{}')
 	);
@@ -633,9 +651,9 @@ test('Android keeps source, quality and read-ahead independent and requires a re
 	]);
 	expect(stored.downloadQuality).toEqual({ format: 'opus', rate: 96 });
 	expect(stored.offlinePins.map((p: { kind: string }) => p.kind)).toEqual(['favorites', 'artist']);
-	await page.getByRole('button', { name: 'Unpin Favorite songs' }).click();
-	await page.getByRole('button', { name: 'Unpin North' }).click();
-	await expect(page.getByRole('button', { name: 'Unpin North' })).toHaveCount(0);
+	await page.getByRole('button', { name: 'Stop keeping Favorite songs offline' }).click();
+	await page.getByRole('button', { name: 'Stop keeping North offline' }).click();
+	await expect(page.getByRole('button', { name: 'Stop keeping North offline' })).toHaveCount(0);
 	expect(await page.evaluate(() => sessionStorage.getItem('offlineFixtureCleanup'))).toBe('true');
 });
 
@@ -695,7 +713,9 @@ test('iPhone refreshes saved metadata and previews its diagnostic report before 
 	await options(page);
 	await chooseOption(page.getByRole('combobox', { name: 'Wi-Fi tracks ahead' }), '2');
 	await chooseOption(page.getByRole('combobox', { name: 'Wi-Fi read-ahead speed' }), '128');
+	await switchSettingsPage(page, 'Download preferences');
 	await expect(page.getByLabel('Save artwork and lyrics with downloads')).toBeChecked();
+	await switchSettingsPage(page, 'Device storage');
 	await page.getByRole('button', { name: 'Refresh saved music' }).click();
 	await expect(
 		page.getByRole('status').filter({ hasText: 'Updated 1 track. 1 unavailable on DN.' })
@@ -707,6 +727,8 @@ test('iPhone refreshes saved metadata and previews its diagnostic report before 
 		{ version: 'revision0', track: { id: 't0', title: 'Held over', rating: 5 } }
 	]);
 	await expect(page.getByRole('button', { name: 'Save file' })).toHaveCount(0);
+	await expect(page.getByRole('button', { name: 'Review report' })).toHaveCount(0);
+	await switchSettingsPage(page, 'Troubleshooting');
 	await page.getByRole('button', { name: 'Review report' }).click();
 	await expect(page.locator('pre')).toHaveText('{"cachedTracks":4}');
 	await page.getByRole('button', { name: 'Save file' }).click();
@@ -725,7 +747,7 @@ test('iPhone asks for notification permission on demand and opens downloads for 
 	await fixture(page);
 	await nativeOfflineBridge(page, false, 'ios');
 	await login(page);
-	await options(page);
+	await options(page, 'Download preferences');
 	const notify = page.getByLabel('Notify when a download batch finishes');
 	await expect(notify).not.toBeChecked();
 	await notify.check();

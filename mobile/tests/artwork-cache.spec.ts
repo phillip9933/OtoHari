@@ -11,7 +11,7 @@ const cover = (page: Page) => page.locator('[data-widget=library-recently-added]
 const button = (page: Page, name: string) => page.getByRole('button', { name, exact: true });
 async function options(page: Page) {
 	await button(page, 'Settings').click();
-	await button(page, 'Offline and cache').click();
+	await button(page, 'Device storage').click();
 	await expect(page.getByLabel('Artwork cache limit')).toBeEnabled();
 }
 async function fixture(page: Page, gate?: Promise<void>) {

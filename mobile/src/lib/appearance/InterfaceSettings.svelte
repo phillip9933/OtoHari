@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { uiText, uiFormat } from '../i18n';
+	import { tr, uiText, uiFormat } from '../i18n';
 
 	import InlineChoice from '../controls/InlineChoice.svelte';
 	import { ArrowUp, ArrowDown, Check, Play } from '@lucide/svelte';
@@ -24,7 +24,15 @@
 		type StartScreen,
 		type InterfacePreferences
 	} from './interface';
-	let { offline = false, session }: { offline?: boolean; session: Session | null } = $props();
+	let {
+		offline = false,
+		session,
+		section
+	}: {
+		offline?: boolean;
+		session: Session | null;
+		section: 'style' | 'navigation' | 'mini';
+	} = $props();
 	let opening = $derived(session ? readStartScreen(session) : 'automatic');
 	let mini = $derived(readMiniPlayer(session)),
 		miniIssue = $state('');
@@ -83,120 +91,148 @@
 	const surfaces = Object.keys(surfaceNames) as InterfacePreferences['surface'][];
 </script>
 
-<section class="settings-stack" aria-label={uiText('Interface settings')}>
-	<h2 id="interface-material">{uiText('Button and panel style')}</h2>
-	<div class="materials" role="group" aria-label={uiText('Surface style')}>
-		{#each surfaces as style (style)}<button
-				class="material-choice"
-				aria-label={uiText(surfaceNames[style])}
-				aria-pressed={$interfacePreferences.surface === style}
-				onclick={() => setInterface({ surface: style })}
-			>
-				<span class="art-preview" aria-hidden="true" data-material={style}>
-					<img src={sampleArtwork} alt="" />
-					<span class="sample-panel" data-surface="panel">
-						<Play size={13} fill="currentColor" /><span class="sample-lines"></span>
+<div class="settings-stack">
+	{#if section === 'style'}
+		<h2 id="interface-material">{uiText('Button and panel style')}</h2>
+		<div class="materials" role="group" aria-label={uiText('Surface style')}>
+			{#each surfaces as style (style)}<button
+					class="material-choice"
+					aria-label={uiText(surfaceNames[style])}
+					aria-pressed={$interfacePreferences.surface === style}
+					onclick={() => setInterface({ surface: style })}
+				>
+					<span class="art-preview" aria-hidden="true" data-material={style}>
+						<img src={sampleArtwork} alt="" />
+						<span class="sample-panel" data-surface="panel">
+							<Play size={13} fill="currentColor" /><span class="sample-lines"></span>
+						</span>
+						{#if $interfacePreferences.surface === style}<span class="check"
+								><Check size={13} /></span
+							>{/if}
 					</span>
-					{#if $interfacePreferences.surface === style}<span class="check"><Check size={13} /></span
-						>{/if}
-				</span>
-				<span class="material-name">{uiText(surfaceNames[style])}</span>
-			</button>{/each}
-	</div>
-	{#if $interfacePreferences.surface === 'blur'}<label class="strength"
-			><span>{uiText('Blur strength')} <output>{$interfacePreferences.blur} px</output></span><input
-				aria-label={uiText('Blur strength')}
-				type="range"
-				min="0"
-				max="24"
-				step="1"
-				value={$interfacePreferences.blur}
-				oninput={(e) => setInterface({ blur: e.currentTarget.valueAsNumber })}
-			/></label
-		>{/if}
-	<label id="interface-motion"
-		>{uiText('Screen transitions')}<InlineChoice
-			selected={$interfacePreferences.motion}
-			label={uiText('Screen transitions')}
-			><select
-				value={$interfacePreferences.motion}
-				onchange={(e) =>
-					setInterface({ motion: e.currentTarget.value as InterfacePreferences['motion'] })}
-				><option value="off">{uiText('Off')}</option><option value="quick">{uiText('Quick')}</option
-				><option value="gentle">{uiText('Gentle')}</option></select
-			></InlineChoice
-		></label
-	>
-	{#if session?.userId}
-		<label id="interface-start"
-			>{uiText('Start screen')}
-			<InlineChoice selected={opening}
+					<span class="material-name">{uiText(surfaceNames[style])}</span>
+				</button>{/each}
+		</div>
+		{#if $interfacePreferences.surface === 'blur'}<label class="strength"
+				><span>{uiText('Blur strength')} <output>{$interfacePreferences.blur} px</output></span
+				><input
+					aria-label={uiText('Blur strength')}
+					type="range"
+					min="0"
+					max="24"
+					step="1"
+					value={$interfacePreferences.blur}
+					oninput={(e) => setInterface({ blur: e.currentTarget.valueAsNumber })}
+				/></label
+			>{/if}
+		<label class="settings-panel" data-surface="panel" id="interface-motion"
+			>{uiText('Screen transitions')}<InlineChoice
+				selected={$interfacePreferences.motion}
+				label={uiText('Screen transitions')}
 				><select
-					value={opening}
-					onchange={(e) => changeStart(e.currentTarget.value as StartScreen)}
+					value={$interfacePreferences.motion}
+					onchange={(e) =>
+						setInterface({ motion: e.currentTarget.value as InterfacePreferences['motion'] })}
+					><option value="off">{uiText('Off')}</option><option value="quick"
+						>{uiText('Quick')}</option
+					><option value="gentle">{uiText('Gentle')}</option></select
+				></InlineChoice
+			></label
+		>
+		<button
+			class="secondary"
+			onclick={() => {
+				const { surface, blur, motion } = defaultInterface;
+				setInterface({ surface, blur, motion });
+			}}>{tr('Restore style defaults', 'スタイルを初期設定に戻す')}</button
+		>
+	{:else if section === 'navigation'}
+		{#if session?.userId}
+			<label id="interface-start"
+				>{uiText('Start screen')}
+				<InlineChoice selected={opening}
+					><select
+						value={opening}
+						onchange={(e) => changeStart(e.currentTarget.value as StartScreen)}
+					>
+						<option value="automatic">{uiText('Automatic')}</option>
+						<option value="home">{uiText('Home')}</option>
+						<option value="library">{uiText('Library')}</option>
+						<option value="player">{uiText('Now Playing')}</option>
+					</select></InlineChoice
 				>
-					<option value="automatic">{uiText('Automatic')}</option>
-					<option value="home">{uiText('Home')}</option>
-					<option value="library">{uiText('Library')}</option>
-					<option value="player">{uiText('Now Playing')}</option>
-				</select></InlineChoice
-			>
-		</label>
-		{#if opening === 'automatic'}<p>
-				{uiText('Open Home when connected and Offline music when offline.')}
-			</p>
-		{:else if opening === 'player'}<p>
-				{uiText('Open your saved queue. An empty queue opens Library.')}
-			</p>{/if}
-		{#if saveIssue}<p role="alert">{saveIssue}</p>{/if}
-	{/if}
-	<h2 id="interface-navigation">{uiText('Navigation bar')}</h2>
-	<div
-		class="settings-tabs"
-		data-surface="panel"
-		role="group"
-		aria-label={uiText('Navigation bar position')}
-	>
-		{#each ['docked', 'floating'] as bar (bar)}<button
-				aria-pressed={$interfacePreferences.bar === bar}
-				onclick={() => setInterface({ bar: bar === 'floating' ? 'floating' : 'docked' })}
-				>{bar === 'docked' ? uiText('Docked') : uiText('Floating')}</button
-			>{/each}
-	</div>
-	<p>
-		{uiFormat('Pin up to {count} destinations. The Settings menu includes navigation shortcuts.', {
-			count: maxTabs
-		})}
-	</p>
-	<div class="choices" data-surface="panel">
-		{#each ordered as id, i (id)}
-			{@const opt = options.find((d) => d.id === id)!}
-			<div class="row">
-				<label class="pick"
-					><input
-						type="checkbox"
-						checked={visible.includes(id)}
-						disabled={!visible.includes(id) && visible.length >= maxTabs}
-						onchange={() => toggle(id)}
-					/><opt.icon size={17} />{uiText(opt.label)}</label
-				>
-				{#if visible.includes(id)}<button
-						class="order"
-						aria-label={uiFormat('Move {name} earlier', { name: uiText(opt.label) })}
-						disabled={i === 0}
-						onclick={() => move(i, -1)}><ArrowUp size={17} /></button
-					><button
-						class="order"
-						aria-label={uiFormat('Move {name} later', { name: uiText(opt.label) })}
-						disabled={i === visible.length - 1}
-						onclick={() => move(i, 1)}><ArrowDown size={17} /></button
-					>{/if}
-			</div>
-		{/each}
-	</div>
-	{#if session?.userId}
-		<h2 id="mini-player-settings">{uiText('Mini-player')}</h2>
-		<div class="mini-rows" data-surface="panel" role="group" aria-labelledby="mini-player-settings">
+			</label>
+			{#if opening === 'automatic'}<p>
+					{uiText('Open Home when connected and Offline music when offline.')}
+				</p>
+			{:else if opening === 'player'}<p>
+					{uiText('Open your saved queue. An empty queue opens Library.')}
+				</p>{/if}
+			{#if saveIssue}<p role="alert">{saveIssue}</p>{/if}
+		{/if}
+		<h2 id="interface-navigation">{uiText('Navigation bar')}</h2>
+		<div
+			class="settings-tabs"
+			data-surface="panel"
+			role="group"
+			aria-label={uiText('Navigation bar position')}
+		>
+			{#each ['docked', 'floating'] as bar (bar)}<button
+					aria-pressed={$interfacePreferences.bar === bar}
+					onclick={() => setInterface({ bar: bar === 'floating' ? 'floating' : 'docked' })}
+					>{bar === 'docked' ? uiText('Docked') : uiText('Floating')}</button
+				>{/each}
+		</div>
+		<p>
+			{uiFormat(
+				'Pin up to {count} destinations. The Settings menu includes navigation shortcuts.',
+				{
+					count: maxTabs
+				}
+			)}
+		</p>
+		<div class="choices" data-surface="panel">
+			{#each ordered as id, i (id)}
+				{@const opt = options.find((d) => d.id === id)!}
+				<div class="row">
+					<label class="pick"
+						><input
+							type="checkbox"
+							checked={visible.includes(id)}
+							disabled={!visible.includes(id) && visible.length >= maxTabs}
+							onchange={() => toggle(id)}
+						/><opt.icon size={17} />{uiText(opt.label)}</label
+					>
+					{#if visible.includes(id)}<button
+							class="order"
+							aria-label={uiFormat('Move {name} earlier', { name: uiText(opt.label) })}
+							disabled={i === 0}
+							onclick={() => move(i, -1)}><ArrowUp size={17} /></button
+						><button
+							class="order"
+							aria-label={uiFormat('Move {name} later', { name: uiText(opt.label) })}
+							disabled={i === visible.length - 1}
+							onclick={() => move(i, 1)}><ArrowDown size={17} /></button
+						>{/if}
+				</div>
+			{/each}
+		</div>
+		<button
+			class="secondary"
+			onclick={() => {
+				const { bar, tabs } = defaultInterface;
+				setInterface({ bar, tabs });
+				changeStart('automatic');
+			}}>{tr('Restore navigation defaults', 'ナビゲーションを初期設定に戻す')}</button
+		>
+	{:else if session?.userId}
+		<div
+			class="mini-rows"
+			data-surface="panel"
+			role="group"
+			id="mini-player-settings"
+			aria-label={uiText('Mini-player')}
+		>
 			<label class="mini-row"
 				><span>{uiText('Show cover artwork')}</span><input
 					type="checkbox"
@@ -244,16 +280,11 @@
 			{/each}
 		</div>
 		{#if miniIssue}<p role="alert">{miniIssue}</p>{/if}
+		<button class="secondary" onclick={() => changeMini(defaultMiniPlayer)}
+			>{tr('Restore mini-player defaults', 'ミニプレーヤーを初期設定に戻す')}</button
+		>
 	{/if}
-	<button
-		class="secondary"
-		onclick={() => {
-			setInterface(defaultInterface);
-			changeMini(defaultMiniPlayer);
-			changeStart('automatic');
-		}}>{uiText('Restore interface defaults')}</button
-	>
-</section>
+</div>
 
 <style>
 	.mini-rows {

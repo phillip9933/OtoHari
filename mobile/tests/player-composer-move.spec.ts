@@ -91,7 +91,7 @@ async function startComposer(page: Page, seed: ([string, boolean] | Section)[]) 
 	await page.getByLabel('Password', { exact: true }).fill('fixture');
 	await button('Sign in').click();
 	await button('Settings').click();
-	await button('Edit Now Playing layout').click();
+	await button('Now Playing layout').click();
 	await expect(page.locator('[data-player-grid]')).toBeVisible();
 	await expect(button('Add item here')).toHaveCount(0);
 	await expect(button('Add item')).toBeVisible();

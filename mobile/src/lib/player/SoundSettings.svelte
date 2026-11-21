@@ -2,6 +2,7 @@
 	import { uiText } from '../i18n';
 	import { onMount } from 'svelte';
 	import { Capacitor } from '@capacitor/core';
+	import EqualizerSettings from './EqualizerSettings.svelte';
 	import InlineChoice from '../controls/InlineChoice.svelte';
 	import { playbackSpeeds, soundSettings, type ReplayGainMode } from './sound';
 	let { speedOnly = false }: { speedOnly?: boolean } = $props();
@@ -25,7 +26,12 @@
 	});
 </script>
 
-<div class:settings-panel={!speedOnly} data-surface={speedOnly ? undefined : 'panel'} class="sound">
+<div
+	id={speedOnly ? undefined : 'playback-speed'}
+	class:settings-panel={!speedOnly}
+	data-surface={speedOnly ? undefined : 'panel'}
+	class="sound"
+>
 	{#if value}
 		<label
 			>{uiText('Playback speed')}<InlineChoice
@@ -42,7 +48,7 @@
 			</InlineChoice></label
 		>
 		{#if !speedOnly && Capacitor.isNativePlatform()}
-			<label
+			<label id="volume-normalization"
 				>{uiText('Volume normalization')}<InlineChoice
 					selected={value.replayGain}
 					label={uiText('Volume normalization')}
@@ -70,6 +76,11 @@
 			>{uiText('Check again')}</button
 		>{/if}
 </div>
+
+{#if !speedOnly && Capacitor.isNativePlatform()}
+	<h2 id="sound-equalizer">{uiText('Equalizer')}</h2>
+	<EqualizerSettings />
+{/if}
 
 <style>
 	.sound,

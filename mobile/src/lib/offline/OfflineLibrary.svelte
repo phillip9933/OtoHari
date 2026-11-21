@@ -289,10 +289,14 @@
 						: view === 'downloaded'
 							? uiText('Choose Save offline on a library song or selection to keep it here.')
 							: view === 'automatic'
-								? uiText(
-										'Choose a download source in Offline settings to keep songs here automatically.'
+								? tr(
+										'Choose a collection in Download preferences to keep songs here automatically.',
+										'「ダウンロード設定」でコレクションを選ぶと、曲がここに自動保存されます。'
 									)
-								: uiText('Enable caching in Offline settings to keep completed streams here.')}
+								: tr(
+										'Enable caching in Offline mode and playback cache to keep completed streams here.',
+										'「オフラインモードと再生キャッシュ」でキャッシュを有効にすると、再生した曲がここに保存されます。'
+									)}
 				</li>{/each}
 		</ul>
 	{/if}

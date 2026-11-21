@@ -260,7 +260,7 @@ test('Library genres is opt-in, reuses the local genre directory and opens the p
 	await expect(button(page, 'Browse Library genres')).toHaveCount(0);
 	expect(network.requests.filter((u) => u.searchParams.get('limit') === '500')).toHaveLength(0);
 	await button(page, 'Settings').click();
-	await button(page, 'Edit Home layout').click();
+	await button(page, 'Home layout').click();
 	await button(page, 'Add Library genres').click();
 	await button(page, 'Save layout').click();
 	await button(page, 'Back').click();

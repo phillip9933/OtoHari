@@ -124,7 +124,7 @@
 	<p role="status">{uiText('Loading recent plays…')}</p>
 {:else if disabled}<p>
 		{uiText(
-			'To see your recent plays, enable Recently Played under Settings → Content preferences → Home.'
+			'To see your recent plays, enable Recently Played under Settings → Account-wide content visibility → Home.'
 		)}
 	</p>
 {:else}<p>{uiText('No recent plays available from DroppedNeedle.')}</p>{/if}

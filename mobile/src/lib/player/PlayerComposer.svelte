@@ -541,7 +541,10 @@
 	}}
 >
 	<header class="bar">
-		<h2>{tr('Player layout', 'プレーヤーレイアウト')}</h2>
+		<div class="layout-title">
+			<h2>{uiText('Now Playing layout')}</h2>
+			<small>{uiText('Layout on this device')}</small>
+		</div>
 		<button
 			class="history"
 			aria-label={uiText('Undo layout edit')}
@@ -859,8 +862,17 @@
 		gap: 0.3rem;
 		padding: 0.15rem 0.2rem;
 	}
+	.layout-title {
+		margin-inline-end: auto;
+		min-width: 0;
+	}
+	.layout-title small {
+		display: block;
+		font-size: 0.75rem;
+		color: var(--muted);
+	}
 	header.bar h2 {
-		margin: 0 auto 0 0;
+		margin: 0;
 		font-size: 1.15rem;
 		color: var(--heading, var(--text));
 	}

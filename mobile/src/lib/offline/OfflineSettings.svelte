@@ -2,7 +2,8 @@
 	import { tr, uiText, uiFormat } from '../i18n';
 
 	import InlineChoice from '../controls/InlineChoice.svelte';
-	import AndroidCacheSettings from './AndroidCacheSettings.svelte';
+	import UpcomingSongCache from './UpcomingSongCache.svelte';
+	import SavedMusicDetails from './SavedMusicDetails.svelte';
 	import { onMount } from 'svelte';
 	import { online } from 'svelte/reactivity/window';
 	import { rememberedPlaylistNames } from '../catalog/playlistOffline';
@@ -11,7 +12,6 @@
 	import { Capacitor } from '@capacitor/core';
 	import type { Session } from '../connection';
 	import ViewedMediaSettings from './ViewedMediaSettings.svelte';
-	import AndroidHistorySettings from './AndroidHistorySettings.svelte';
 	import DownloadNotifications from './DownloadNotifications.svelte';
 	import OfflineCollections from './OfflineCollections.svelte';
 	import { conversionState, original, rates, type Format } from '../player/streaming';
@@ -29,7 +29,7 @@
 		storageSize,
 		type OfflineOptions
 	} from './media';
-	let { session }: { session: Session } = $props();
+	let { session, view }: { session: Session; view: 'offline' | 'downloads' | 'storage' } = $props();
 	let options = $state<OfflineOptions>({ ...offlineDefaults }),
 		saved = $state(0),
 		cached = $state(0),
@@ -55,7 +55,7 @@
 	let conversion = $state<'on' | 'off' | 'unavailable'>();
 	$effect(() => {
 		const owner = session;
-		if (!nativeOffline || !useNetwork) {
+		if (loading || view !== 'downloads' || !nativeOffline || !useNetwork) {
 			conversion = undefined;
 			return;
 		}
@@ -74,6 +74,7 @@
 	const canSelect = (p: { id: string }) =>
 		playlistSource(p.id) !== null && !p.id.includes('/') && !p.id.includes('\\');
 	$effect(() => {
+		if (view !== 'downloads') return;
 		const source = options.autoDownload,
 			owner = session;
 		const update = () => (syncIssue = playlistSyncIssue(owner, source));
@@ -82,7 +83,7 @@
 		return () => window.removeEventListener('dn-playlist-sync', update);
 	});
 	$effect(() => {
-		if (!showPicker) return;
+		if (view !== 'downloads' || nativeOffline || !showPicker) return;
 		const controller = new AbortController(),
 			owner = session;
 		void listRetry;
@@ -215,8 +216,22 @@
 </script>
 
 {#if loading}<p role="status">{uiText('Reading device storage…')}</p>
-{:else}
-	<h2 id="offline-playback">{uiText('Playback')}</h2>
+{:else if view === 'offline'}
+	<fieldset class="settings-panel" data-surface="panel" disabled={busy}>
+		<label
+			><input
+				id="offline-mode"
+				type="checkbox"
+				aria-describedby="offline-mode-help"
+				checked={options.offlineOnly}
+				onchange={(e) => change({ ...options, offlineOnly: e.currentTarget.checked })}
+			/>{tr('Offline mode', 'オフラインモード')}</label
+		>
+		<p id="offline-mode-help">
+			{tr('Only play music saved on this device.', 'この端末に保存した曲だけを再生します。')}
+		</p>
+	</fieldset>
+	<h2 id="offline-playback">{uiText('Playback cache')}</h2>
 	<fieldset
 		class="settings-panel"
 		data-surface="panel"
@@ -225,13 +240,7 @@
 	>
 		<label
 			><input
-				type="checkbox"
-				checked={options.offlineOnly}
-				onchange={(e) => change({ ...options, offlineOnly: e.currentTarget.checked })}
-			/>{uiText('Play only offline music')}</label
-		>
-		<label
-			><input
+				id="cache-played-songs"
 				type="checkbox"
 				checked={options.autoCache}
 				onchange={(e) => change({ ...options, autoCache: e.currentTarget.checked })}
@@ -242,7 +251,7 @@
 				'Completed streams stay available offline. Older cached songs are removed when the cache fills.'
 			)}
 		</p>
-		<label
+		<label id="playback-cache-limit"
 			>{uiText('Playback cache limit')}<InlineChoice selected={options.cacheMiB}
 				><select
 					value={options.cacheMiB}
@@ -253,7 +262,18 @@
 				></InlineChoice
 			></label
 		>
-		{#if nativeOffline}<label
+	</fieldset>
+	{#if nativeOffline}<UpcomingSongCache {options} {change} {busy} />{/if}
+{:else if view === 'downloads'}
+	{#if nativeOffline}
+		<h2 id="download-network">{tr('Download network', 'ダウンロード時のネットワーク')}</h2>
+		<fieldset
+			class="settings-panel"
+			data-surface="panel"
+			aria-labelledby="download-network"
+			disabled={busy}
+		>
+			<label
 				><input
 					type="checkbox"
 					checked={options.unmeteredOnly}
@@ -262,10 +282,8 @@
 					'Use only unmetered networks for downloads and played-song caching',
 					'ダウンロードと再生済み曲のキャッシュには非従量制回線のみを使用'
 				)}</label
-			>{/if}
-	</fieldset>
-	{#if nativeOffline}
-		<AndroidCacheSettings {session} {options} {change} {busy} />
+			>
+		</fieldset>
 		<h2 id="download-quality">{uiText('Download quality')}</h2>
 		<fieldset
 			class="settings-panel"
@@ -313,6 +331,39 @@
 					)}
 				{:else}{uiText('DN serves the original file when conversion is unavailable.')}{/if}
 			</p>
+		</fieldset>
+	{/if}
+	{#if nativeOffline}
+		<h2 id="complete-downloads">
+			{tr('Include artwork, lyrics & waveforms', 'アートワーク・歌詞・波形を含める')}
+		</h2>
+		<fieldset
+			class="settings-panel"
+			data-surface="panel"
+			aria-labelledby="complete-downloads"
+			disabled={busy}
+		>
+			<label
+				><input
+					type="checkbox"
+					checked={options.completeDownloads ?? true}
+					onchange={(e) => change({ ...options, completeDownloads: e.currentTarget.checked })}
+				/>
+				{tr(
+					'Save artwork and lyrics with downloads',
+					'ダウンロード時にアートワークと歌詞を保存'
+				)}</label
+			>
+			{#if options.completeDownloads ?? true}
+				<label
+					><input
+						type="checkbox"
+						checked={options.downloadWaveforms ?? false}
+						onchange={(e) => change({ ...options, downloadWaveforms: e.currentTarget.checked })}
+					/>
+					{tr('Prepare waveforms from downloaded audio', '保存した音声から波形を作成')}</label
+				>
+			{/if}
 		</fieldset>
 	{/if}
 	<h2 id="auto-download-options">{uiText('Automatic downloads')}</h2>
@@ -438,10 +489,8 @@
 			<DownloadNotifications />
 		</fieldset>
 	{/if}
-	{#if nativeOffline && session.userId}<AndroidHistorySettings {session} />{/if}
-	<ViewedMediaSettings {session} kind="artwork" />
-	<ViewedMediaSettings {session} kind="lyrics" />
-	<h2>{uiText('On this device')}</h2>
+{:else}
+	<h2 id="device-storage">{uiText('On this device')}</h2>
 	<dl class="settings-facts" data-surface="panel">
 		<div>
 			<dt>{uiText('Saved downloads')}</dt>
@@ -476,6 +525,9 @@
 				onclick={() => (confirming = true)}>{uiText('Clear playback cache')}</button
 			>{/if}
 	</div>
+	<ViewedMediaSettings {session} kind="artwork" />
+	<ViewedMediaSettings {session} kind="lyrics" />
+	{#if nativeOffline}<SavedMusicDetails {session} disabled={busy || options.offlineOnly} />{/if}
 {/if}
 {#if error}<p role="alert">{error}</p>
 	<button

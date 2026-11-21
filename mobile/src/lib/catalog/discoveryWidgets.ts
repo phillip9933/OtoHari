@@ -180,7 +180,7 @@ async function missingReason(session: Session, key: string) {
 	if (pref.turned_off)
 		return 'This integration is disabled on the server. An administrator can enable it in DroppedNeedle settings.';
 	if (!pref.enabled)
-		return 'This section is disabled in DroppedNeedle. Enable it in Settings → Content preferences → Discover.';
+		return 'This section is disabled in DroppedNeedle. Enable it in Settings → Account-wide content visibility → Discover.';
 	if (!pref.available) {
 		if (pref.requires === 'lastfm' || pref.requires === 'listenbrainz')
 			return `Connect ${pref.requires === 'lastfm' ? 'Last.fm' : 'ListenBrainz'} in your DroppedNeedle profile under Scrobbling to enable this section.`;

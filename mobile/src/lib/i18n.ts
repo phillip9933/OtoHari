@@ -1,7 +1,8 @@
 import { Capacitor } from '@capacitor/core';
 import { androidAppearance, type AndroidLanguage } from './appearance/nativeAppearance';
 import { fromStore, writable } from 'svelte/store';
-import japanese from './locales/ja.json';
+import { japaneseText } from './locales/japaneseText';
+export { japaneseText } from './locales/japaneseText';
 
 export type LanguageChoice = 'system' | 'en' | 'ja';
 const key = 'dn.mobile.language.v1';
@@ -85,10 +86,6 @@ export async function setLanguage(choice: LanguageChoice) {
 
 export function tr(english: string, ja: string) {
 	return language.current === 'ja' ? ja : english;
-}
-const translations: Record<string, string> = japanese;
-export function japaneseText(english: string) {
-	return Object.hasOwn(translations, english) ? translations[english] : english;
 }
 /** Translate app-owned labels only. Music metadata, user labels and DN responses keep their original text. */
 export function uiText(english: string) {

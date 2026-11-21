@@ -12,8 +12,14 @@
 	let {
 		compact = false,
 		settingsEntry = false,
+		breadcrumb,
 		section
-	}: { compact?: boolean; settingsEntry?: boolean; section?: Section } = $props();
+	}: {
+		compact?: boolean;
+		settingsEntry?: boolean;
+		breadcrumb?: string;
+		section?: Section;
+	} = $props();
 	const android = Capacitor.getPlatform() === 'android';
 	const ios = Capacitor.getPlatform() === 'ios';
 	let open = $state(false),
@@ -94,9 +100,11 @@
 		bind:this={opener}
 		onclick={show}
 	>
-		{#if settingsEntry}<Cast size={19} /><span>{uiText('Cast and audio output')}</span><ChevronRight
-				size={16}
-			/>
+		{#if settingsEntry}<Cast size={19} /><span
+				>{uiText('Cast and audio output')}{#if breadcrumb}<small class="breadcrumb"
+						>{breadcrumb}</small
+					>{/if}</span
+			><ChevronRight size={16} />
 		{:else}<PlayerActionFace
 				{section}
 				glyph={Cast}
@@ -167,6 +175,11 @@
 {/if}
 
 <style>
+	.breadcrumb {
+		display: block;
+		font-weight: 400;
+		color: var(--muted);
+	}
 	h3 {
 		margin: 0.75rem 0 0;
 		color: var(--heading, var(--text));

@@ -50,8 +50,8 @@ const order = (page: Page) =>
 		.then((rows) => rows.map((s) => s.trim()));
 async function edit(page: Page, layout: string) {
 	await button(page, 'Settings').click();
-	await button(page, 'Edit ' + layout + ' layout').click();
-	await expect(page.getByRole('heading', { name: 'Edit ' + layout, exact: true })).toBeVisible();
+	await button(page, layout + ' layout').click();
+	await expect(page.getByRole('heading', { name: layout + ' layout', exact: true })).toBeVisible();
 }
 async function save(page: Page) {
 	await button(page, 'Save layout').click();
@@ -87,7 +87,7 @@ test('a listener arranges sections independently and keeps the layout after sign
 	await expect(button(page, 'Southerly 1 album')).toBeVisible();
 	await page.keyboard.press('Escape');
 	await expect(button(page, 'Browse Artists')).toBeVisible();
-	await expect(button(page, 'Edit Home layout')).toHaveCount(0);
+	await expect(button(page, 'Home layout')).toHaveCount(0);
 	await button(page, 'Library').click();
 	await button(page, 'Library sections').click();
 	await expect(button(page, 'Browse Artists')).toBeVisible();

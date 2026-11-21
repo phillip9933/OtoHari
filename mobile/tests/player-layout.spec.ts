@@ -263,7 +263,7 @@ async function openEditor(page: Page) {
 			.getByRole('button', { name: 'Home', exact: true })
 			.click();
 		await editorButton(page, 'Settings').click();
-		await editorButton(page, 'Edit Now Playing layout').click();
+		await editorButton(page, 'Now Playing layout').click();
 	}
 	await expect(page.locator('[data-part=layout-editor] [data-player-grid]')).toBeVisible();
 }
@@ -427,19 +427,16 @@ test('the queue editor restores the album order and saves similar music for the 
 	await expect(rows.nth(1)).toContainText('Day Train');
 	await expect(rows.nth(2)).toContainText('Late Train');
 	await page.getByRole('button', { name: 'Edit queue', exact: true }).click();
-	const autoplay = page.getByRole('checkbox', { name: 'Autoplay similar library music' });
+	const autoplay = page.getByRole('checkbox', { name: 'Autoplay when the queue ends' });
 	await expect(autoplay).not.toBeChecked();
 	await autoplay.check();
 	await expect(autoplay).toBeChecked();
 	await page.getByRole('button', { name: 'Close player', exact: true }).click();
 	await page.getByRole('button', { name: 'Settings', exact: true }).click();
-	const queueSettings = page.getByRole('button', { name: 'Queue and autoplay', exact: true });
-	await queueSettings.click();
 	await expect(autoplay).toBeChecked();
 	await autoplay.uncheck();
-	await page.getByRole('button', { name: 'Back', exact: true }).click();
 	await page.getByRole('searchbox', { name: 'Search settings' }).fill('自動再生');
-	await queueSettings.click();
+	await page.getByRole('button', { name: 'Autoplay when the queue ends', exact: true }).click();
 	await expect(autoplay).toBeEnabled();
 	await expect(autoplay).not.toBeChecked();
 });
@@ -788,7 +785,7 @@ test('Android Back discards a sample layout and returns to the empty player from
 	await page.getByRole('button', { name: 'Sign in', exact: true }).click();
 	await expect(page.getByRole('heading', { name: 'Home', exact: true })).toBeVisible();
 	await page.getByRole('button', { name: 'Settings', exact: true }).click();
-	await page.getByRole('button', { name: 'Edit Now Playing layout' }).click();
+	await page.getByRole('button', { name: 'Now Playing layout' }).click();
 	const player = page.getByRole('region', { name: 'Now playing', exact: true });
 	await removeField(page, 'Artwork');
 	await page.keyboard.press('Escape');
@@ -1243,7 +1240,7 @@ test('old menu and Track tools layouts migrate to More actions without adding ei
 	await localSignIn(page, server, 'alex');
 	const b = (name: string) => page.getByRole('button', { name, exact: true });
 	await b('Settings').click();
-	await b('Edit Now Playing layout').click();
+	await b('Now Playing layout').click();
 	await customize(page, 'More actions');
 	await page.getByText('Position and size', { exact: true }).click();
 	await page.getByLabel('Width in cells').fill('1');
@@ -1290,7 +1287,7 @@ test('a migrated six-column header keeps its five controls and the empty column 
 	await page.getByLabel('Password', { exact: true }).fill('fixture');
 	await b('Sign in').click();
 	await b('Settings').click();
-	await b('Edit Now Playing layout').click();
+	await b('Now Playing layout').click();
 	const fields = (grid: boolean) =>
 		page
 			.locator(

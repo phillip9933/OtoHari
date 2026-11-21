@@ -144,8 +144,8 @@ async function download(page: Page) {
 }
 async function settings(page: Page) {
 	await button(page, 'Settings').click();
-	await button(page, 'Offline and cache').click();
-	await expect(page.getByLabel('Play only offline music')).toBeEnabled();
+	await button(page, 'Offline mode and playback cache').click();
+	await expect(page.getByRole('checkbox', { name: 'Offline mode', exact: true })).toBeEnabled();
 }
 async function shelf(page: Page) {
 	await button(page, 'Library').click();
@@ -201,7 +201,9 @@ test('airplane edits immediately qualify for a smart playlist and only the origi
 	await login(page, 'alice');
 	await download(page);
 	await settings(page);
-	await page.getByLabel('Play only offline music').check();
+	await page.getByRole('checkbox', { name: 'Offline mode', exact: true }).check();
+	await button(page, 'Back').click();
+	await button(page, 'Device storage').click();
 	await button(page, 'Open offline music').click();
 	await page.context().setOffline(true);
 	const dialog = await edit(page);
@@ -232,7 +234,7 @@ test('airplane edits immediately qualify for a smart playlist and only the origi
 	]);
 	expect(JSON.stringify(queue)).not.toContain('test-secret');
 	await settings(page);
-	await page.getByLabel('Play only offline music').uncheck();
+	await page.getByRole('checkbox', { name: 'Offline mode', exact: true }).uncheck();
 	await expect
 		.poll(() => env.writes)
 		.toEqual([
@@ -243,6 +245,8 @@ test('airplane edits immediately qualify for a smart playlist and only the origi
 		.poll(async () => (await changes(page)).every((r) => r.state === 'confirmed'))
 		.toBe(true);
 	await page.evaluate(() => window.dispatchEvent(new Event('online')));
+	await button(page, 'Back').click();
+	await button(page, 'Device storage').click();
 	await button(page, 'Open offline music').click();
 	await expect(page.getByText(/track change.*waiting to sync/)).toHaveCount(0);
 	expect(env.writes).toHaveLength(2);

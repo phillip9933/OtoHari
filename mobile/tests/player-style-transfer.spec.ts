@@ -172,7 +172,7 @@ async function openEditor(page: Page) {
 	await page.getByRole('button', { name: 'Sign in', exact: true }).click();
 	await expect(page.getByRole('button', { name: 'Home', exact: true })).toBeVisible();
 	await page.getByRole('button', { name: 'Settings', exact: true }).click();
-	const edit = page.getByRole('button', { name: 'Edit Now Playing layout' }),
+	const edit = page.getByRole('button', { name: 'Now Playing layout' }),
 		share = page.getByText('Share player layout', { exact: true }),
 		input = page.getByLabel('Shared layout JSON'),
 		output = page.getByLabel('Current layout JSON'),

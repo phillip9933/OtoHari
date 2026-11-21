@@ -259,7 +259,7 @@ test('Library layout settings update the open collection, preserve its sorting a
 	await b('Reverse sort order').tap();
 	const edit = async () => {
 		await b('Settings').tap();
-		await b('Edit Library layout').tap();
+		await b('Library layout').tap();
 		const details = page
 			.locator('details')
 			.filter({ has: page.getByText('Library pages', { exact: true }) });
