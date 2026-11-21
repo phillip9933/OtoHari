@@ -90,6 +90,52 @@ final class BoundedArtworkFile {
         catch { return nil }
     }
     private func number(_ bytes: Data) -> Int { bytes.reduce(0) { ($0 << 8) | Int($1) } }
+    private func syncsafe(_ bytes: Data) -> Int? {
+        guard bytes.allSatisfy({ $0 < 128 }) else { return nil }
+        return bytes.reduce(0) { ($0 << 7) | Int($1) }
+    }
+    private func id3Picture(_ frame: Data) -> (kind: UInt8, image: Data)? {
+        guard frame.count > 4, frame[0] <= 3,
+              let mimeEnd = frame.dropFirst().firstIndex(of: 0), mimeEnd < frame.count - 2,
+              frame[1..<mimeEnd] != Data("-->".utf8) else { return nil }
+        let kind = frame[mimeEnd + 1]
+        guard kind == 3 || kind == 0 || kind == 4 else { return nil }
+        var imageStart = mimeEnd + 2
+        if frame[0] == 1 || frame[0] == 2 {
+            // UTF-16 description terminators must be found on a code-unit boundary.
+            while imageStart + 1 < frame.count && !(frame[imageStart] == 0 && frame[imageStart + 1] == 0) {
+                imageStart += 2
+            }
+            imageStart += 2
+        } else {
+            guard let end = frame[imageStart...].firstIndex(of: 0) else { return nil }
+            imageStart = end + 1
+        }
+        guard (1...PlaybackArtworkLimits.coverBytes).contains(frame.count - imageStart) else { return nil }
+        return (kind, frame.subdata(in: imageStart..<frame.count))
+    }
+    func id3Cover() -> Data? {
+        guard let header = read(at: 0, count: 10), header.count == 10, header.prefix(3) == Data("ID3".utf8),
+              (3...4).contains(header[3]), header[5] == 0,
+              let tagSize = syncsafe(header.suffix(4)), Int64(tagSize) <= size - 10 else { return nil }
+        let end = Int64(tagSize) + 10
+        var offset: Int64 = 10
+        var other: Data?
+        while offset <= end - 10, let frame = read(at: offset, count: 10), frame.count == 10, frame[0] != 0 {
+            let rawSize = frame.subdata(in: 4..<8)
+            guard let length = (header[3] == 4 ? syncsafe(rawSize) : number(rawSize)),
+                  length > 0, Int64(length) <= end - offset - 10 else { return nil }
+            offset += 10
+            if frame.prefix(4) == Data("APIC".utf8), frame[9] == 0,
+               length <= PlaybackArtworkLimits.coverBytes + 65536,
+               let data = read(at: offset, count: length), let picture = id3Picture(data) {
+                if picture.kind == 3 { return picture.image }
+                if other == nil { other = picture.image }
+            }
+            offset += Int64(length)
+        }
+        return other
+    }
     private func flacPicture(start: Int64, length: Int) -> (kind: Int, offset: Int64, count: Int)? {
         // RFC 9639 PICTURE has variable-length MIME and description fields before its image length.
         guard length >= 32, let first = read(at: start, count: 8), first.count == 8 else { return nil }
@@ -191,7 +237,7 @@ enum PlaybackArtworkImage {
     private static let worker = DispatchQueue(label: "app.droppedneedle.playback-artwork", qos: .utility)
     static func embedded(_ url: URL, access: PlaybackArtworkAccess) -> Data? {
         guard let source = try? BoundedArtworkFile(url, access: access) else { return nil }
-        if let flac = source.flacCover() { return flac }
+        if let picture = source.flacCover() ?? source.id3Cover() { return picture }
         guard access.active else { return nil }
         return withExtendedLifetime(source) {
             var file: AudioFileID?

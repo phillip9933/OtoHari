@@ -30,6 +30,10 @@ for name in ["management_full.flac", "management_two_icons.flac"] {
     let audio = try BoundedArtworkFile(tagged.appendingPathComponent(name), access: PlaybackArtworkAccess())
     precondition(audio.flacCover() == picture)
 }
+for name in ["management_full.mp3", "management_full_v23.mp3"] {
+    let audio = try BoundedArtworkFile(tagged.appendingPathComponent(name), access: PlaybackArtworkAccess())
+    precondition(audio.id3Cover() == picture, "Missing embedded front cover in " + name)
+}
 let noTag = try BoundedArtworkFile(tagged.appendingPathComponent("flac_no_tags.flac"), access: PlaybackArtworkAccess())
 precondition(noTag.flacCover() == nil)
 let storage = FileManager.default.temporaryDirectory.appendingPathComponent("dn-artwork-account-" + UUID().uuidString)
@@ -74,8 +78,9 @@ precondition(stopped == nil)
 #if canImport(AudioToolbox) && canImport(ImageIO)
 let nativeAccess = PlaybackArtworkAccess()
 let mp3 = tagged.appendingPathComponent("management_full.mp3")
-guard let native = PlaybackArtworkImage.embedded(mp3, access: nativeAccess),
-      let thumbnail = PlaybackArtworkImage.thumbnail(native, access: nativeAccess) else { fatalError("Missing MP3 front cover") }
+guard let native = PlaybackArtworkImage.embedded(mp3, access: nativeAccess) else { fatalError("Missing MP3 front cover") }
+precondition(native == picture)
+guard let thumbnail = PlaybackArtworkImage.thumbnail(native, access: nativeAccess) else { fatalError("Cannot decode MP3 cover PNG") }
 precondition(thumbnail.width == 4 && thumbnail.height == 3)
 #endif
 
