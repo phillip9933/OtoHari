@@ -102,7 +102,11 @@
 		node.addEventListener(
 			'focusout',
 			(e) => {
-				if (!node.contains(e.relatedTarget as Node)) pinned = -1;
+				if (node.contains(e.relatedTarget as Node | null)) return;
+				// Removing a focused row can fire focusout during Svelte's DOM update.
+				queueMicrotask(() => {
+					if (!events.signal.aborted && !node.contains(document.activeElement)) pinned = -1;
+				});
 			},
 			opts
 		);

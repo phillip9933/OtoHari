@@ -185,7 +185,8 @@
 						})}
 				>
 					<option value="0">{uiText('Unlimited')}</option
-					>{#each Array.from({ length: 8 }, (_, i) => i + 1) as n (n)}<option value={n}>{n}</option
+					>{#each Array.from({ length: 8 }, (_, i) => i + 1) as n (n)}<option value={String(n)}
+							>{n}</option
 						>{/each}</select
 				></InlineChoice
 			></label

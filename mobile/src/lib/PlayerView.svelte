@@ -1511,7 +1511,6 @@
 	}
 	.queue-tools,
 	.edit-tools,
-	.queue li,
 	.repeat {
 		display: flex;
 		align-items: center;
@@ -1532,11 +1531,13 @@
 		min-height: 44px;
 	}
 	.queue li {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) auto;
+		align-items: center;
 		border-bottom: 1px solid var(--line);
-		flex-wrap: wrap;
 	}
 	.queue-group-heading {
-		flex-basis: 100%;
+		grid-column: 1 / -1;
 		margin: 0.8rem 0 0;
 		color: var(--accent);
 		font-size: 0.9rem;
@@ -1557,7 +1558,6 @@
 		text-align: start;
 		padding: 0.5rem 0;
 		min-height: 3.6rem;
-		flex: 1;
 		min-width: 0;
 		overflow-wrap: anywhere;
 	}

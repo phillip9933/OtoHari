@@ -786,14 +786,28 @@
 {/if}
 
 <style>
+	:global(main):has(.editor) {
+		container-type: size;
+	}
+	:global(.shell:not(:has(> footer)) > main):has(.editor) {
+		margin-block-end: max(env(safe-area-inset-bottom), var(--safe-area-inset-bottom, 0px));
+	}
+	:global(html[data-navigation='floating'] .shell:has(> footer) > main):has(.editor) {
+		margin-block-end: var(--footer-height);
+	}
 	.editor {
 		width: min(100%, 40rem);
 		margin-inline: auto;
 		color: var(--text);
 		background: var(--bg);
-		display: grid;
+		display: flex;
+		flex-direction: column;
+		max-height: calc(100cqh - 2 * var(--gap));
 		gap: 0.42rem;
 		min-width: 0;
+	}
+	.editor > :not(.stage) {
+		flex: none;
 	}
 	:global(.shell:has([data-part='layout-editor']) > .mast) {
 		display: none;
@@ -837,11 +851,8 @@
 		position: relative;
 		isolation: isolate;
 		width: 100%;
-		height: clamp(
-			16rem,
-			calc(100dvh - 14rem - env(safe-area-inset-top) - env(safe-area-inset-bottom)),
-			54rem
-		);
+		flex: 0 1 54rem;
+		min-height: 16rem;
 		overflow: hidden;
 	}
 	.stage :global([data-part='sample-player']),

@@ -348,6 +348,11 @@ test('grid drill-down and Back retain the row, keyboard focus, layout and active
 	await expect(page.getByRole('searchbox')).toHaveValue('Album');
 	await page.keyboard.press('Tab');
 	await expect(shelf.locator('[data-browse-index="171"] button.item')).toBeFocused();
+	const errors: string[] = [];
+	page.on('pageerror', (error) => errors.push(error.message));
+	await page.keyboard.press('Escape');
+	await expect(button(page, 'Browse Albums')).toBeVisible();
+	expect(errors).toEqual([]);
 });
 
 test('a hidden collection cancels its pending page and resumes only after a scroll or More', async ({

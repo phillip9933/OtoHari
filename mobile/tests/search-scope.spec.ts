@@ -97,6 +97,12 @@ test('category changes keep the query, page the selected bucket, and open genres
 		.getByRole('button', { name: 'Search' })
 		.click();
 	const scopes = page.getByRole('group', { name: 'Search category' });
+	await page.setViewportSize({ width: 375, height: 812 });
+	const tops = await scopes
+		.getByRole('button')
+		.evaluateAll((buttons) => buttons.map((button) => button.getBoundingClientRect().top));
+	expect(tops).toEqual([tops[0], tops[0], tops[0], tops[5], tops[5], tops[5]]);
+	expect(tops[5]).toBeGreaterThan(tops[0]);
 	const input = page.getByRole('searchbox', { name: 'Search music' });
 	await input.fill('rail');
 	await expect(page.getByRole('button', { name: 'Search for Rail in Artists' })).toBeVisible();

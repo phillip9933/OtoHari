@@ -545,14 +545,21 @@
 	}
 	.scopes,
 	.pages {
-		display: flex;
-		flex-wrap: wrap;
 		gap: 0.35rem;
 		margin: 0.5rem 0 1rem;
 	}
+	.scopes {
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(min(100%, 6.5rem), 1fr));
+	}
+	.pages {
+		display: flex;
+		flex-wrap: wrap;
+	}
 	.scopes button {
 		min-height: 44px;
-		padding: 0.3rem 0.72rem;
+		padding: 0.3rem 0.45rem;
+		overflow-wrap: anywhere;
 		font-weight: 600;
 		font-size: 0.92rem;
 		border: 1px solid var(--line);

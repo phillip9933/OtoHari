@@ -193,6 +193,25 @@ test('signal path shows the library source separately from the observed stream, 
 	await expect(queue.locator('strong')).toHaveText(['Night Train', 'New music', 'Day Train']);
 	await expect(queue.getByRole('heading')).toHaveText(['Up Next', 'Continue original queue']);
 	await expect(queue.locator('[aria-current="true"]')).toContainText('Night Train');
+	const grouped = queue.getByRole('listitem').filter({ has: page.getByRole('heading') });
+	for (const editMode of [false, true]) {
+		if (editMode) await page.getByRole('button', { name: 'Edit queue' }).click();
+		for (const row of await grouped.all()) {
+			const track = row.getByRole('button').filter({ has: page.locator('strong') });
+			const box = (await track.boundingBox())!;
+			const heading = (await row.getByRole('heading').boundingBox())!;
+			expect(box.width).toBeGreaterThanOrEqual(44);
+			expect(box.y).toBeGreaterThanOrEqual(heading.y + heading.height - 1);
+			await track.click({ trial: true });
+			if (editMode) {
+				const grip = row.getByRole('button', { name: /^Reorder / });
+				const handle = (await grip.boundingBox())!;
+				expect(handle.y + handle.height / 2).toBeLessThan(box.y + box.height);
+				expect(handle.x).toBeGreaterThanOrEqual(box.x + box.width - 1);
+				await grip.click({ trial: true });
+			}
+		}
+	}
 	expect(plans).toBe(1);
 });
 
@@ -1812,6 +1831,51 @@ test('a finger can catch a closing sheet, hold it still, and pull it open again'
 		await expect(sheet.getByRole('heading', { name: 'Track details' })).toBeVisible();
 	} finally {
 		await touch.close();
+	}
+});
+
+test('the track title inspector shows the stored maximum lines when reopened', async ({ page }) => {
+	await fixture(page);
+	await play(page);
+	await openEditor(page);
+	await customize(page, 'Track title');
+	const lines = page.getByRole('combobox', { name: 'Maximum lines' });
+	await expect(lines).toHaveText('1');
+	await chooseOption(lines, '8');
+	await expect(lines).toHaveText('8');
+	await editorButton(page, 'Done').click();
+	await editorButton(page, 'Save layout').click();
+	await openEditor(page);
+	await customize(page, 'Track title');
+	await expect(lines).toHaveText('8');
+	await chooseOption(lines, '0');
+	await expect(lines).toHaveText('Unlimited');
+});
+
+test('the editor fits its actions above the navigation inset and scrolls on short screens', async ({
+	page
+}) => {
+	const device = await page.context().newCDPSession(page);
+	try {
+		await page.setViewportSize({ width: 411, height: 891 });
+		await device.send('Emulation.setSafeAreaInsetsOverride', { insets: { top: 28, bottom: 48 } });
+		await fixture(page);
+		await play(page);
+		await openEditor(page);
+		const main = page.locator('main');
+		const share = page.locator('[data-part="player-layout-sharing"] summary');
+		const bottom = (element: typeof share) =>
+			element.evaluate((el) => el.getBoundingClientRect().bottom);
+		expect(await main.evaluate((el) => el.scrollTop)).toBe(0);
+		expect(await bottom(share)).toBeLessThanOrEqual(891 - 48);
+		expect(await bottom(main)).toBeLessThanOrEqual(891 - 48);
+		await page.setViewportSize({ width: 667, height: 375 });
+		await share.scrollIntoViewIfNeeded();
+		expect(await bottom(share)).toBeLessThanOrEqual(375 - 48);
+		await share.tap();
+		await expect(page.getByRole('group', { name: 'Layout transfer' })).toBeVisible();
+	} finally {
+		await device.detach();
 	}
 });
 
