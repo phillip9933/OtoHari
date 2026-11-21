@@ -38,7 +38,22 @@ final class Fixture: URLProtocol, @unchecked Sendable {
     override class func canInit(with request: URLRequest) -> Bool { true }
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
     override func startLoading() {
-        Self.seen.record(request)
+        var captured = request
+        // Darwin's URL loading system delivers POST bodies to URLProtocol as a stream.
+        if captured.httpBody == nil, let stream = request.httpBodyStream {
+            stream.open()
+            defer { stream.close() }
+            var buffer = [UInt8](repeating: 0, count: 4096)
+            var body = Data()
+            while true {
+                let count = stream.read(&buffer, maxLength: buffer.count)
+                precondition(count >= 0, "Failed to read the playback report fixture")
+                if count == 0 { break }
+                body.append(contentsOf: buffer.prefix(count))
+            }
+            captured.httpBody = body
+        }
+        Self.seen.record(captured)
         client?.urlProtocol(self, didReceive: HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, cacheStoragePolicy: .notAllowed)
         client?.urlProtocolDidFinishLoading(self)
         Self.received.signal()
