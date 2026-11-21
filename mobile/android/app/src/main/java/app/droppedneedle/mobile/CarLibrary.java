@@ -8,6 +8,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.TimeUnit;
@@ -232,7 +233,12 @@ final class CarLibrary {
             }
             if ("artist".equals(type)) {
                 String cursor = null;
+                HashSet<String> visited = new HashSet<>();
+                long start = System.nanoTime();
                 do {
+                    if (Thread.currentThread().isInterrupted() || visited.size() >= 24 ||
+                        System.nanoTime() - start >= TimeUnit.SECONDS.toNanos(15))
+                        throw new IOException("The pinned artist lookup did not finish.");
                     HttpUrl.Builder find = owner.server.newBuilder().encodedPath(prefix).addPathSegments("library/artists")
                         .addQueryParameter("q", pin.getString("title")).addQueryParameter("limit", String.valueOf(PAGE));
                     if (cursor != null) find.addQueryParameter("after", cursor);
@@ -243,7 +249,8 @@ final class CarLibrary {
                         if (id.equalsIgnoreCase(artist.optString("artist_mbid"))) return children(shelf("artist", artist.getString("id"), after).toString());
                     }
                     String next = page.isNull("next") ? null : page.getString("next");
-                    if (next == null || next.equals(cursor)) break;
+                    if (next == null) break;
+                    if (!visited.add(valid(next))) throw new IOException("DN repeated an artist lookup page.");
                     cursor = next;
                 } while (true);
                 return entries;

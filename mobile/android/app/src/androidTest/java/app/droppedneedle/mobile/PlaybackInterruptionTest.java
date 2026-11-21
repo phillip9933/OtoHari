@@ -196,9 +196,16 @@ public final class PlaybackInterruptionTest {
                 instrumentation.runOnMainSync(() -> {
                     try {
                         playback.setQueue(address, token, user, album, 0, null, null, null, 0, false);
+                        String before = playback.snapshot().getString("queueVersion");
+                        JSObject tick = playback.snapshot(before);
+                        assertFalse(tick.has("tracks"));
+                        assertFalse(tick.has("upNext"));
+                        assertEquals(0, tick.getInt("index"));
                         playback.setQueue(address, token, user, picks, 0, "upNext", null);
+                        JSObject changed = playback.snapshot(before);
+                        assertEquals(4, changed.getJSONArray("tracks").length());
+                        assertEquals("[1,2]", changed.getJSONArray("upNext").toString());
                     } catch (org.json.JSONException e) { throw new AssertionError(e); }
-                    assertEquals("[1,2]", playback.snapshot().optJSONArray("upNext").toString());
                     assertEquals("closing", player.getMediaItemAt(3).mediaId);
                 });
                 CompletableFuture<org.json.JSONObject> stored = new CompletableFuture<>();

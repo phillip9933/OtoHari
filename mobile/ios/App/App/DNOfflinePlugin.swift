@@ -115,8 +115,8 @@ final class DeviceOffline {
         }
         aheadTransfer = nil
     }
-    func permitsTransfer(_ store: OfflineFiles, _ ticket: OfflineFiles.Ticket) -> Bool {
-        guard store.active(ticket) else { return false }
+    func permitsTransfer(_ store: OfflineFiles, _ ticket: OfflineFiles.Ticket, bytes: Int64 = 0) -> Bool {
+        guard store.active(ticket, bytes: bytes) else { return false }
         if ticket.origin == .cached, let connection = ticket.source {
             return PlaybackNetwork(monitor.currentPath).rawValue == connection
         }
@@ -204,12 +204,9 @@ private final class OfflineTransfer: NSObject, URLSessionDownloadDelegate, @unch
                     newRequest request: URLRequest, completionHandler: @escaping (URLRequest?) -> Void) { completionHandler(nil) }
     func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didWriteData: Int64,
                     totalBytesWritten: Int64, totalBytesExpectedToWrite: Int64) {
-        let options = store.options()
         if let http = downloadTask.response as? HTTPURLResponse, http.statusCode != 200 || !DeviceOffline.audio(http.mimeType) {
             failure = OfflineFiles.Failure("DN could not serve this audio file.")
-        } else if !DeviceOffline.shared.permitsTransfer(store, ticket) ||
-            (ticket.origin == .cached && max(totalBytesWritten, totalBytesExpectedToWrite) > Int64(options.cacheMiB) * OfflineFiles.mib) ||
-            (ticket.origin == .automatic && (options.autoDownload != ticket.source || max(totalBytesWritten, totalBytesExpectedToWrite) > Int64(options.downloadMiB) * OfflineFiles.mib)) {
+        } else if !DeviceOffline.shared.permitsTransfer(store, ticket, bytes: max(totalBytesWritten, totalBytesExpectedToWrite)) {
             failure = OfflineFiles.Failure("Download stopped by Offline settings.")
         }
         if failure != nil { downloadTask.cancel(); return }

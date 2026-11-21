@@ -272,7 +272,12 @@ _ = try collectionStore.planPins(expected: selection, source: "off", members: [b
 precondition(collectionStore.pinnedPlaylists().isEmpty)
 let collectionPending = try collectionStore.planPins(expected: selection, source: "off", members: [both, firstPlaylist])
 precondition(collectionPending == ["shared", "favorite", "playlist"])
-for id in collectionPending { try saveSong(collectionStore, id, .automatic, "pinnedCollections") }
+for id in collectionPending {
+    let song = song(id), ticket = try collectionStore.begin(song, origin: .automatic, source: "pinnedCollections")!
+    precondition(collectionStore.active(ticket, bytes: Int64(bytes.count)))
+    precondition(!collectionStore.active(ticket, bytes: Int64(collectionOptions.downloadMiB) * OfflineFiles.mib + 1))
+    try collectionStore.install(audio, bytes: Int64(bytes.count), ext: "wav", track: song, ticket: ticket)
+}
 try saveSong(collectionStore, "keep", .downloaded)
 let confirmedPlaylist = collectionStore.pinnedPlaylists()[0]["ids"] as? [String]
 precondition(confirmedPlaylist == firstPlaylist.ids)

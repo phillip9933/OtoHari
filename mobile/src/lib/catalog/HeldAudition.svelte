@@ -2,9 +2,8 @@
 	import { uiText } from '../i18n';
 	import { onDestroy } from 'svelte';
 	import { Headphones } from '@lucide/svelte';
-	import { combineSignals } from '../abortSignals';
-	import { Capacitor, CapacitorHttp } from '@capacitor/core';
-	import { serverAddress, type Session } from '../connection';
+	import { readSmallResponse } from '../readSmallResponse';
+	import { apiAddress, type Session } from '../connection';
 	import { errorMessage, path } from './catalog';
 	let { session, fileId, name }: { session: Session; fileId: number; name: string } = $props();
 	let src = $state(''),
@@ -12,57 +11,29 @@
 		error = $state(''),
 		audio: HTMLAudioElement;
 	const controller = new AbortController();
-	const bytes = 2 * 1024 * 1024;
 	async function listen() {
 		if (busy) return;
 		busy = true;
 		error = '';
 		try {
 			if (!src) {
-				const url =
-					serverAddress(session.serverUrl) +
-					path('/api/v3/held/files/{file_id}/audio', { file_id: String(fileId) });
-				const headers = {
-					Authorization: 'Bearer ' + session.token,
-					Range: 'bytes=0-' + (bytes - 1)
-				};
-				let blob: Blob;
-				if (Capacitor.isNativePlatform()) {
-					const result = await CapacitorHttp.get({
-						url,
-						headers,
-						disableRedirects: true,
-						responseType: 'arraybuffer',
-						connectTimeout: 10000,
-						readTimeout: 15000
-					});
-					controller.signal.throwIfAborted();
-					if (
-						result.status !== 206 ||
-						typeof result.data !== 'string' ||
-						result.data.length > 4 * Math.ceil(bytes / 3)
-					)
-						throw Error('DN did not return a playable preview.');
-					const type =
-						Object.entries(result.headers).find(([k]) => k.toLowerCase() === 'content-type')?.[1] ||
-						'application/octet-stream';
-					blob = new Blob([Uint8Array.from(atob(result.data), (c) => c.charCodeAt(0))], { type });
-				} else {
-					const response = await fetch(url, {
-						headers,
-						credentials: 'omit',
-						redirect: 'error',
-						cache: 'no-store',
-						signal: combineSignals(controller.signal, AbortSignal.timeout(15000))
-					});
-					if (response.status !== 206 || Number(response.headers.get('content-length')) > bytes) {
-						await response.body?.cancel();
-						throw Error('DN did not return a playable preview.');
-					}
-					blob = await response.blob();
-				}
+				const url = apiAddress(
+					session.serverUrl,
+					path('/api/v3/held/files/{file_id}/audio', { file_id: String(fileId) })
+				);
+				const result = await readSmallResponse(
+					session.serverUrl,
+					url,
+					session.token,
+					'preview',
+					controller.signal
+				);
+				if (result.status !== 206 || !result.data)
+					throw Error('DN did not return a playable preview.');
+				const blob = new Blob([Uint8Array.from(atob(result.data), (c) => c.charCodeAt(0))], {
+					type: result.type
+				});
 				controller.signal.throwIfAborted();
-				if (!blob.size || blob.size > bytes) throw Error('DN did not return a playable preview.');
 				src = URL.createObjectURL(blob);
 				audio.src = src;
 			}

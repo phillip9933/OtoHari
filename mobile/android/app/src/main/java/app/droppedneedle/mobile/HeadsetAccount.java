@@ -48,11 +48,18 @@ final class HeadsetAccount {
                 // A missing or inaccessible key leaves the current queue alone.
             }
         });
-        if (result[0] == null) return null;
+        return storedAccount(result[0]);
+    }
+    @Nullable static HeadsetAccount storedAccount(String encoded) {
+        if (encoded == null) return null;
         try {
-            Object wrapped = new JSONTokener(result[0]).nextValue();
+            Object wrapped = new JSONTokener(encoded).nextValue();
             if (!(wrapped instanceof String)) return null;
             JSONObject stored = new JSONObject((String) wrapped);
+            if (stored.has("revocations")) {
+                stored = stored.optJSONObject("active");
+                if (stored == null) return null;
+            }
             Object address = stored.opt("serverUrl"), id = stored.opt("userId"), token = stored.opt("token");
             if (!(address instanceof String) || !(id instanceof String) || ((String) id).trim().isEmpty()
                     || !(token instanceof String) || ((String) token).isEmpty()

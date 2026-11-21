@@ -4,6 +4,7 @@ import Capacitor
 final class PlayerViewController: CAPBridgeViewController {
     override func capacitorDidLoad() {
         bridge?.registerPluginInstance(DNPlayerPlugin())
+        bridge?.registerPluginInstance(DNReadPlugin())
         bridge?.registerPluginInstance(DNOutputsPlugin())
         bridge?.registerPluginInstance(DNOfflinePlugin())
         bridge?.registerPluginInstance(DNPlaylistExportPlugin())

@@ -1,4 +1,4 @@
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
@@ -144,6 +144,9 @@ for (const id of [host, widget]) {
 	targets[id].SystemCapabilities['com.apple.ApplicationGroups.iOS'] = { enabled: 1 };
 }
 mkdirSync(output, { recursive: true });
+const swiftLock = 'project.xcworkspace/xcshareddata/swiftpm/Package.resolved';
+mkdirSync(path.dirname(path.join(output, swiftLock)), { recursive: true });
+copyFileSync(file(path.join('App.xcodeproj', swiftLock)), path.join(output, swiftLock));
 const hostInfo = plist.parse(readFileSync(file('App/Info.plist'), 'utf8'));
 hostInfo.CFBundleURLTypes.push({ CFBundleURLSchemes: [hostBundle + '.widgets'] });
 writeFileSync(path.join(output, 'WidgetHost-Info.plist'), plist.build(hostInfo));

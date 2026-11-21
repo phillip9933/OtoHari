@@ -1,3 +1,4 @@
+import { readSmallResponse } from './readSmallResponse';
 import { Capacitor, CapacitorHttp } from '@capacitor/core';
 import { combineSignals } from './abortSignals';
 import { SecureStorage, KeychainAccess } from '@aparajita/capacitor-secure-storage';
@@ -140,6 +141,7 @@ async function request<T>(
 		method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 		body?: unknown;
 		artwork?: boolean;
+		expectNoContent?: boolean;
 		signal?: AbortSignal;
 	} = {}
 ): Promise<T> {
@@ -152,7 +154,27 @@ async function request<T>(
 	let status: number;
 	let data: unknown;
 	let contentType: string;
-	if (Capacitor.isNativePlatform()) {
+	const nativeSearch =
+		method === 'GET' &&
+		signal &&
+		Capacitor.isNativePlatform() &&
+		/^\/api\/v3\/search(?:[/?]|$)/.test(path);
+	if (session && (artwork || nativeSearch)) {
+		const result = await overNetwork(
+			readSmallResponse(server, url, session.token, artwork ? 'artwork' : 'search', signal),
+			signal
+		);
+		status = result.status;
+		contentType = result.type;
+		data = result.data;
+		if (contentType === 'application/json' && typeof data === 'string') {
+			try {
+				data = JSON.parse(data);
+			} catch {
+				if (status >= 200 && status < 300) throw Error('Invalid JSON from DroppedNeedle.');
+			}
+		}
+	} else if (Capacitor.isNativePlatform()) {
 		const result = await overNetwork(
 			CapacitorHttp.request({
 				method,
@@ -160,7 +182,7 @@ async function request<T>(
 				headers,
 				data: body,
 				disableRedirects: true,
-				responseType: artwork ? 'arraybuffer' : 'json',
+				responseType: 'json',
 				connectTimeout: 10_000,
 				readTimeout: 30_000
 			}),
@@ -175,15 +197,7 @@ async function request<T>(
 		const response = await webRequest(url, method, headers, body, signal);
 		status = response.status;
 		contentType = response.headers.get('content-type') ?? '';
-		if (response.ok && artwork) {
-			const blob = await response.blob();
-			data = await new Promise<string>((resolve, reject) => {
-				const reader = new FileReader();
-				reader.onload = () => resolve(String(reader.result).split(',')[1] ?? '');
-				reader.onerror = () => reject(new Error('Could not read artwork.'));
-				reader.readAsDataURL(blob);
-			});
-		} else if (contentType.includes('json')) {
+		if (contentType.includes('json')) {
 			data = await response.json();
 		}
 	}
@@ -198,6 +212,7 @@ async function request<T>(
 			problem?.code
 		);
 	}
+	if (options.expectNoContent && status !== 204) throw Error('Server sign-out was not confirmed.');
 	if (artwork) {
 		const mime = contentType.split(';')[0].trim().toLowerCase();
 		if (
@@ -242,22 +257,102 @@ export function getArtwork(session: Session, path: string): Promise<string> {
 
 const SESSION_KEY = 'dn.mobile.session';
 
+type DeviceToken = Pick<Session, 'serverUrl' | 'token'>;
+type Revocation = DeviceToken & { queuedAt: number };
+type Credentials = { active: Session | null; revocations: Revocation[] };
+// DN v3 sessions expire absolutely after 30 days, including sessions issued before sign-out.
+const sessionLifetime = 30 * 24 * 60 * 60 * 1000;
+const sameToken = (a: DeviceToken, b: DeviceToken) =>
+	a.serverUrl === b.serverUrl && a.token === b.token;
+let storageWrite = Promise.resolve();
+
+async function credentials(): Promise<Credentials> {
+	const value = await readSecret<Session | Credentials>(SESSION_KEY);
+	return value && 'revocations' in value ? value : { active: value, revocations: [] };
+}
+
+function editCredentials(edit: (current: Credentials) => void) {
+	const next = storageWrite.then(async () => {
+		const current = await credentials();
+		edit(current);
+		// Change active login and pending revocations together, including on process termination.
+		if (current.revocations.length) await writeSecret(SESSION_KEY, current);
+		else if (current.active) await writeSecret(SESSION_KEY, current.active);
+		else await removeSecret(SESSION_KEY);
+		window.dispatchEvent(new Event('dn-device-sessions'));
+	});
+	storageWrite = next.catch(() => {});
+	return next;
+}
+
 export async function restoreSession() {
-	const session = await readSecret<Session>(SESSION_KEY);
+	await storageWrite;
+	const { active: session } = await credentials();
 	if (!session || session.userId) return session;
 	try {
-		// Older installations saved only the listener's mutable display name.
 		return await saveSession(await verifyToken(session.serverUrl, session.token));
 	} catch {
 		return session;
 	}
 }
-export function forgetSession() {
-	return removeSecret(SESSION_KEY);
+
+export function forgetSession(expected: Session) {
+	return editCredentials((current) => {
+		if (current.active && sameToken(current.active, expected)) current.active = null;
+	});
 }
+
+export async function pendingLogoutServers() {
+	await storageWrite;
+	return [...new Set((await credentials()).revocations.map((device) => device.serverUrl))];
+}
+
+const revoking = new Map<string, Promise<void>>();
+function revoke(device: DeviceToken) {
+	const key = JSON.stringify([device.serverUrl, device.token]);
+	const pending = revoking.get(key);
+	if (pending) return pending;
+	const task = (async () => {
+		try {
+			// DN accepts repeat logout after a lost reply and returns 204 for revoked sessions.
+			await request(device.serverUrl, '/api/v3/auth/logout', {
+				method: 'POST',
+				session: { ...device, displayName: '' },
+				expectNoContent: true
+			});
+		} catch (e) {
+			if (!(e instanceof DnError && e.status === 401 && e.code === 'UNAUTHORIZED')) return;
+		}
+		await editCredentials((current) => {
+			current.revocations = current.revocations.filter((item) => !sameToken(item, device));
+		});
+	})().finally(() => revoking.delete(key));
+	revoking.set(key, task);
+	return task;
+}
+
+export async function retrySignOuts() {
+	await storageWrite;
+	const { revocations } = await credentials();
+	const cutoff = Date.now() - sessionLifetime;
+	if (revocations.some((item) => item.queuedAt <= cutoff)) {
+		await editCredentials((current) => {
+			current.revocations = current.revocations.filter((item) => item.queuedAt > cutoff);
+		});
+	}
+	if (navigator.onLine) {
+		for (const device of revocations) if (device.queuedAt > cutoff) await revoke(device);
+	}
+}
+
 export async function signOut(session: Session) {
-	await forgetSession();
-	await postJson(session, '/api/v3/auth/logout');
+	const device = { serverUrl: session.serverUrl, token: session.token, queuedAt: Date.now() };
+	await editCredentials((current) => {
+		if (current.active && sameToken(current.active, device)) current.active = null;
+		if (!current.revocations.some((item) => sameToken(item, device)))
+			current.revocations.push(device);
+	});
+	if (navigator.onLine) await revoke(device);
 }
 
 export async function verifyToken(address: string, raw: string): Promise<Session> {
@@ -276,7 +371,11 @@ export async function verifyToken(address: string, raw: string): Promise<Session
 }
 
 export async function saveSession(session: Session) {
-	await writeSecret(SESSION_KEY, session);
+	await editCredentials((current) => {
+		if (current.revocations.some((item) => sameToken(item, session)))
+			throw Error('This device session is signing out. Sign in with a new session.');
+		current.active = session;
+	});
 	return session;
 }
 

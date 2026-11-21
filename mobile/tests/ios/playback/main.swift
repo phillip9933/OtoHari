@@ -21,6 +21,20 @@ precondition(missing == nil)
 var next = initial; next.revision = UUID(); next.index = 0; next.position = 0; next.repeatMode = "off"
 try alice.save([track], cursor: next)
 try alice.checkpoint(cursor)
+let large = Array(repeating: track, count: 2_001)
+try bob.save(large, cursor: next)
+let largeRestored = try bob.load()
+precondition(largeRestored?.tracks.count == 2_001)
+let huge = OfflineFiles.Track(id: "huge", title: String(repeating: "x", count: 3_145_728), album: "", artist: "",
+                              streamUrl: "/api/v3/stream/local/huge", artworkUrl: nil, duration: nil)
+do { try bob.save([huge], cursor: next); preconditionFailure("Oversized current queue was saved") }
+catch is OfflineFiles.Failure {}
+let preserved = try bob.load()
+precondition(preserved?.tracks.count == 2_001)
+let largeUndo = PlaybackArchive.Previous(tracks: [huge], cursor: next, continuation: nil, order: nil, playing: false)
+try bob.save([track], cursor: next, previous: largeUndo)
+let smallRestored = try bob.load()
+precondition(smallRestored?.tracks.count == 1 && smallRestored?.previous == nil)
 let current = try alice.load()!
 precondition(current.cursor.index == 0 && current.cursor.position == 0)
 try alice.erase()

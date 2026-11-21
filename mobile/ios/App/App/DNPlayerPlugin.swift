@@ -23,6 +23,7 @@ public final class DNPlayerPlugin: CAPPlugin, CAPBridgedPlugin {
         let key = UUID()
         let data: [String: Any]
         let url: URL
+        let saved: OfflineFiles.Track
     }
     private enum RepeatMode: String { case off, all, one }
     private let reports = PlaybackReportSender()
@@ -44,8 +45,14 @@ public final class DNPlayerPlugin: CAPPlugin, CAPBridgedPlugin {
     private var progressObserver: Any?
     private var intent = PlaybackIntent(), sleepWake: DispatchWorkItem?
     private var repeatMode: RepeatMode = .off
-    private var queue: [Track] = []
-    private var order = PlayerQueueOrder(), previousQueue: PlaybackArchive.Previous?
+    private var queueVersion = UUID().uuidString
+    private var queue: [Track] = [] {
+        didSet { queueVersion = UUID().uuidString }
+    }
+    private var order = PlayerQueueOrder() {
+        didSet { queueVersion = UUID().uuidString }
+    }
+    private var previousQueue: PlaybackArchive.Previous?
     private let suggestions = PlayerAutoplay()
     private var suggestionID = UUID(), suggestionProblem: String?, waitingForSuggestions = false
     private var serverAddress = ""
@@ -56,7 +63,12 @@ public final class DNPlayerPlugin: CAPPlugin, CAPBridgedPlugin {
     private var gateways = [NWEndpoint]()
     private weak var observedItem: AVPlayerItem?
     private var token = ""
-    private var index = -1
+    private var index = -1 {
+        didSet {
+            // A suspended seek can move past queued picks before AVPlayer promotes an item.
+            if index != oldValue && !order.priority.isEmpty { queueVersion = UUID().uuidString }
+        }
+    }
     private var streams: [ObjectIdentifier: (key: UUID, occurrence: UUID, profile: StreamProfile,
                                              source: OfflineFiles.PlaybackSource, network: PlaybackNetwork, stream: LibraryStream?)] = [:]
     private var observations: [NSKeyValueObservation] = []
@@ -474,16 +486,35 @@ public final class DNPlayerPlugin: CAPPlugin, CAPBridgedPlugin {
         guard let archive, let cursor = cursor(), player.currentItem != nil || deferredPosition != nil else { return }
         archiveWorker.async { try? archive.checkpoint(cursor) }
     }
-    private func saveQueue() {
-        guard let archive, let base = URL(string: serverAddress) else { return }
-        revision = UUID()
-        guard let cursor = cursor() else { return }
-        let data = queue.map(\.data), attached = continuation, savedOrder = order.saved(queue.map(\.key)), previous = previousQueue
+    private func prepareQueue(_ tracks: [Track], index: Int, position: Double, order: PlayerQueueOrder,
+                              continuation: LibraryContinuation?, previous: PlaybackArchive.Previous?) throws -> PlaybackArchive.Prepared {
+        let cursor = PlaybackArchive.Cursor(revision: UUID(), index: index, position: position, repeatMode: repeatMode.rawValue)
+        return try PlaybackArchive.prepare(tracks.map(\.saved), cursor: cursor, continuation: continuation,
+                                           order: order.saved(tracks.map(\.key)), previous: previous)
+    }
+    private func saveQueue(_ prepared: PlaybackArchive.Prepared? = nil, completion: ((Error?) -> Void)? = nil) {
+        guard let archive else {
+            completion?(userID == nil ? nil : OfflineFiles.Failure("Could not open the queue on this iPhone."))
+            return
+        }
+        revision = prepared?.revision ?? UUID()
+        guard let cursor = cursor() else { completion?(OfflineFiles.Failure("Choose a track first.")); return }
+        let tracks = prepared == nil ? queue.map(\.saved) : []
+        let savedOrder = prepared == nil ? order.saved(queue.map(\.key)) : nil
+        let attached = continuation, previous = previousQueue
         archiveWorker.async {
-            do { try archive.save(data.map { try DeviceOffline.track($0, base).0 }, cursor: cursor, continuation: attached, order: savedOrder, previous: previous) }
-            catch {
-                DispatchQueue.main.async { [weak self] in
-                    if self?.revision == cursor.revision { self?.error = "Could not save the queue on this iPhone." }
+            do {
+                let record = try prepared ?? PlaybackArchive.prepare(tracks, cursor: cursor, continuation: attached,
+                                                                     order: savedOrder, previous: previous)
+                try archive.write(record)
+                DispatchQueue.main.async {
+                    if self.revision == cursor.revision && !record.keepsPrevious { self.previousQueue = nil }
+                    completion?(nil)
+                }
+            } catch {
+                DispatchQueue.main.async {
+                    if self.revision == cursor.revision { self.error = "Could not save the queue on this iPhone." }
+                    completion?(error)
                 }
             }
         }
@@ -583,15 +614,15 @@ public final class DNPlayerPlugin: CAPPlugin, CAPBridgedPlugin {
             call.resolve(result)
         }
     }
-    private func previousSnapshot() throws -> PlaybackArchive.Previous? {
-        guard let cursor = cursor(), let base = URL(string: serverAddress) else { return nil }
-        return PlaybackArchive.Previous(tracks: try queue.map { try DeviceOffline.track($0.data, base).0 }, cursor: cursor,
+    private func previousSnapshot() -> PlaybackArchive.Previous? {
+        guard let cursor = cursor() else { return nil }
+        return PlaybackArchive.Previous(tracks: queue.map(\.saved), cursor: cursor,
                                      continuation: continuation, order: order.saved(queue.map(\.key)), playing: intent.requested)
     }
     private func restorePrevious() throws {
         guard let old = previousQueue, let base = URL(string: serverAddress) else { return }
         let restored = try old.tracks.map { try queueTrack($0, base: base) }
-        let current = try previousSnapshot()
+        let current = previousSnapshot()
         if old.playing { try requestPlayback() } else { pause() }
         finishHistory(); clearItems()
         previousQueue = current
@@ -621,16 +652,30 @@ public final class DNPlayerPlugin: CAPPlugin, CAPBridgedPlugin {
             do {
                 let rows = try outcome.get()
                 let next = try rows.map { row -> Track in
-                    let (_, url) = try DeviceOffline.track(row, base)
-                    return Track(data: row, url: url)
+                    let (saved, url) = try DeviceOffline.track(row, base)
+                    return Track(data: row, url: url, saved: saved)
                 }
                 guard !next.isEmpty else { throw OfflineFiles.Failure("No similar library tracks are available.") }
                 let restart = self.waitingForSuggestions || self.player.currentItem == nil
-                let first = self.queue.count
-                self.queue.append(contentsOf: next)
-                self.waitingForSuggestions = false
-                if restart { self.move(to: first) } else { self.updateCurrentItem() }
-                self.saveQueue()
+                func appendSuggestions(removing played: Int) throws {
+                    let first = self.queue.count - played
+                    let combined = Array(self.queue.dropFirst(played)) + next
+                    let newIndex = restart ? first : self.index - played
+                    var order = self.order
+                    order.remove(Set(self.queue.prefix(played).map(\.key)))
+                    let record = try self.prepareQueue(combined, index: newIndex, position: restart ? 0 : self.position,
+                                                       order: order, continuation: nil, previous: self.previousQueue)
+                    self.order = order; self.queue = combined; self.index -= played
+                    self.waitingForSuggestions = false
+                    if restart { self.move(to: first) } else { self.updateCurrentItem() }
+                    self.saveQueue(record)
+                }
+                // Preserve normal queue history. Long-running radio can release consumed entries.
+                let trim = self.queue.count + next.count > 2_000 ? max(0, self.index - LibraryContinuation.previousLimit) : 0
+                do { try appendSuggestions(removing: trim) }
+                catch let issue as OfflineFiles.Failure where issue.code == "QUEUE_TOO_LARGE" && trim < self.index {
+                    try appendSuggestions(removing: self.index)
+                }
             } catch {
                 let waiting = self.waitingForSuggestions
                 if waiting { self.pause() }
@@ -711,7 +756,7 @@ public final class DNPlayerPlugin: CAPPlugin, CAPBridgedPlugin {
         if let art = saved.artworkUrl {
             data["artworkUrl"] = base.absoluteString.trimmingCharacters(in: CharacterSet(charactersIn: "/")) + art
         }
-        return Track(data: data, url: url)
+        return Track(data: data, url: url, saved: saved)
     }
     private func extendWindow(_ next: LibraryContinuation, tracks: [OfflineFiles.Track], restart: Bool) throws {
         guard let base = URL(string: serverAddress) else { throw OfflineFiles.Failure("Invalid DN server.") }
@@ -848,7 +893,10 @@ public final class DNPlayerPlugin: CAPPlugin, CAPBridgedPlugin {
         }
         let advanced = index != activeIndex
         index = activeIndex
-        order.priority.subtract(queue.prefix(index + 1).map(\.key))
+        if !order.priority.isEmpty {
+            let consumed = queue.prefix(index + 1).compactMap { order.priority.contains($0.key) ? $0.key : nil }
+            if !consumed.isEmpty { order.priority.subtract(consumed) }
+        }
         if advanced { intent.sleep.moved(to: queue[index].key); checkpoint() }
         if observedItem !== item {
             protectedIntro = (keepIntro === item) ? item : nil
@@ -1155,7 +1203,7 @@ public final class DNPlayerPlugin: CAPPlugin, CAPBridgedPlugin {
     }
 
     @objc func getState(_ call: CAPPluginCall) {
-        DispatchQueue.main.async { self.playbackAllowed(); call.resolve(self.snapshot()) }
+        DispatchQueue.main.async { self.playbackAllowed(); call.resolve(self.snapshot(knownQueue: call.getString("knownQueue"))) }
     }
 
     @objc func waveform(_ call: CAPPluginCall) {
@@ -1173,11 +1221,14 @@ public final class DNPlayerPlugin: CAPPlugin, CAPBridgedPlugin {
         DispatchQueue.main.async { self.waveforms.cancel(call.getString("request") ?? ""); call.resolve() }
     }
 
-    private func snapshot() -> [String: Any] {
+    private func snapshot(knownQueue: String? = nil) -> [String: Any] {
         // A pending Play keeps its Pause control during buffering and interruptions.
-        var result: [String: Any] = ["sleepTimer": intent.sleep.state as Any? ?? NSNull(), "tracks": queue.map(\.data), "repeat": repeatMode.rawValue, "index": index, "playing": intent.requested,
+        var result: [String: Any] = ["sleepTimer": intent.sleep.state as Any? ?? NSNull(), "queueVersion": queueVersion, "repeat": repeatMode.rawValue, "index": index, "playing": intent.requested,
                 "position": position, "duration": duration, "error": error as Any? ?? NSNull()]
-        result["upNext"] = queue.indices.filter { $0 > index && order.priority.contains(queue[$0].key) }
+        if knownQueue != queueVersion {
+            result["tracks"] = queue.map(\.data)
+            result["upNext"] = queue.indices.filter { $0 > index && order.priority.contains(queue[$0].key) }
+        }
         result["shuffled"] = order.original != nil
         result["hasPreviousQueue"] = previousQueue != nil
         result["autoplay"] = PlayerAutoplay.setting(server: serverAddress, user: userID)
@@ -1185,7 +1236,7 @@ public final class DNPlayerPlugin: CAPPlugin, CAPBridgedPlugin {
         if let delivery = delivery() { result["delivery"] = delivery }
         if let c = continuation {
             var window: [String: Any] = ["loaded": c.loaded, "total": c.total, "offset": c.loaded - (queue.count - order.extras.count), "more": c.after != nil]
-            window["extras"] = queue.indices.filter { order.extras.contains(queue[$0].key) }
+            if knownQueue != queueVersion { window["extras"] = queue.indices.filter { order.extras.contains(queue[$0].key) } }
             if let pageProblem { window["problem"] = pageProblem }
             result["libraryWindow"] = window
         }
@@ -1262,7 +1313,10 @@ public final class DNPlayerPlugin: CAPPlugin, CAPBridgedPlugin {
                 let canonical = StreamProfile.canonical(stream)
                 var data = track
                 data["streamUrl"] = canonical.absoluteString
-                checked.append(Track(data: data, url: canonical))
+                guard let (saved, _) = try? DeviceOffline.track(data, base) else {
+                    call.reject("Choose a song from this DroppedNeedle library."); return
+                }
+                checked.append(Track(data: data, url: canonical, saved: saved))
             }
             let attached: LibraryContinuation?
             do {
@@ -1277,25 +1331,33 @@ public final class DNPlayerPlugin: CAPPlugin, CAPBridgedPlugin {
             let profiles = StreamProfiles(wifi: StreamProfile(raw?["wifi"]), cellular: StreamProfile(raw?["cellular"]))
             let userID = call.getString("userId")
             do {
-                self.cancelSuggestions()
+                let record: PlaybackArchive.Prepared
                 if let placement = call.getString("placement"), !self.queue.isEmpty {
                     guard self.token == token, self.serverAddress == address, self.userID == userID else {
                         call.reject("This queue belongs to a different session.")
                         return
                     }
-                    if raw != nil { self.profiles = profiles }
                     self.updateCurrentItem()
                     let target = self.order.insertion(placement, in: self.queue.map(\.key), current: self.index)
-                    self.order.inserted(checked.map(\.key), after: target > 0 ? self.queue[target - 1].key : nil, placement: placement)
-                    self.queue.insert(contentsOf: checked, at: target)
+                    var proposedOrder = self.order, proposedQueue = self.queue
+                    proposedOrder.inserted(checked.map(\.key), after: target > 0 ? self.queue[target - 1].key : nil, placement: placement)
+                    proposedQueue.insert(contentsOf: checked, at: target)
+                    record = try self.prepareQueue(proposedQueue, index: self.index, position: self.position, order: proposedOrder,
+                                                   continuation: self.continuation, previous: self.previousQueue)
+                    self.cancelSuggestions()
+                    if raw != nil { self.profiles = profiles }
+                    self.order = proposedOrder; self.queue = proposedQueue
                     self.updateCurrentItem()
                 } else {
-                    let previous = self.serverAddress == address && self.userID == userID ? try self.previousSnapshot() : nil
+                    let previous = self.serverAddress == address && self.userID == userID ? self.previousSnapshot() : nil
                     let start = call.getDouble("positionSeconds") ?? 0
                     guard start.isFinite, start >= 0 else { call.reject("Invalid playback position."); return }
+                    record = try self.prepareQueue(checked, index: index, position: start, order: PlayerQueueOrder(),
+                                                   continuation: attached, previous: previous)
+                    self.cancelSuggestions()
                     if call.getBool("playing") ?? true { try self.requestPlayback() } else { self.pause() }
                     self.finishHistory(); self.clearItems()
-                    self.previousQueue = previous; self.order = PlayerQueueOrder()
+                    self.previousQueue = record.keepsPrevious ? previous : nil; self.order = PlayerQueueOrder()
                     self.clearArtwork()
                     if self.serverAddress != address || self.userID != userID { self.intent.sleep.cancel(); self.scheduleSleep() }
                     self.attachArchive(address, userID)
@@ -1308,9 +1370,12 @@ public final class DNPlayerPlugin: CAPPlugin, CAPBridgedPlugin {
                     self.profiles = profiles
                     self.move(to: index, from: start)
                 }
-                self.saveQueue()
-                call.resolve(self.snapshot())
-            } catch { call.reject("Audio playback is unavailable.") }
+                self.saveQueue(record) { error in
+                    if error != nil { call.reject("Could not save the queue on this iPhone.") }
+                    else { call.resolve(self.snapshot()) }
+                }
+            } catch let issue as OfflineFiles.Failure { call.reject(issue.localizedDescription) }
+            catch { call.reject("Audio playback is unavailable.") }
         }
     }
 

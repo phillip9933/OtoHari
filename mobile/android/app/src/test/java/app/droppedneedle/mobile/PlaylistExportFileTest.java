@@ -3,6 +3,7 @@ package app.droppedneedle.mobile;
 import static org.junit.Assert.*;
 
 import java.io.ByteArrayOutputStream;
+import java.io.File;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
@@ -93,6 +94,27 @@ public class PlaylistExportFileTest {
             assertEquals(0, files.getRoot().list().length);
         }
     }
+    @Test
+    public void budgetsBothDeclaredAndStreamedBytesAndCleansIncompleteExports() {
+        final long reserve = 32L * 1024 * 1024;
+        for (long length : new long[] {64L * 1024 * 1024 + 1, -1}) {
+            File dir = new File(files.getRoot().toString()) {
+                @Override public long getUsableSpace() { return length < 0 ? reserve + 64 : Long.MAX_VALUE; }
+            };
+            PlaylistExportFile export = new PlaylistExportFile(dir, ID, "csv");
+            OkHttpClient client = PlaylistExportFile.network().addInterceptor(chain -> {
+                byte[] body = new byte[128];
+                Arrays.fill(body, (byte)'x');
+                return new Response.Builder().request(chain.request()).protocol(Protocol.HTTP_1_1)
+                    .code(200).message("fixture").header("Content-Type", "text/csv")
+                    .body(ResponseBody.create(MediaType.get("text/csv"), length, new okio.Buffer().write(body))).build();
+            }).build();
+            assertThrows(PlaylistExportFile.Failure.class, () -> export.prepare(client, SERVER, URL, "fixture"));
+            assertFalse(export.isReady());
+            assertEquals(0, files.getRoot().list().length);
+        }
+    }
+
     @Test
     public void rejectsWrongDestinationAndRouteBeforeSendingCredentials() {
         for (String target : new String[] {"https://elsewhere.example/music/api/v3/playlists/test/export?format=csv",

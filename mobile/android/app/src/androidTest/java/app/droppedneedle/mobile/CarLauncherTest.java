@@ -23,6 +23,13 @@ import org.junit.runner.RunWith;
 @RunWith(AndroidJUnit4.class)
 public class CarLauncherTest {
     private final Context app = InstrumentationRegistry.getInstrumentation().getTargetContext();
+    @Test public void carHostExceptionsRequireTheVerifiedOwnerOfTheControllerUid() throws Exception {
+        int platformUid = app.getPackageManager().getPackageUid("android", 0);
+        assertTrue(CarSession.verifiedCarHost(app, "android", platformUid, false, true));
+        assertFalse(CarSession.verifiedCarHost(app, "android", platformUid, false, false));
+        assertFalse(CarSession.verifiedCarHost(app, "android", app.getApplicationInfo().uid, false, true));
+        assertFalse(CarSession.verifiedCarHost(app, app.getPackageName(), app.getApplicationInfo().uid, false, true));
+    }
     private final HeadsetAccount owner = new HeadsetAccount(HttpUrl.get("https://car-fixture.invalid/music"), "fixture", "driver");
     @Test public void orderedHomePinsResolveTheSameMixAfterAndroidAutoReconnects() throws Exception {
         HeadsetAccount account = new HeadsetAccount(owner.server, "fixture", "pinned-fixture");
@@ -58,6 +65,24 @@ public class CarLauncherTest {
             assertEquals("Saved copy", pins.offline(mix, onDevice).get(0).getString("title"));
             assertTrue(pins.offline(mix, java.util.Collections.emptyMap()).isEmpty());
             assertThrows(IOException.class, () -> new CarLibrary(app, owner, transport, false).item(song.id));
+        } finally { pins.replace(new JSONArray()); }
+    }
+    @Test public void pinnedArtistLookupStopsWhenAContinuationCycles() throws Exception {
+        CarHomePins pins = new CarHomePins(app, owner);
+        JSONObject artist = new JSONObject().put("kind", "artist").put("title", "Fixture artist")
+                .put("id", "11111111-1111-4111-a111-111111111111");
+        int[] calls = {0};
+        CarLibrary.Read pages = url -> {
+            assertTrue(++calls[0] <= 3);
+            return new JSONObject().put("items", new JSONArray()).put("next", calls[0] % 2 == 1 ? "one" : "two");
+        };
+        try {
+            pins.replace(new JSONArray().put(artist));
+            CarLibrary car = new CarLibrary(app, owner, pages, false);
+            List<CarLibrary.Entry> root = car.children(CarLibrary.ROOT);
+            String item = car.children(root.get(root.size() - 1).id).get(0).id;
+            assertThrows(IOException.class, () -> car.children(item));
+            assertEquals(3, calls[0]);
         } finally { pins.replace(new JSONArray()); }
     }
     @Test public void carPagesFollowDnCursorsAndSelectedTracksCanBeResolvedAfterReconnecting() throws Exception {

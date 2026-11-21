@@ -54,6 +54,8 @@ dependencies {
     implementation "androidx.media3:media3-session:$media3Version"
     implementation "androidx.media3:media3-datasource-okhttp:$media3Version"
     implementation "com.google.android.gms:play-services-cast-framework:22.3.1"
+    implementation "com.google.android.gms:play-services-basement:18.9.0"
+    implementation "com.google.guava:guava:33.7.2-android"
     implementation project(':capacitor-android')
     testImplementation "junit:junit:$junitVersion"
     testImplementation "org.json:json:20250517"

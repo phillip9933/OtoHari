@@ -5,6 +5,7 @@
 	import { Capacitor } from '@capacitor/core';
 	import {
 		loginMethods,
+		pendingLogoutServers,
 		serverAddress,
 		useToken,
 		usePassword,
@@ -15,6 +16,7 @@
 
 	let { onconnected }: { onconnected: (session: Session) => void } = $props();
 	let address = $state('');
+	let pendingServers = $state<string[]>([]);
 	let methods = $state<LoginMethods | null>(null);
 	let busy = $state(false);
 	let waiting = $state(false);
@@ -60,7 +62,20 @@
 				error = '';
 			}
 		);
-		return handoff.stop;
+		let active = true;
+		const refreshPending = () =>
+			void pendingLogoutServers()
+				.then((servers) => {
+					if (active) pendingServers = servers;
+				})
+				.catch(failure);
+		window.addEventListener('dn-device-sessions', refreshPending);
+		refreshPending();
+		return () => {
+			active = false;
+			window.removeEventListener('dn-device-sessions', refreshPending);
+			handoff.stop();
+		};
 	});
 	async function submit() {
 		if (busy || checking) return;
@@ -120,6 +135,22 @@
 </script>
 
 <section class="connect" data-part="connect">
+	{#each pendingServers as server (server)}
+		<div role="status">
+			<p>
+				{uiText(
+					'Signed out on this device. DroppedNeedle will retry server sign-out when connected.'
+				)}
+				{server}
+			</p>
+			<button
+				class="text-button"
+				onclick={() =>
+					Browser.open({ url: serverAddress(server) + '/profile#sessions' }).catch(failure)}
+				>{uiText('Manage server sessions')}</button
+			>
+		</div>
+	{/each}
 	<form
 		onsubmit={(event) => {
 			event.preventDefault();

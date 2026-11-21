@@ -333,7 +333,7 @@ async function androidPlaylistBridge(page: Page) {
 					if (plugin === 'SecureStorage') {
 						if (method === 'internalSetItem') secrets.set(opts.prefixedKey, opts.data);
 						if (method === 'internalRemoveItem') secrets.delete(opts.prefixedKey);
-						return { data: secrets.get(opts.prefixedKey), success: true };
+						return { data: secrets.get(opts.prefixedKey) ?? null, success: true };
 					}
 					if (plugin === 'DNOffline')
 						return method === 'snapshot'

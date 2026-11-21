@@ -479,7 +479,7 @@ async function nativeOfflineBridge(
 							if (method === 'internalSetItem')
 								secure.set(String(args.prefixedKey), String(args.data));
 							if (method === 'internalRemoveItem') secure.delete(String(args.prefixedKey));
-							return { data: secure.get(String(args.prefixedKey)), success: true };
+							return { data: secure.get(String(args.prefixedKey)) ?? null, success: true };
 						}
 						if (plugin === 'CapacitorHttp') {
 							const res = await fetch(String(args.url), {

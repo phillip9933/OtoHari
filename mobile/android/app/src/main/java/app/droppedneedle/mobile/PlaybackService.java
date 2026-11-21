@@ -151,6 +151,8 @@ public final class PlaybackService extends MediaLibraryService {
     private String radioProblem;
     private SecretKey queueKey;
     private String revision;
+    // Separate from the persisted queue revision, including before a queue has a storage key.
+    private String queueVersion = UUID.randomUUID().toString();
     private long generation;
     private SettableFuture<MediaSession.MediaItemsWithStartPosition> headsetPlay;
     private final Handler main = new Handler(Looper.getMainLooper());
@@ -163,6 +165,7 @@ public final class PlaybackService extends MediaLibraryService {
     }
 
     private void save(boolean includeTracks) {
+        if (includeTracks) queueVersion = UUID.randomUUID().toString();
         if (changingWindow || queueKey == null || player.getMediaItemCount() == 0) return;
         if (includeTracks) revision = UUID.randomUUID().toString();
         if (revision == null) return;
@@ -178,6 +181,7 @@ public final class PlaybackService extends MediaLibraryService {
         state.put("index", player.getCurrentMediaItemIndex());
         state.put("position", Math.max(0, player.getCurrentPosition()));
         state.put("repeat", repeatMode());
+        consumePriority();
         state.put("upNext", order.pending(player));
         if (pager.attached()) {
             state.put("continuation", pager.saved());
@@ -358,7 +362,8 @@ public final class PlaybackService extends MediaLibraryService {
                         Player.EVENT_MEDIA_ITEM_TRANSITION, Player.EVENT_REPEAT_MODE_CHANGED,
                         Player.EVENT_SHUFFLE_MODE_ENABLED_CHANGED)) updateReadAhead();
                 sleep.check();
-                if (!changingWindow && events.contains(Player.EVENT_MEDIA_ITEM_TRANSITION)) order.consume(source);
+                if (events.contains(Player.EVENT_TIMELINE_CHANGED)) queueVersion = UUID.randomUUID().toString();
+                if (!changingWindow && events.contains(Player.EVENT_MEDIA_ITEM_TRANSITION)) consumePriority();
                 if (pendingCarTrack != null && events.contains(Player.EVENT_TIMELINE_CHANGED)
                         && source.getMediaItemCount() > 0 && pendingCarTrack == trackIdentity(source.getMediaItemAt(0))) {
                     pendingCarTrack = null;
@@ -1186,20 +1191,27 @@ public final class PlaybackService extends MediaLibraryService {
         return result;
     }
 
-    JSObject snapshot() {
+    private void consumePriority() {
+        if (order.consume(player)) queueVersion = UUID.randomUUID().toString();
+    }
+
+    JSObject snapshot() { return snapshot(null); }
+
+    JSObject snapshot(@Nullable String knownQueue) {
         sleep.check();
-        JSArray tracks = queueTracks();
-        int index = tracks.length() == 0 ? -1 : player.getCurrentMediaItemIndex();
-        JSONObject track = tracks.optJSONObject(index);
+        int count = player.getMediaItemCount();
+        int index = count == 0 ? -1 : player.getCurrentMediaItemIndex();
+        Object current = trackIdentity(player.getCurrentMediaItem());
+        JSONObject track = current instanceof JSONObject ? (JSONObject) current : null;
+        boolean includeQueue = !queueVersion.equals(knownQueue);
         double duration = player.getDuration() == C.TIME_UNSET
                 ? (track == null ? 0 : track.optDouble("duration", 0)) : player.getDuration() / 1000.0;
         if (player.remoteDuration() > 0) duration = player.remoteDuration() / 1000.0;
         JSObject result = new JSObject();
         int repeat = repeatMode();
         if (pager.attached()) {
-            org.json.JSONArray extras = order.extraIndices(player);
-            JSObject window = pager.status(tracks.length() - extras.length());
-            if (extras.length() > 0) window.put("extras", extras);
+            JSObject window = pager.status(count - order.extraCount());
+            if (includeQueue && order.extraCount() > 0) window.put("extras", order.extraIndices(player));
             result.put("libraryWindow", window);
         }
         JSObject timer = new JSObject();
@@ -1214,9 +1226,12 @@ public final class PlaybackService extends MediaLibraryService {
         }
         result.put("sleepTimer", timer.length() > 0 ? timer : JSONObject.NULL);
         result.put("quality", currentQuality());
-        result.put("upNext", order.pending(player));
+        result.put("queueVersion", queueVersion);
+        if (includeQueue) {
+            result.put("tracks", queueTracks());
+            result.put("upNext", order.pending(player));
+        }
         result.put("repeat", repeat == Player.REPEAT_MODE_ONE ? "one" : repeat == Player.REPEAT_MODE_ALL ? "all" : "off");
-        result.put("tracks", tracks);
         result.put("shuffled", order.shuffled());
         result.put("hasPreviousQueue", previousQueue != null);
         result.put("autoplay", autoplay);

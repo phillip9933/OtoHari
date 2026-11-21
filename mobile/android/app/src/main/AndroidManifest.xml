@@ -5,6 +5,12 @@
     <!-- Android 7 uses the status-only bridge. Both the SDK provider and its client start on 8+. -->
     <uses-sdk tools:overrideLibrary="io.github.phillip9933.appupdater" />
 
+    <queries>
+        <package android:name="com.google.android.projection.gearhead" />
+        <package android:name="com.android.car.media" />
+        <package android:name="com.android.car.carlauncher" />
+    </queries>
+
     <application
         android:allowBackup="false"
         android:localeConfig="@xml/locales_config"

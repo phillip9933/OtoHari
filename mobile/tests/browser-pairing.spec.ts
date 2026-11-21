@@ -329,6 +329,8 @@ test.beforeEach(async ({ page, nativePlatform }) => {
 								};
 							data = { droppedneedle_mobile_pairing: 1 };
 						} else if (opts.url.endsWith('/me')) {
+							if (sessionStorage.getItem('proxy-denied'))
+								return { status: 401, headers: { 'Content-Type': 'text/html' }, data: '' };
 							if (sessionStorage.getItem('hold-profile')) {
 								await new Promise<void>((resolve) => {
 									window.addEventListener('release-profile', () => resolve(), { once: true });
@@ -336,8 +338,11 @@ test.beforeEach(async ({ page, nativePlatform }) => {
 							}
 							if (!sessionStorage.getItem('reconnected')) throw new Error('Server unreachable.');
 							data = { id: 'fixture-id', display_name: 'Listener' };
-						} else if (opts.url.endsWith('/auth/logout')) data = {};
-						else if (opts.url.endsWith('/me/section-prefs'))
+						} else if (opts.url.endsWith('/auth/logout')) {
+							if (sessionStorage.getItem('logout-unconfirmed')) throw Error('Connection lost.');
+							sessionStorage.setItem('revoked-device', '1');
+							return { status: 204, headers: {}, data: null };
+						} else if (opts.url.endsWith('/me/section-prefs'))
 							data = { pages: { home: [], discover: [] } };
 						else if (
 							opts.method === 'GET' &&
@@ -932,4 +937,131 @@ test.describe('iPhone integration', () => {
 		await expect(page.getByLabel('Server address')).toBeVisible();
 		await expect.poll(() => page.evaluate(() => sessionStorage.getItem('pinned'))).toBeNull();
 	});
+});
+
+test('a proxy denial preserves the pairing reply for retry', async ({ page }) => {
+	await page.addInitScript(() => {
+		sessionStorage.setItem('proxy-denied', '1');
+		sessionStorage.setItem('reconnected', '1');
+	});
+	await deliverApproval(page);
+	const retry = page.getByRole('button', { name: 'Retry connection' });
+	await expect(retry).toBeVisible();
+	await page.evaluate(() => sessionStorage.removeItem('proxy-denied'));
+	await retry.click();
+	await expect(page.getByRole('heading', { name: 'Home', exact: true })).toBeVisible();
+});
+
+test('unconfirmed device sign-out survives restart and retries on reconnect', async ({ page }) => {
+	await page.addInitScript(() => sessionStorage.setItem('reconnected', '1'));
+	await deliverApproval(page);
+	await page.getByRole('button', { name: 'Settings', exact: true }).click();
+	await page.evaluate(() => sessionStorage.setItem('logout-unconfirmed', '1'));
+	await page.getByRole('button', { name: 'Sign out', exact: true }).click();
+	const link = page.getByRole('button', { name: 'Manage server sessions' });
+	await expect(link).toBeVisible();
+	await page.reload();
+	await expect(page.getByLabel('Server address')).toBeVisible();
+	await expect(link).toBeVisible();
+	await page.evaluate(() => {
+		sessionStorage.removeItem('logout-unconfirmed');
+		window.dispatchEvent(new Event('online'));
+	});
+	await expect.poll(() => page.evaluate(() => sessionStorage.getItem('revoked-device'))).toBe('1');
+	await expect(link).toHaveCount(0);
+});
+
+test('slow native polls coalesce and compact updates keep the queue until its version changes', async ({
+	page
+}) => {
+	await page.addInitScript(() => {
+		sessionStorage.setItem('reconnected', '1');
+		sessionStorage.setItem('restored-song', 'Night service');
+	});
+	await deliverApproval(page);
+	await expect(page.getByRole('button', { name: 'Open player for Night service' })).toBeVisible();
+	// Drive the same foreground refresh as the timer, holding the first native read
+	// open across several ticks and changing metadata on a later native queue edit.
+	await page.clock.install();
+	await page.evaluate(() => {
+		type Bridge = {
+			nativePromise: (
+				plugin: string,
+				method: string,
+				opts?: { knownQueue?: string }
+			) => Promise<unknown>;
+		};
+		const bridge = (window as unknown as { Capacitor: Bridge }).Capacitor;
+		const original = bridge.nativePromise.bind(bridge);
+		let reads = 0;
+		bridge.nativePromise = async (plugin, method, opts) => {
+			if (plugin !== 'DNPlayer' || method !== 'getState') return original(plugin, method, opts);
+			reads++;
+			sessionStorage.setItem('poll-reads', String(reads));
+			const queueVersion = sessionStorage.getItem('poll-version') ?? 'first';
+			const snapshot = {
+				queueVersion,
+				playing: false,
+				index: 0,
+				position: 37,
+				duration: 120,
+				repeat: 'off',
+				error: null
+			};
+			if (reads === 1 || queueVersion === 'superseded') {
+				sessionStorage.setItem('waiting-poll', queueVersion);
+				await new Promise<void>((done) =>
+					window.addEventListener('release-poll', () => done(), { once: true })
+				);
+			}
+			if (opts?.knownQueue === queueVersion) {
+				sessionStorage.setItem('compact-poll', queueVersion);
+				return { ...snapshot, playing: true };
+			}
+			return {
+				...snapshot,
+				tracks: Array.from({ length: 2000 }, (_, i) => ({
+					id: String(i),
+					title: queueVersion + ' recording ' + i,
+					artist: 'Artist',
+					album: 'Album',
+					streamUrl: '/api/v3/stream/local/' + i
+				}))
+			};
+		};
+		for (let n = 0; n < 4; n++) document.dispatchEvent(new Event('visibilitychange'));
+	});
+	expect(await page.evaluate(() => sessionStorage.getItem('poll-reads'))).toBe('1');
+	await page.evaluate(() => window.dispatchEvent(new Event('release-poll')));
+	await expect(
+		page.getByRole('button', { name: 'Open player for first recording 0' })
+	).toBeVisible();
+	await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+	await expect
+		.poll(() => page.evaluate(() => sessionStorage.getItem('compact-poll')))
+		.toBe('first');
+	await expect(
+		page.getByRole('button', { name: 'Open player for first recording 0' })
+	).toBeVisible();
+	await page.evaluate(() => {
+		sessionStorage.setItem('poll-version', 'edited');
+		document.dispatchEvent(new Event('visibilitychange'));
+	});
+	await expect(
+		page.getByRole('button', { name: 'Open player for edited recording 0' })
+	).toBeVisible();
+	await page.evaluate(() => {
+		sessionStorage.setItem('poll-version', 'superseded');
+		document.dispatchEvent(new Event('visibilitychange'));
+	});
+	await expect
+		.poll(() => page.evaluate(() => sessionStorage.getItem('waiting-poll')))
+		.toBe('superseded');
+	await page.getByRole('button', { name: 'Play', exact: true }).click();
+	await expect(page.getByRole('button', { name: 'Open player for Night service' })).toBeVisible();
+	await page.evaluate(async () => {
+		window.dispatchEvent(new Event('release-poll'));
+		await new Promise<void>((done) => requestAnimationFrame(() => done()));
+	});
+	await expect(page.getByRole('button', { name: 'Open player for Night service' })).toBeVisible();
 });

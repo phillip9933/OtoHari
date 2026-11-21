@@ -1,6 +1,9 @@
 package app.droppedneedle.mobile;
 
 import android.os.Handler;
+import android.content.Context;
+import android.content.pm.PackageInfo;
+import android.content.pm.PackageManager;
 import android.os.Looper;
 import androidx.annotation.Nullable;
 import androidx.media3.common.C;
@@ -14,6 +17,7 @@ import androidx.media3.session.SessionError;
 import androidx.media3.session.SessionResult;
 import com.getcapacitor.JSArray;
 import com.google.common.collect.ImmutableList;
+import com.google.android.gms.common.GoogleSignatureVerifier;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.ListeningExecutorService;
@@ -42,11 +46,26 @@ class CarSession implements MediaLibrarySession.Callback {
 
     @Override public MediaSession.ConnectionResult onConnect(MediaSession session, MediaSession.ControllerInfo controller) {
         if (!controller.isTrusted() && controller.getUid() != android.os.Process.myUid()
-                && !session.isAutoCompanionController(controller) && !session.isAutomotiveController(controller))
+                && !verifiedCarHost(service, controller.getPackageName(), controller.getUid(),
+                    session.isAutoCompanionController(controller), session.isAutomotiveController(controller)))
             return MediaSession.ConnectionResult.reject();
         Player.Commands commands = MediaSession.ConnectionResult.DEFAULT_PLAYER_COMMANDS.buildUpon()
                 .remove(Player.COMMAND_SET_SHUFFLE_MODE).remove(Player.COMMAND_CHANGE_MEDIA_ITEMS).build();
         return new MediaSession.ConnectionResult.AcceptedResultBuilder(session).setAvailablePlayerCommands(commands).build();
+    }
+    @SuppressWarnings("deprecation") // Google's verifier reads PackageInfo.signatures.
+    static boolean verifiedCarHost(Context context, String name, int uid, boolean companion, boolean automotive) {
+        if (!companion && !automotive) return false;
+        PackageManager packages = context.getPackageManager();
+        try {
+            PackageInfo host = packages.getPackageInfo(name, PackageManager.GET_SIGNATURES);
+            if (host.applicationInfo == null || host.applicationInfo.uid != uid) return false;
+            if (companion) return GoogleSignatureVerifier.getInstance(context).isGooglePublicSignedPackage(host);
+            return packages.checkSignatures("android", name) == PackageManager.SIGNATURE_MATCH
+                || (host.applicationInfo.flags & android.content.pm.ApplicationInfo.FLAG_SYSTEM) != 0;
+        } catch (PackageManager.NameNotFoundException | SecurityException unavailable) {
+            return false;
+        }
     }
     @Override public ListenableFuture<LibraryResult<MediaItem>> onGetLibraryRoot(MediaLibrarySession session,
             MediaSession.ControllerInfo controller, @Nullable LibraryParams params) {

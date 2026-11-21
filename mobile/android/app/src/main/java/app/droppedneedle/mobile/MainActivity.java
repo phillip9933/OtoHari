@@ -15,6 +15,7 @@ public class MainActivity extends BridgeActivity {
         downloads.restore(this, getIntent(), state);
         shortcuts.restore(getIntent(), state);
         creating = true;
+        registerPlugin(DNReadPlugin.class);
         registerPlugin(DNPlayerPlugin.class);
         registerPlugin(DNLauncherPlugin.class);
         registerPlugin(DNOfflinePlugin.class);

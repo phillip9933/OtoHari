@@ -4,7 +4,7 @@ import FoundationNetworking
 #endif
 
 enum PlaylistExportError: LocalizedError {
-    case invalid, invalidLayout, unavailable, picker, cancelled, response, network, file, unauthorized, http(Int)
+    case invalid, invalidLayout, unavailable, picker, cancelled, response, tooLarge, network, file, unauthorized, http(Int)
 
     var code: String {
         switch self {
@@ -16,6 +16,7 @@ enum PlaylistExportError: LocalizedError {
         case .response: return "INVALID_RESPONSE"
         case .network: return "EXPORT_NETWORK"
         case .file: return "EXPORT_FILE"
+        case .tooLarge: return "EXPORT_TOO_LARGE"
         case .unauthorized: return "DN_UNAUTHORIZED"
         case .http(let status): return "HTTP_\(status)"
         }
@@ -29,6 +30,7 @@ enum PlaylistExportError: LocalizedError {
         case .cancelled: return "Playlist export cancelled."
         case .response: return "DN returned an incomplete or unexpected file. Check the server address and sign-in proxy."
         case .network: return "The connection to DN stopped before the export finished."
+        case .tooLarge: return "The playlist export exceeds the size limit."
         case .file: return "Could not write the export file. Check the available storage and try again."
         case .unauthorized: return "Your DroppedNeedle session expired."
         case .http(let status): return "DN returned HTTP \(status)."
@@ -92,11 +94,27 @@ private func privateAttributes(directory: Bool) -> [FileAttributeKey:Any] {
     return result
 }
 
+struct PlaylistExportBudget {
+    var maxBytes: Int64 = 64 * 1024 * 1024
+    var freeBytes: (URL) throws -> Int64 = { url in
+        let attributes = try FileManager.default.attributesOfFileSystem(forPath: url.path)
+        guard let free = attributes[.systemFreeSize] as? NSNumber else { throw PlaylistExportError.file }
+        return free.int64Value
+    }
+
+    func check(_ bytes: Int64, written: Int64, folder: URL) throws {
+        guard bytes <= maxBytes - written else { throw PlaylistExportError.tooLarge }
+        guard let free = try? freeBytes(folder), free >= 32 * 1024 * 1024,
+              bytes <= free - 32 * 1024 * 1024 else { throw PlaylistExportError.file }
+    }
+}
+
 /// Each export owns one private file. URLSession delivers network callbacks on the same serial queue as cancellation.
 final class PlaylistExports: @unchecked Sendable {
     static let shared = PlaylistExports(root: FileManager.default.temporaryDirectory.appendingPathComponent("dn-playlist-exports"))
     typealias Completion<T> = @Sendable (Result<T, PlaylistExportError>) -> Void
     private let root: URL, configuration: URLSessionConfiguration
+    private let budget: PlaylistExportBudget
     private let io = DispatchQueue(label: "app.droppedneedle.playlist-export")
     private let delegateQueue = OperationQueue()
     private var transfers: [UUID: PlaylistExportTransfer] = [:]
@@ -104,8 +122,9 @@ final class PlaylistExports: @unchecked Sendable {
     private static let maxLayoutBytes = 65_536
     private var opened = false
 
-    init(root: URL, configuration: URLSessionConfiguration = .ephemeral) {
+    init(root: URL, configuration: URLSessionConfiguration = .ephemeral, budget: PlaylistExportBudget = .init()) {
         self.root = root
+        self.budget = budget
         self.configuration = configuration
         configuration.urlCache = nil
         configuration.httpCookieStorage = nil
@@ -139,7 +158,7 @@ final class PlaylistExports: @unchecked Sendable {
             do {
                 let request = try format.request(server: server, url: url, token: token)
                 let folder = try self.createFolder(id)
-                let job = PlaylistExportTransfer(format: format, folder: folder)
+                let job = PlaylistExportTransfer(format: format, folder: folder, budget: self.budget)
                 self.transfers[id] = job
                 job.start(request, configuration: self.configuration, queue: self.delegateQueue) { result in
                     if case .failure = result { self.transfers.removeValue(forKey: id) }
@@ -192,12 +211,14 @@ final class PlaylistExports: @unchecked Sendable {
 
 private final class PlaylistExportTransfer: NSObject, URLSessionDataDelegate, @unchecked Sendable {
     private let format: PlaylistExportFormat, folder: URL
+    private let budget: PlaylistExportBudget
     private var file: URL, handle: FileHandle?, task: URLSessionDataTask?
     private var done: PlaylistExports.Completion<[String:String]>?
     private var headers: [String:String]?, unauthorizedBody: Data?, expected: Int64?, written: Int64 = 0
     private var ready = false
 
-    init(format: PlaylistExportFormat, folder: URL) {
+    init(format: PlaylistExportFormat, folder: URL, budget: PlaylistExportBudget) {
+        self.budget = budget
         self.format = format
         self.folder = folder
         self.file = folder.appendingPathComponent("partial")
@@ -264,6 +285,8 @@ private final class PlaylistExportTransfer: NSObject, URLSessionDataDelegate, @u
             finish(.failure(http.statusCode == 200 ? .response : .http(http.statusCode)))
             return
         }
+        do { try budget.check(max(0, http.expectedContentLength), written: 0, folder: folder) }
+        catch { completionHandler(.cancel); finish(.failure(error as? PlaylistExportError ?? .file)); return }
         guard FileManager.default.createFile(atPath: file.path, contents: nil, attributes: privateAttributes(directory: false)),
               let handle = try? FileHandle(forWritingTo: file) else {
             completionHandler(.cancel); finish(.failure(.file)); return
@@ -283,8 +306,11 @@ private final class PlaylistExportTransfer: NSObject, URLSessionDataDelegate, @u
             return
         }
         guard let handle, Int64(data.count) <= (expected ?? Int64.max) - written else { finish(.failure(.response)); return }
-        do { try handle.write(contentsOf: data); written += Int64(data.count) }
-        catch { finish(.failure(.file)) }
+        do {
+            try budget.check(Int64(data.count), written: written, folder: folder)
+            try handle.write(contentsOf: data)
+            written += Int64(data.count)
+        } catch { finish(.failure(error as? PlaylistExportError ?? .file)) }
     }
     func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
         guard done != nil else { return }

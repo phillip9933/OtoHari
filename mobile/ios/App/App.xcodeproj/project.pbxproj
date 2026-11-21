@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		BC40000B00000000000000EF /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = BC40000A00000000000000EF /* PrivacyInfo.xcprivacy */; };
 		38C32D71E01445AFBADA2B21 /* MediaToolbox.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 5DC2336C175445FAA01DA651 /* MediaToolbox.framework */; };
 		BAB0E7F4DE6DE46E325B472D /* WidgetPublishing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F2AEEBFD157F962B120B397 /* WidgetPublishing.swift */; };
 		7030EEF146A99EF605DA2FA8 /* PlayerWidgetSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2CC153EE5F4018EBEC71036A /* PlayerWidgetSnapshot.swift */; };
@@ -32,6 +33,7 @@
 		BC40000B00000000000000A5 /* DNOfflinePlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC40000A00000000000000A5 /* DNOfflinePlugin.swift */; };
 		BC40000B00000000000000A6 /* OfflinePlaybackCapture.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC40000A00000000000000A6 /* OfflinePlaybackCapture.swift */; };
 		BC40000B00000000000000A1 /* DNOutputsPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC40000A00000000000000A1 /* DNOutputsPlugin.swift */; };
+		BC40000B00000000000000F9 /* DNReadPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC40000A00000000000000F9 /* DNReadPlugin.swift */; };
 		BC40000B0000000000000001 /* LibraryStream.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC40000A0000000000000001 /* LibraryStream.swift */; };
 		BC40000B0000000000000000 /* DNPlayerPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC40000A0000000000000000 /* DNPlayerPlugin.swift */; };
 		2FAD9763203C412B000D30F8 /* config.xml in Resources */ = {isa = PBXBuildFile; fileRef = 2FAD9762203C412B000D30F8 /* config.xml */; };
@@ -46,6 +48,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		BC40000A00000000000000EF /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		5DC2336C175445FAA01DA651 /* MediaToolbox.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = MediaToolbox.framework; path = System/Library/Frameworks/MediaToolbox.framework; sourceTree = SDKROOT; };
 		7F2AEEBFD157F962B120B397 /* WidgetPublishing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WidgetPublishing.swift"; sourceTree = "<group>"; };
 		2CC153EE5F4018EBEC71036A /* PlayerWidgetSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PlayerWidgetSnapshot.swift"; sourceTree = "<group>"; };
@@ -74,6 +77,7 @@
 		BC40000A00000000000000A5 /* DNOfflinePlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DNOfflinePlugin.swift; sourceTree = "<group>"; };
 		BC40000A00000000000000A6 /* OfflinePlaybackCapture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OfflinePlaybackCapture.swift; sourceTree = "<group>"; };
 		BC40000A00000000000000A1 /* DNOutputsPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DNOutputsPlugin.swift; sourceTree = "<group>"; };
+		BC40000A00000000000000F9 /* DNReadPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DNReadPlugin.swift; sourceTree = "<group>"; };
 		BC40000A0000000000000001 /* LibraryStream.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryStream.swift; sourceTree = "<group>"; };
 		BC40000A0000000000000000 /* DNPlayerPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DNPlayerPlugin.swift; sourceTree = "<group>"; };
 		2FAD9762203C412B000D30F8 /* config.xml */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = config.xml; sourceTree = "<group>"; };
@@ -126,6 +130,7 @@
 				BC40000A0000000000000000 /* DNPlayerPlugin.swift */,
 				BC40000A00000000000000AD /* PlaybackArtwork.swift */,
 				BC40000A00000000000000A1 /* DNOutputsPlugin.swift */,
+				BC40000A00000000000000F9 /* DNReadPlugin.swift */,
 				BC40000A00000000000000AB /* PlaylistExports.swift */,
 				BC40000A00000000000000AC /* DNPlaylistExportPlugin.swift */,
 				BC40000A0000000000000001 /* LibraryStream.swift */,
@@ -159,6 +164,7 @@
 				504EC30E1FED79650016851F /* Assets.xcassets */,
 				504EC3101FED79650016851F /* LaunchScreen.storyboard */,
 				504EC3131FED79650016851F /* Info.plist */,
+				BC40000A00000000000000EF /* PrivacyInfo.xcprivacy */,
 				2FAD9762203C412B000D30F8 /* config.xml */,
 				50B271D01FEDC1A000F3C39B /* public */,
 			);
@@ -231,6 +237,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				504EC3121FED79650016851F /* LaunchScreen.storyboard in Resources */,
+				BC40000B00000000000000EF /* PrivacyInfo.xcprivacy in Resources */,
 				50B271D11FEDC1A000F3C39B /* public in Resources */,
 				504EC30F1FED79650016851F /* Assets.xcassets in Resources */,
 				50379B232058CBB4000EE86E /* capacitor.config.json in Resources */,
@@ -257,6 +264,7 @@
 				BC40000B0000000000000000 /* DNPlayerPlugin.swift in Sources */,
 				BC40000B00000000000000AD /* PlaybackArtwork.swift in Sources */,
 				BC40000B00000000000000A1 /* DNOutputsPlugin.swift in Sources */,
+				BC40000B00000000000000F9 /* DNReadPlugin.swift in Sources */,
 				BC40000B00000000000000AB /* PlaylistExports.swift in Sources */,
 				BC40000B00000000000000AC /* DNPlaylistExportPlugin.swift in Sources */,
 				BC40000B0000000000000001 /* LibraryStream.swift in Sources */,

@@ -175,7 +175,8 @@
 	}
 	let preview = $state<number | null>(null);
 	const track = $derived($store.tracks[$store.index]);
-	const upNext = $derived(new Set($store.upNext ?? []));
+	const pickedIndices = $derived($store.upNext);
+	const upNext = $derived(new Set(pickedIndices));
 	const canShuffle = $derived(
 		$store.shuffled || $store.tracks.length - $store.index - 1 - upNext.size >= 2
 	);
@@ -219,10 +220,12 @@
 	);
 	const swipeAction = $derived(editor ? undefined : skip);
 	const queueOffset = $derived(libraryWindow?.offset ?? 0);
+	const queueTracks = $derived($store.tracks);
+	const extraIndices = $derived(libraryWindow?.extras);
 	const queueNumbers = $derived.by(() => {
-		const extras = new Set(libraryWindow?.extras);
+		const extras = new Set(extraIndices);
 		let position = queueOffset;
-		return $store.tracks.map((_, index) => (extras.has(index) ? '+' : String(++position)));
+		return queueTracks.map((_, index) => (extras.has(index) ? '+' : String(++position)));
 	});
 	const shuffleLabel = $derived(
 		$store.shuffled
@@ -843,7 +846,7 @@
 				>
 					{#snippet children(grip)}
 						<ol>
-							{#each $store.tracks as item, i (item.id + ':' + i)}
+							{#each queueTracks as item, i (item.id + ':' + i)}
 								<li data-reorder-row={i}>
 									{#if upNext.size && i > $store.index && (i === $store.index + 1 || upNext.has(i) !== upNext.has(i - 1))}
 										<h3 class="queue-group-heading">

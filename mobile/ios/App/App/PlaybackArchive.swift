@@ -17,6 +17,10 @@ final class PlaybackArchive {
         var order: PlayerQueueOrder.Saved?
         var previous: Previous?
     }
+    struct Prepared {
+        let data: Data, revision: UUID, keepsPrevious: Bool
+    }
+    static let maxBytes = 3_145_728
     private let queueURL: URL, cursorURL: URL
     private let files = FileManager.default
     init(folder: URL) throws {
@@ -24,12 +28,12 @@ final class PlaybackArchive {
         queueURL = folder.appendingPathComponent("queue.json")
         cursorURL = folder.appendingPathComponent("cursor.json")
     }
-    private func valid(_ cursor: Cursor, count: Int) -> Bool {
+    private static func valid(_ cursor: Cursor, count: Int) -> Bool {
         return cursor.index >= 0 && cursor.index < count && cursor.position.isFinite && cursor.position >= 0 &&
             ["one", "all", "off"].contains(cursor.repeatMode)
     }
     /// Persist the typed catalogue whitelist and only relative DN resource paths.
-    private func safe(_ input: OfflineFiles.Track) throws -> OfflineFiles.Track {
+    private static func safe(_ input: OfflineFiles.Track) throws -> OfflineFiles.Track {
         var track = input
         guard !track.id.isEmpty, track.id != ".", track.id != "..", !track.id.contains("/"), !track.id.contains("\\"),
               let stream = URLComponents(string: track.streamUrl), stream.scheme == nil, stream.host == nil,
@@ -43,24 +47,36 @@ final class PlaybackArchive {
         } else { track.artworkUrl = nil }
         return track
     }
-    private func checked(_ tracks: [OfflineFiles.Track], _ cursor: Cursor, _ continuation: LibraryContinuation?,
+    private static func checked(_ tracks: [OfflineFiles.Track], _ cursor: Cursor, _ continuation: LibraryContinuation?,
                          _ order: PlayerQueueOrder.Saved?) throws -> [OfflineFiles.Track] {
-        guard tracks.count <= 2000 && valid(cursor, count: tracks.count) else { throw OfflineFiles.Failure("Invalid saved queue.") }
+        guard valid(cursor, count: tracks.count) else { throw OfflineFiles.Failure("Invalid saved queue.") }
         let extras = Set(order?.extras ?? [])
         try continuation?.validate(window: tracks.indices.filter { !extras.contains($0) }.map { tracks[$0].id })
         return try tracks.map(safe)
     }
-    private func checkedPrevious(_ previous: Previous) throws -> Previous {
+    private static func checkedPrevious(_ previous: Previous) throws -> Previous {
         return Previous(tracks: try checked(previous.tracks, previous.cursor, previous.continuation, previous.order),
                         cursor: previous.cursor, continuation: previous.continuation, order: previous.order, playing: previous.playing)
     }
+    static func prepare(_ tracks: [OfflineFiles.Track], cursor: Cursor, continuation: LibraryContinuation? = nil,
+                        order: PlayerQueueOrder.Saved? = nil, previous: Previous? = nil) throws -> Prepared {
+        var record = Record(tracks: try checked(tracks, cursor, continuation, order), cursor: cursor,
+                            continuation: continuation, order: order, previous: nil)
+        let encoder = JSONEncoder()
+        if let previous, let undo = try? checkedPrevious(previous) {
+            record.previous = undo
+            let withUndo = try encoder.encode(record)
+            if withUndo.count <= maxBytes { return Prepared(data: withUndo, revision: cursor.revision, keepsPrevious: true) }
+            record.previous = nil
+        }
+        let current = try encoder.encode(record)
+        guard current.count <= maxBytes else { throw OfflineFiles.Failure("The queue is too large to save on this iPhone.", code: "QUEUE_TOO_LARGE") }
+        return Prepared(data: current, revision: cursor.revision, keepsPrevious: false)
+    }
+    func write(_ record: Prepared) throws { try write(record.data, to: queueURL) }
     func save(_ tracks: [OfflineFiles.Track], cursor: Cursor, continuation: LibraryContinuation? = nil,
               order: PlayerQueueOrder.Saved? = nil, previous: Previous? = nil) throws {
-        let record = Record(tracks: try checked(tracks, cursor, continuation, order), cursor: cursor,
-                            continuation: continuation, order: order, previous: try previous.map(checkedPrevious))
-        let data = try JSONEncoder().encode(record)
-        guard data.count <= 3_145_728 else { throw OfflineFiles.Failure("The queue is too large to restore.") }
-        try write(data, to: queueURL)
+        try write(Self.prepare(tracks, cursor: cursor, continuation: continuation, order: order, previous: previous))
     }
     func checkpoint(_ cursor: Cursor) throws {
         guard cursor.position.isFinite, cursor.position >= 0 else { return }
@@ -75,13 +91,13 @@ final class PlaybackArchive {
     }
     func load() throws -> Record? {
         guard files.fileExists(atPath: queueURL.path) else { return nil }
-        guard let size = try queueURL.resourceValues(forKeys: [.fileSizeKey]).fileSize, size <= 3_145_728 else { throw OfflineFiles.Failure("Invalid saved queue.") }
+        guard let size = try queueURL.resourceValues(forKeys: [.fileSizeKey]).fileSize, size <= Self.maxBytes else { throw OfflineFiles.Failure("Invalid saved queue.") }
         var record = try JSONDecoder().decode(Record.self, from: Data(contentsOf: queueURL))
-        record = Record(tracks: try checked(record.tracks, record.cursor, record.continuation, record.order),
+        record = Record(tracks: try Self.checked(record.tracks, record.cursor, record.continuation, record.order),
                         cursor: record.cursor, continuation: record.continuation, order: record.order,
-                        previous: try record.previous.map(checkedPrevious))
+                        previous: record.previous.flatMap { try? Self.checkedPrevious($0) })
         if let data = try? Data(contentsOf: cursorURL), let cursor = try? JSONDecoder().decode(Cursor.self, from: data),
-           cursor.revision == record.cursor.revision && valid(cursor, count: record.tracks.count) { record.cursor = cursor }
+           cursor.revision == record.cursor.revision && Self.valid(cursor, count: record.tracks.count) { record.cursor = cursor }
         return record
     }
     func erase() throws {

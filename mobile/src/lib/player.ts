@@ -76,6 +76,7 @@ export type PlaybackDelivery = {
 };
 
 export interface PlayerState {
+	queueVersion?: string;
 	upNext?: number[];
 	shuffled?: boolean;
 	hasPreviousQueue?: boolean;
@@ -115,6 +116,7 @@ export type PlayerAction =
 	| 'sleepAfterTrack'
 	| 'cancelSleepTimer'
 	| 'retryLibraryWindow';
+type PlayerPoll = Omit<PlayerState, 'tracks'> & { tracks?: PlayerTrack[] };
 export interface PlaybackBridge {
 	autoplaySetting(
 		options: Pick<PlayerAccess, 'serverUrl' | 'userId'> & { enabled?: boolean }
@@ -132,6 +134,7 @@ export interface PlaybackBridge {
 	): Promise<PlayerState>;
 	command(options: { action: PlayerAction; value?: number; to?: number }): Promise<PlayerState>;
 	getState(): Promise<PlayerState>;
+	getState(options: { knownQueue?: string }): Promise<PlayerPoll>;
 }
 
 const empty: PlayerState = {
@@ -144,7 +147,10 @@ const empty: PlayerState = {
 	error: null
 };
 export const nativeEqualizer: EqualizerBridge = native;
-const backend = Capacitor.isNativePlatform() ? native : browserPlayer();
+const backend: PlaybackBridge = Capacitor.isNativePlatform() ? native : browserPlayer();
+let latest = empty;
+let polling = false;
+let pendingActions = 0;
 let sequence = 0,
 	queueRevision = 0;
 const queueEdits = new Set<PlayerAction>([
@@ -168,28 +174,61 @@ const state = writable(empty, () => {
 	};
 });
 
+function publish(next: PlayerState) {
+	latest = next;
+	state.set(next);
+}
+
+function reportPlayback(error: unknown) {
+	state.update((value) => ({
+		...value,
+		error: error instanceof Error ? error.message : 'Playback failed.'
+	}));
+}
+
 async function update(operation: () => Promise<PlayerState>) {
 	const ticket = ++sequence;
+	pendingActions++;
 	try {
 		const next = await operation();
-		if (ticket === sequence) state.set(next);
+		if (ticket === sequence) publish(next);
 	} catch (error) {
-		if (ticket === sequence) {
-			state.update((s) => ({
-				...s,
-				error: error instanceof Error ? error.message : 'Playback failed.'
-			}));
-		}
+		if (ticket === sequence) reportPlayback(error);
 		throw error;
+	} finally {
+		pendingActions--;
 	}
 }
 
 async function refresh() {
-	if (document.hidden) return;
+	if (document.hidden || polling || pendingActions) return;
+	polling = true;
+	const ticket = sequence;
+	const previous = latest;
 	try {
-		await update(() => backend.getState());
-	} catch {
-		// The next foreground poll reconnects after a service interruption.
+		const next = await backend.getState({ knownQueue: previous.queueVersion });
+		if (ticket !== sequence) return;
+		if (next.tracks) {
+			publish({ ...next, tracks: next.tracks });
+		} else if (next.queueVersion && next.queueVersion === previous.queueVersion) {
+			// Native players omit all three queue-sized arrays for an unchanged revision.
+			publish({
+				...next,
+				tracks: previous.tracks,
+				upNext: previous.upNext,
+				libraryWindow: next.libraryWindow
+					? { ...next.libraryWindow, extras: previous.libraryWindow?.extras }
+					: next.libraryWindow
+			});
+		} else {
+			// Recover in case a restarted service returns a delta for a different queue.
+			const full = await backend.getState();
+			if (ticket === sequence) publish(full);
+		}
+	} catch (error) {
+		if (ticket === sequence) reportPlayback(error);
+	} finally {
+		polling = false;
 	}
 }
 

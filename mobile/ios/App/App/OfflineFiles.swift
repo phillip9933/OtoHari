@@ -390,9 +390,14 @@ final class OfflineFiles {
         var next = index; next.autoGeneration += 1
         try commit(next, notify: false)
     }
-    func active(_ ticket: Ticket) -> Bool {
+    func active(_ ticket: Ticket, bytes: Int64 = 0) -> Bool {
         lock.lock(); defer { lock.unlock() }
-        return ticket.revision == (index.revisions[ticket.id] ?? 0) && permitsTransfer(ticket)
+        guard ticket.revision == (index.revisions[ticket.id] ?? 0), permitsTransfer(ticket) else { return false }
+        switch ticket.origin {
+        case .cached: return bytes <= Int64(index.options.cacheMiB) * Self.mib
+        case .automatic: return bytes <= Int64(index.options.downloadMiB) * Self.mib
+        case .downloaded: return true
+        }
     }
     func missingPlaylistAudio(_ ticket: Ticket, httpStatus: Int?) -> Failure? {
         guard httpStatus == 404 || httpStatus == 410, ticket.origin == .automatic,

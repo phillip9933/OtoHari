@@ -19,6 +19,8 @@ import org.json.JSONObject;
 
 /** A session-bound transfer. The document picker never receives this request or its credentials. */
 final class PlaylistExportFile {
+    private static final long MAX_BYTES = 64L * 1024 * 1024;
+    private static final long SPACE_RESERVE = 32L * 1024 * 1024;
     static final class Failure extends IOException {
         final String code;
         Failure(String message, String code) {
@@ -110,11 +112,12 @@ final class PlaylistExportFile {
                 check();
                 if (!dir.isDirectory() && !dir.mkdirs())
                     throw new IOException("Could not open export staging.");
+                checkBudget(0, Math.max(0, r.body().contentLength()));
                 dest = File.createTempFile("playlist-", ".tmp", dir);
                 staged = dest;
             }
             try (InputStream in = r.body().byteStream(); OutputStream out = new FileOutputStream(dest)) {
-                transfer(in, out);
+                transfer(in, out, true);
             }
             synchronized (this) {
                 check();
@@ -149,15 +152,24 @@ final class PlaylistExportFile {
             source = staged;
         }
         try (InputStream in = new FileInputStream(source)) {
-            transfer(in, out);
+            transfer(in, out, false);
         }
     }
-    private void transfer(InputStream in, OutputStream out) throws IOException {
+    private void checkBudget(long written, long next) throws Failure {
+        if (next > MAX_BYTES - written)
+            throw new Failure("Playlist exports are limited to 64 MiB.", "EXPORT_TOO_LARGE");
+        if (next > dir.getUsableSpace() - SPACE_RESERVE)
+            throw new Failure("Free up storage before exporting this playlist.", "EXPORT_STORAGE");
+    }
+    private void transfer(InputStream in, OutputStream out, boolean staging) throws IOException {
         byte[] chunk = new byte[64 * 1024];
+        long written = 0;
         int n;
         while ((n = in.read(chunk)) != -1) {
             check();
+            if (staging) checkBudget(written, n);
             out.write(chunk, 0, n);
+            written += n;
         }
         check();
         out.flush();

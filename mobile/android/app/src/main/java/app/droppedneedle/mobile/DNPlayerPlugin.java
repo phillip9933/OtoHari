@@ -176,7 +176,7 @@ public final class DNPlayerPlugin extends Plugin {
                 call.getString("preset"), call.getArray("centers"), call.getArray("levels"), call.getString("outputId"))));
     }
 
-    @PluginMethod public void getState(PluginCall call) { execute(call, p -> call.resolve(p.snapshot())); }
+    @PluginMethod public void getState(PluginCall call) { execute(call, p -> call.resolve(p.snapshot(call.getString("knownQueue")))); }
     @PluginMethod public void signalPath(PluginCall call) { execute(call, p -> call.resolve(p.signalPath())); }
 
     @PluginMethod public void waveform(PluginCall call) {

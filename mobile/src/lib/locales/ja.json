@@ -1,4 +1,13 @@
 {
+	"The server returned an unsupported or oversized response.": "サーバーの応答形式が未対応か、サイズが上限を超えています。",
+	"The server returned an unsupported response.": "サーバーの応答形式に対応していません。",
+	"Could not finish the DroppedNeedle request.": "DroppedNeedle へのリクエストを完了できませんでした。",
+	"This device session is signing out. Sign in with a new session.": "この端末のセッションはサインアウト中です。新しいセッションでサインインしてください。",
+	"The playlist export exceeds the size limit.": "プレイリストの書き出しサイズが上限を超えています。",
+	"The queue is too large to save on this iPhone.": "キューが大きすぎてこの iPhone に保存できません。",
+	"Could not open the queue on this iPhone.": "この iPhone でキューを開けませんでした。",
+	"Signed out on this device. DroppedNeedle will retry server sign-out when connected.": "この端末からサインアウトしました。接続時にサーバーからのサインアウトを再試行します。",
+	"Manage server sessions": "サーバーのセッションを管理",
 	"(full)": "（空きなし）",
 	"1 track change waiting to sync.": "1件の曲の変更が同期待ちです。",
 	"A download has already started.": "ダウンロードはすでに開始されています。",

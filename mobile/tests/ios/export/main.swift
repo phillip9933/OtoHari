@@ -129,6 +129,19 @@ for (name, error) in [("short","INVALID_RESPONSE"), ("interrupted","EXPORT_NETWO
     let leftovers = try FileManager.default.contentsOfDirectory(atPath: root.path)
     precondition(leftovers.isEmpty, "Left an incomplete file from \(name)")
 }
+// A declared length and an unadvertised chunk both hit the same staging limit.
+for (name, available) in [("short", Int64.max), ("m3u", Int64.max), ("m3u", Int64(0))] {
+    let sub = root.appendingPathComponent(UUID().uuidString)
+    let budget = PlaylistExportBudget(maxBytes: available == 0 ? 1024 : 16, freeBytes: { _ in available })
+    let bounded = PlaylistExports(root: sub, configuration: config, budget: budget)
+    let format: PlaylistExportFormat = name == "m3u" ? .m3u8 : .csv
+    let result = awaitResult { bounded.prepare(UUID(), server: server, url: endpoint(name, format),
+                                               token: "fixture-only", format: format, done: $0) }
+    expectFailure(result, available == 0 ? "EXPORT_FILE" : "EXPORT_TOO_LARGE")
+    let leftovers = try FileManager.default.contentsOfDirectory(atPath: sub.path)
+    precondition(leftovers.isEmpty)
+    try FileManager.default.removeItem(at: sub)
+}
 let good = endpoint("shared")
 let invalid = [
     good.replacingOccurrences(of: "fixture.invalid", with: "elsewhere.invalid"),

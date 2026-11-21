@@ -32,6 +32,8 @@ final class QueueOrder {
         for (MediaItem entry : entries) extras.add(key(entry));
     }
 
+    int extraCount() { return extras.size(); }
+
     boolean isExtra(MediaItem entry) { return extras.contains(key(entry)); }
 
     JSONArray extraIndices(Player player) {
@@ -60,10 +62,12 @@ final class QueueOrder {
         return at;
     }
 
-    void consume(Player player) {
-        if (upNext.isEmpty()) return;
+    boolean consume(Player player) {
+        if (upNext.isEmpty()) return false;
+        int before = upNext.size();
         for (int i = 0; i <= player.getCurrentMediaItemIndex() && i < player.getMediaItemCount(); i++)
             upNext.remove(key(player.getMediaItemAt(i)));
+        return upNext.size() != before;
     }
 
     void moving(Player player, int from, int to) {
@@ -75,7 +79,6 @@ final class QueueOrder {
     }
 
     JSONArray pending(Player player) {
-        consume(player);
         JSONArray indices = new JSONArray();
         if (!upNext.isEmpty())
             for (int i = player.getCurrentMediaItemIndex() + 1; i < player.getMediaItemCount(); i++)

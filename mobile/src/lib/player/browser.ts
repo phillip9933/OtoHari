@@ -922,6 +922,7 @@ export function browserPlayer(): PlaybackBridge {
 						throw Error('Choose an upcoming track.');
 					const entry = state.tracks[value];
 					const end = priorityEnd();
+					state.tracks = [...state.tracks];
 					state.tracks.splice(value, 1);
 					const to = value < end ? end - 1 : end;
 					if (original) {
@@ -943,7 +944,9 @@ export function browserPlayer(): PlaybackBridge {
 							if (to > state.index && upNext.has(state.tracks[to])) upNext.add(state.tracks[value]);
 							else upNext.delete(state.tracks[value]);
 						}
-						state.tracks.splice(to, 0, ...state.tracks.splice(value, 1));
+						const moved = [...state.tracks];
+						moved.splice(to, 0, ...moved.splice(value, 1));
+						state.tracks = moved;
 						original = undefined;
 						state.index = state.tracks.indexOf(current);
 					}
@@ -952,7 +955,7 @@ export function browserPlayer(): PlaybackBridge {
 						windowExtras.delete(state.tracks[value]);
 						const play = !audio.paused;
 						if (original) original.splice(original.indexOf(state.tracks[value]), 1);
-						state.tracks.splice(value, 1);
+						state.tracks = state.tracks.filter((_, index) => index !== value);
 						if (value === state.index) await playAt(Math.min(value, state.tracks.length - 1), play);
 						else state.index = state.tracks.indexOf(current);
 					}
