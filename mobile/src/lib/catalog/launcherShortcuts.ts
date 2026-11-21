@@ -1,6 +1,7 @@
 import { Capacitor, registerPlugin } from '@capacitor/core';
 import { writable } from 'svelte/store';
 import type { Session } from '../connection';
+import { tr } from '../i18n';
 import {
 	collectionKey,
 	readHome,
@@ -15,14 +16,55 @@ import { accountId } from '../boards/layout';
 
 type Account = Pick<Session, 'serverUrl' | 'userId'>;
 const native = registerPlugin<{
-	pinPlaylist(options: Account & { id: string; name: string }): Promise<void>;
+	pinPlaylist(options: Account & { id: string; name: string; remove?: boolean }): Promise<void>;
+	playlistPinned(options: Account & { id: string }): Promise<{ pinned: boolean }>;
 	takePlaylist(options: Account): Promise<{ id?: string }>;
+	clearShortcuts(options: Account): Promise<void>;
 	replaceHomePins(options: Account & { pins: unknown[] }): Promise<void>;
 }>('DNLauncher');
-export const launcherShortcuts = Capacitor.getPlatform() === 'android';
+const platform = Capacitor.getPlatform();
+export const launcherShortcuts = platform === 'android' || platform === 'ios';
+export function playlistShortcutLabel(pinned: boolean) {
+	if (pinned)
+		return tr('Remove Home Screen quick action', 'ホーム画面のクイックアクションから削除');
+	return platform === 'ios'
+		? tr('Add Home Screen quick action', 'ホーム画面のクイックアクションに追加')
+		: tr('Add Android launcher shortcut', 'Androidのホーム画面にショートカットを追加');
+}
+export function playlistShortcutReceipt(removed: boolean) {
+	if (removed)
+		return tr(
+			'Home Screen quick action removed.',
+			'ホーム画面のクイックアクションから削除しました。'
+		);
+	return platform === 'ios'
+		? tr(
+				'Touch and hold DroppedNeedle on the Home Screen to open this playlist.',
+				'ホーム画面でDroppedNeedleを長押しすると、このプレイリストを開けます。'
+			)
+		: tr(
+				'Confirm the playlist shortcut in your launcher.',
+				'Androidのホーム画面でショートカットの追加を確定してください。'
+			);
+}
 export const pendingShortcut = writable<{ session: Session; id: string } | null>(null);
-export function pinPlaylist(session: Session, id: string, name: string) {
-	return native.pinPlaylist({ serverUrl: session.serverUrl, userId: session.userId, id, name });
+export async function isPlaylistPinned(session: Session, id: string) {
+	if (platform !== 'ios') return false;
+	return (await native.playlistPinned({ serverUrl: session.serverUrl, userId: session.userId, id }))
+		.pinned;
+}
+export function pinPlaylist(session: Session, id: string, name: string, remove = false) {
+	return native.pinPlaylist({
+		serverUrl: session.serverUrl,
+		userId: session.userId,
+		id,
+		name,
+		...(remove ? { remove } : {})
+	});
+}
+export async function clearIPhonePlaylistShortcuts(session: Session) {
+	if (platform === 'ios' && session.userId)
+		await native.clearShortcuts({ serverUrl: session.serverUrl, userId: session.userId });
 }
 export function takePlaylistShortcut(session: Session) {
 	return native.takePlaylist({ serverUrl: session.serverUrl, userId: session.userId });
@@ -48,7 +90,7 @@ function carPin(session: Session, pin: HomePin, data: HomeCollection) {
 	};
 }
 export function mirrorHomePins(session: Session) {
-	if (!launcherShortcuts) return;
+	if (platform !== 'android') return;
 	let live = true,
 		stop: (() => void) | undefined,
 		pending = Promise.resolve();

@@ -13,6 +13,12 @@ export const nativeDocuments = registerPlugin<{
 		format: 'm3u8' | 'csv';
 	}): Promise<Headers>;
 	save(opts: { id: string; filename: string }): Promise<{ saved: boolean }>;
+	saveDiagnostics(input: {
+		serverUrl: string;
+		userId: string;
+		text: string;
+	}): Promise<{ saved: boolean }>;
+	shareDiagnostics(input: { serverUrl: string; userId: string; text: string }): Promise<void>;
 	saveLayout(opts: { text: string }): Promise<{ saved: boolean }>;
 	discard(opts: { id: string }): Promise<void>;
 }>('DNPlaylistExport');

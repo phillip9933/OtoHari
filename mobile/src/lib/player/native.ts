@@ -47,6 +47,11 @@ export const nativePlayer = registerPlugin<
 		OutputBridge &
 		FadeBridge & {
 			signalPath(): Promise<SignalOutput>;
+			widgetAction(options: {
+				url: string;
+				serverUrl: string;
+				userId: string;
+			}): Promise<{ opened: boolean }>;
 			shuffleSelection(options: {
 				serverUrl: string;
 				userId: string;

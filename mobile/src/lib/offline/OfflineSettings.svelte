@@ -420,13 +420,25 @@
 			>
 		{/if}
 	</fieldset>
-	{#if Capacitor.getPlatform() === 'android'}
+	{#if nativeOffline}
 		<h2 id="download-notifications">{uiText('Download notifications')}</h2>
 		<fieldset class="settings-panel" data-surface="panel" aria-labelledby="download-notifications">
+			{#if Capacitor.getPlatform() === 'ios'}
+				<label
+					><input
+						type="checkbox"
+						checked={options.notifyDownloads === true}
+						onchange={(e) => change({ ...options, notifyDownloads: e.currentTarget.checked })}
+					/>{tr(
+						'Notify when a download batch finishes',
+						'ダウンロードキューの完了時に通知する'
+					)}</label
+				>
+			{/if}
 			<DownloadNotifications />
 		</fieldset>
-		{#if session.userId}<AndroidHistorySettings {session} />{/if}
 	{/if}
+	{#if nativeOffline && session.userId}<AndroidHistorySettings {session} />{/if}
 	<ViewedMediaSettings {session} kind="artwork" />
 	<ViewedMediaSettings {session} kind="lyrics" />
 	<h2>{uiText('On this device')}</h2>

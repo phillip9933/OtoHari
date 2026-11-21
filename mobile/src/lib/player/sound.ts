@@ -12,11 +12,9 @@ export function browserSpeed() {
 }
 
 export async function soundSettings(change: Partial<SoundSettings> = {}): Promise<SoundSettings> {
-	if (Capacitor.getPlatform() === 'android') return nativePlayer.soundSettings(change);
-	if (Capacitor.getPlatform() === 'ios')
-		throw Error('Sound settings are unavailable on this device.');
+	if (Capacitor.isNativePlatform()) return nativePlayer.soundSettings(change);
 	if (change.replayGain && change.replayGain !== 'off')
-		throw Error('ReplayGain requires the Android audio player.');
+		throw Error('ReplayGain requires the native audio player.');
 	if (change.speed !== undefined) {
 		if (!playbackSpeeds.some((speed) => speed === change.speed))
 			throw Error('Choose a supported playback speed.');

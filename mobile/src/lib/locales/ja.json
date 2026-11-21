@@ -1080,7 +1080,7 @@
 	"Text template": "テキストのテンプレート",
 	"The directory lists each track’s primary genre. Opening a genre includes other tracks DN has tagged with it.": "一覧には各曲の主なジャンルを表示します。ジャンルを開くと、そのジャンルのタグが付いた他の曲も表示されます。",
 	"The library edition changed. Reload it to review the current match.": "エディションが変わりました。再読み込みして現在の照合結果を確認してください。",
-	"The playback equalizer is available on supported Android devices.": "イコライザーは対応する Android 端末で使えます。",
+	"The playback equalizer is available on supported mobile devices.": "イコライザーは対応するモバイル端末で使えます。",
 	"The search failed.": "検索に失敗しました。",
 	"The search has closed.": "検索は終了しました。",
 	"The search is running.": "検索中です。",

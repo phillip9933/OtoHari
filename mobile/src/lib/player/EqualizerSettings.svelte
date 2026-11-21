@@ -18,9 +18,9 @@
 		busy = $state(false);
 	let preview = $state<{ index: number; level: number } | null>(null);
 	let sequence = 0;
-	const android = Capacitor.getPlatform() === 'android';
+	const native = Capacitor.isNativePlatform();
 	async function refresh() {
-		if (!android || busy || preview || document.hidden) return;
+		if (!native || busy || preview || document.hidden) return;
 		const ticket = ++sequence;
 		try {
 			const result = await nativeEqualizer.getEqualizer();
@@ -32,7 +32,7 @@
 	}
 	onMount(() => {
 		void refresh();
-		const timer = android ? setInterval(refresh, 5000) : undefined;
+		const timer = native ? setInterval(refresh, 5000) : undefined;
 		document.addEventListener('visibilitychange', refresh);
 		return () => {
 			sequence++;
@@ -83,7 +83,7 @@
 	const gain = (level: number) => (level > 0 ? '+' : '') + Number((level / 100).toFixed(2)) + ' dB';
 </script>
 
-{#if !android}<p>{uiText('The playback equalizer is available on supported Android devices.')}</p>
+{#if !native}<p>{uiText('The playback equalizer is available on supported mobile devices.')}</p>
 {:else if !settings}<p role="status">{uiText('Checking audio output…')}</p>
 {:else if !settings.available}<p role="status">{settings.reason}</p>
 	<button class="secondary" onclick={refresh}>{uiText('Check again')}</button>

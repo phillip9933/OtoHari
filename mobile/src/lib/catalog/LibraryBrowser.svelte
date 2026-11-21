@@ -67,7 +67,12 @@
 	import SelectionHost from './SelectionHost.svelte';
 	import BrowseEntries from './BrowseEntries.svelte';
 	import AlphabetRail from './AlphabetRail.svelte';
-	import { launcherShortcuts, pendingShortcut, pinPlaylist } from './launcherShortcuts';
+	import {
+		launcherShortcuts,
+		pendingShortcut,
+		pinPlaylist,
+		playlistShortcutReceipt
+	} from './launcherShortcuts';
 	import { foldSearchText } from './trackFilters';
 	import BrowseItemMenu from './BrowseItemMenu.svelte';
 	import { loadNearEnd } from './browseViewport';
@@ -230,14 +235,11 @@
 				'このライブラリでは、ピン留めしたプレイリストを利用できません。'
 			);
 	});
-	async function pin(row: BrowseItem) {
+	async function pin(row: BrowseItem, remove: boolean) {
 		context = null;
 		try {
-			await pinPlaylist(session, row.id, row.title);
-			receipt = tr(
-				'Confirm the playlist shortcut in your launcher.',
-				'Androidのホーム画面でショートカットの追加を確定してください。'
-			);
+			await pinPlaylist(session, row.id, row.title, remove);
+			receipt = playlistShortcutReceipt(remove);
 		} catch (cause) {
 			actionError = errorMessage(cause);
 		}
@@ -912,8 +914,8 @@
 		onopen={open}
 		action={run}
 		onpin={launcherShortcuts && session.userId
-			? () => {
-					if (context) void pin(context);
+			? (remove) => {
+					if (context) void pin(context, remove);
 				}
 			: undefined}
 		edit={(rule) => {

@@ -11,7 +11,7 @@
 		ListEnd,
 		X
 	} from '@lucide/svelte';
-	import { player, placementMessage, supportsUpNext, type PlayerTrack } from '../player';
+	import { player, placementMessage, type PlayerTrack } from '../player';
 	import { tr } from '../i18n';
 	import type { Session } from '../connection';
 	import { errorMessage, type OnPlay } from './catalog';
@@ -213,15 +213,15 @@
 						class="short-label">{uiText('Next')}</span
 					></button
 				>
-				{#if supportsUpNext}
-					<button
-						class="secondary"
-						disabled={group.busy || !group.selected.size}
-						onclick={() => apply('upNext')}
-					>
-						<ListPlus size={17} />{tr('Up Next', '次の再生リスト')}
-					</button>
-				{/if}
+
+				<button
+					class="secondary"
+					disabled={group.busy || !group.selected.size}
+					onclick={() => apply('upNext')}
+				>
+					<ListPlus size={17} />{tr('Up Next', '次の再生リスト')}
+				</button>
+
 				<button
 					class="secondary"
 					disabled={group.busy || !group.selected.size}

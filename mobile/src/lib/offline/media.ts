@@ -1,4 +1,5 @@
 import { rememberPinnedPlaylists } from '../catalog/playlistOffline';
+import { resolveCollections } from './resolveCollections';
 import { refreshPinRules } from './collectionPins';
 import { Capacitor } from '@capacitor/core';
 import { tr } from '../i18n';
@@ -30,8 +31,8 @@ import { audioNotFound, webOffline } from './web';
 import { nativeMedia } from './nativeMedia';
 
 export const offlineSupported =
-	Capacitor.getPlatform() === 'android' || !Capacitor.isNativePlatform();
-export const nativeOffline = Capacitor.getPlatform() === 'android';
+	['ios', 'android'].includes(Capacitor.getPlatform()) || !Capacitor.isNativePlatform();
+export const nativeOffline = ['ios', 'android'].includes(Capacitor.getPlatform());
 const backend = () => (nativeOffline ? nativeMedia : webOffline);
 export const mediaChanged = 'dn-offline-media';
 let activeBatches = 0;
@@ -117,6 +118,28 @@ async function withRatings(session: PlayerAccess, tracks: PlayerTrack[]) {
 		return tracks;
 	}
 }
+export async function stopIPhoneDownloads(session: OfflineAccount) {
+	if (Capacitor.getPlatform() === 'ios' && session.userId)
+		await nativeMedia.disconnectDownloads(account(session));
+}
+
+async function saveTrack(input: Parameters<typeof nativeMedia.save>[0], signal?: AbortSignal) {
+	signal?.throwIfAborted();
+	if (Capacitor.getPlatform() !== 'ios')
+		return backend().save({ ...input, ...(!nativeOffline ? { signal } : {}) });
+	const transferId = crypto.randomUUID();
+	const stop = () =>
+		void nativeMedia
+			.cancelTransfer({ serverUrl: input.serverUrl, userId: input.userId, transferId })
+			.catch(() => {});
+	signal?.addEventListener('abort', stop, { once: true });
+	try {
+		await nativeMedia.save({ ...input, transferId });
+		signal?.throwIfAborted();
+	} finally {
+		signal?.removeEventListener('abort', stop);
+	}
+}
 export async function saveOfflineTracks(
 	session: PlayerAccess & OfflineAccount,
 	tracks: PlayerTrack[],
@@ -126,9 +149,10 @@ export async function saveOfflineTracks(
 	const owner = account(session);
 	const unique = [...new Map(tracks.map((t) => [t.id, t])).values()];
 	signal?.throwIfAborted();
-	if (Capacitor.getPlatform() === 'android' && unique.length) {
+	if (nativeOffline && unique.length) {
 		const result = await nativeMedia.enqueueManual({
 			...owner,
+			...(Capacitor.getPlatform() === 'ios' ? { token: session.token } : {}),
 			tracks: unique.map((track) => retainedTrack(track, owner.serverUrl))
 		});
 		const { saved, queued, alreadyQueued, failed } = result;
@@ -165,13 +189,17 @@ export async function saveOfflineTracks(
 			for (const track of options.offlineOnly ? batch : await withRatings(session, batch)) {
 				signal?.throwIfAborted();
 				try {
-					await backend().save({
-						...owner,
-						token: session.token,
-						track: retainedTrack(track, session.serverUrl)
-					});
+					await saveTrack(
+						{
+							...owner,
+							token: session.token,
+							track: retainedTrack(track, session.serverUrl)
+						},
+						signal
+					);
 					saved++;
 				} catch (e) {
+					signal?.throwIfAborted();
 					failed++;
 					lastError =
 						e instanceof Error
@@ -284,10 +312,15 @@ export function runAutoDownloads(session: Session, signal?: AbortSignal): Promis
 	return pending;
 	async function sync() {
 		const owner = account(session);
+		if (Capacitor.getPlatform() === 'ios')
+			await nativeMedia.resumeManual({ ...owner, token: session.token });
 		const settings = await backend().options(owner);
 		const source = settings.autoDownload;
 		if (settings.offlineOnly || signal?.aborted) return 0;
-		if (nativeOffline && (settings.offlinePins?.length || source !== 'off')) {
+		if (
+			Capacitor.getPlatform() === 'android' &&
+			(settings.offlinePins?.length || source !== 'off')
+		) {
 			const updated = refreshPinRules(session, settings.offlinePins ?? []);
 			if (JSON.stringify(updated) !== JSON.stringify(settings.offlinePins ?? []))
 				await nativeMedia.configure({ ...owner, options: { ...settings, offlinePins: updated } });
@@ -296,6 +329,83 @@ export function runAutoDownloads(session: Session, signal?: AbortSignal): Promis
 			signal?.throwIfAborted();
 			setPlaylistIssue(session, source, result.message ?? '');
 			return result.saved;
+		}
+		if (Capacitor.getPlatform() === 'ios' && settings.offlinePins?.length) {
+			if (!(await nativeMedia.canSyncCollections(owner)).permitted) return 0;
+			const configured = refreshPinRules(session, settings.offlinePins);
+			if (JSON.stringify(configured) !== JSON.stringify(settings.offlinePins))
+				await nativeMedia.configure({
+					...owner,
+					options: { ...settings, offlinePins: configured }
+				});
+			const pins = [...configured];
+			const legacy = playlistId(source);
+			if (legacy && !pins.some((p) => p.kind === 'playlist' && p.id === legacy))
+				pins.unshift({ kind: 'playlist', id: legacy, name: 'DN playlist' });
+			if ((source === 'recent' || source === 'favorites') && !pins.some((p) => p.kind === source))
+				pins.unshift({ kind: source, id: source, name: source });
+			const resolved = await resolveCollections(session, pins, signal!);
+			signal?.throwIfAborted();
+			const { ids } = await nativeMedia.planCollections({
+				...owner,
+				pins: configured,
+				source,
+				members: resolved.members
+			});
+			let missing = 0;
+			const partial = resolved.members.filter((member) => !member.complete);
+			setPlaylistIssue(
+				session,
+				source,
+				partial.length
+					? 'Could not confirm every collection with DN. Existing automatic copies were kept.'
+					: ''
+			);
+			activeBatches++;
+			try {
+				const disappeared = await resolved.visit(ids, async (tracks) => {
+					for (const track of await withRatings(session, tracks)) {
+						signal?.throwIfAborted();
+						try {
+							await saveTrack(
+								{
+									...owner,
+									token: session.token,
+									track: retainedTrack(track, session.serverUrl),
+									collection: true
+								},
+								signal
+							);
+						} catch (error) {
+							if (!(error instanceof Error && 'code' in error && error.code === audioNotFound))
+								throw error;
+							missing++;
+						}
+					}
+				});
+				missing += disappeared;
+			} finally {
+				if (--activeBatches === 0) window.dispatchEvent(new Event(mediaChanged));
+			}
+			if (missing)
+				setPlaylistIssue(
+					session,
+					source,
+					[
+						playlistSyncIssue(session, source),
+						tr(
+							'Some pinned audio is unavailable. The next update will retry.',
+							'一部のピン留めした曲を取得できません。次回の更新時に再試行します。'
+						)
+					]
+						.filter(Boolean)
+						.join(' ')
+				);
+			if (!ids.length) return 0;
+			const wanted = new Set(ids);
+			return (await nativeMedia.snapshot(owner)).items.filter(
+				(row) => row.origin === 'automatic' && wanted.has(row.track.id)
+			).length;
 		}
 		if (!source || source === 'off') return 0;
 		const { tracks, keepExisting } = await automaticSelection(session, source, signal);
@@ -321,13 +431,15 @@ export function runAutoDownloads(session: Session, signal?: AbortSignal): Promis
 					signal?.throwIfAborted();
 					if (!navigator.onLine) break;
 					try {
-						await backend().save({
-							...owner,
-							token: session.token,
-							track: retainedTrack(track, session.serverUrl),
-							...(!nativeOffline ? { signal } : {}),
-							source
-						});
+						await saveTrack(
+							{
+								...owner,
+								token: session.token,
+								track: retainedTrack(track, session.serverUrl),
+								source
+							},
+							signal
+						);
 					} catch (cause) {
 						signal?.throwIfAborted();
 						if (

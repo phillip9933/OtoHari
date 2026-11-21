@@ -91,7 +91,7 @@
 		changingDownload = $state(false),
 		downloadError = $state('');
 	let downloadReceipt = $state<{ id: string; text: string }>();
-	const backgroundDownloads = Capacitor.getPlatform() === 'android';
+	const backgroundDownloads = Capacitor.isNativePlatform();
 	const sourceActions: Record<OfflineOrigin, string> = {
 		downloaded: 'Downloaded',
 		automatic: 'Keep automatic download',

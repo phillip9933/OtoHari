@@ -1,6 +1,6 @@
 # DroppedNeedle Mobile
 
-The Android and iOS apps connect to your DroppedNeedle v3 server. Play music from your DN library, manage your queue and playlists, and request albums or songs from the same server. Android is the primary tested platform.
+The Android and iOS apps connect to your DroppedNeedle v3 server. Play music from your DN library, manage your queue and playlists, and request albums or songs from the same server. Both apps bundle the same Svelte interface, including the player layout editor, themes and library screens. Android has been tested on a Pixel.
 
 ## Connect your phone
 
@@ -60,7 +60,7 @@ Choose **Edit item** to set its position and size in cells, padding in pixels, a
 
 **Undo** and **Redo** step through the open draft. **Share player layout** lets you save a JSON file or copy its text. Importing a file shows its contents before you load it into the editor. Older row-based layouts open on the grid and keep playing in their original form until you save. File sharing works offline.
 
-Set the playback bar to a standard line, animated wave or the song’s measured waveform. Elapsed time, track length and time remaining can each be shown independently. On Android the waveform uses the saved file when available. Otherwise, choosing that style can read an additional stream using your Wi-Fi or cellular profile. The seek bar stays available if a waveform cannot be read. Add **Audio quality** to show the playing format and any reported sample rate, bit depth or bitrate. If only the library format is known, the readout identifies it as the source.
+Set the playback bar to a standard line, animated wave or the song’s measured waveform. Elapsed time, track length and time remaining can each be shown independently. On both phones the waveform uses saved audio when available. Choosing that style for streaming music can read an additional stream using your Wi-Fi or cellular profile. The seek bar stays available if a waveform cannot be read. Add **Audio quality** to show the playing format and any reported sample rate, bit depth or bitrate. If only the library format is known, the readout identifies it as the source.
 
 Tap the quality badge or choose **More actions → Signal path** to trace the current song from its library file through streaming or device storage, decoding, sound processing and output. Android shows the quality requested for the connection and the format the player actually received. A receiver or DAC can leave parts of its output path unreported.
 
@@ -68,19 +68,34 @@ When a synced lyric line contains word timestamps, the player highlights the cur
 
 Layouts are stored on the phone for each DN server and account. **Settings → Content preferences** controls the account-wide visibility of DN’s Home and Discover content. Administrators can also configure sidebar visibility there. DN reports when a section depends on an unavailable integration.
 
+### iPhone Home Screen and Lock Screen widget
+
+In the widget-enabled iPhone build, add **DroppedNeedle → Now Playing** from the widget gallery. The small Home Screen widget and rectangular Lock Screen widget show the current track and open the player. The medium Home Screen widget adds previous, play or pause, and next. Tapping a control opens the app and acts on the displayed queue entry. The widget uses the current album thumbnail and clears its display when you sign out. iOS controls when the widget redraws.
+
+To build this version on a Mac with Xcode, run the following from `mobile/` after installing dependencies. Supply your iPhone app’s bundle identifier as the final argument.
+
+```sh
+pnpm build
+pnpm exec cap sync ios
+node scripts/prepare-iphone-widget.mjs com.example.droppedneedle
+open ios/App/AppWidgets.xcodeproj
+```
+
+Choose the **App** scheme. For device installation, use the same Apple development team for the app and its **NowPlayingWidget** extension. Register and enable the shared App Group for both identifiers. In this example the app group is `group.com.example.droppedneedle` and the extension identifier is `com.example.droppedneedle.NowPlayingWidget`. The extension supports iOS 16.4 and later. Run the generator again after changes to the base Xcode project. The standard iPhone build uses `App.xcodeproj` and can be signed independently of the widget.
+
 ## Listening and library coverage
 
 | Area | On the phone |
 | --- | --- |
 | Library | Browse playlists, artists, albums, tracks and genres. Filter by device availability, rating, favorites or format where applicable. Open an artist for albums, guest appearances and credited songs. |
 | Now Playing | Swipe down to minimize, up to open the queue, and down again from the queue to return. Tap the track title for details or the album or artist to open it in your library. Tap a star to rate a track. Tap the same star again to clear it. The Lyrics button switches the artwork to lyrics and back. Its layout setting can open full-screen lyrics instead. **More actions** opens favorites, ratings, playlists, downloads and other actions for the song. Open **Sleep timer** to choose 1–240 minutes or 1–99 tracks. **Finish last track** lets the playing song end after the countdown. Android media controls also work with the screen locked. |
-| Queue | Play next, append, move or remove individual entries, shuffle or clear upcoming tracks without interrupting the current song, and repeat a song or the queue. Android restores the last queue paused at its saved position for the signed-in account. |
+| Queue | Play next, append, move or remove individual entries, shuffle or clear upcoming tracks without interrupting the current song, and repeat a song or the queue. Both platforms restore the last queue paused at its saved position for the signed-in account. |
 | Playlists | Create, rename and delete playlists, or import an M3U, M3U8 or CSV file and review which tracks DN matched. Add a song or album, reorder tracks, remove one occurrence of a repeated song, and share with viewers or editors. Under **New playlist**, enter a name and create an empty playlist to fill by hand, or choose **Smart playlist** to filter your tracks, preview matches, set the sort order and choose a track limit. The smart rules are stored on this device. Its contents update whenever you open or play it. |
 | Search and requests | Choose Top results, Artists, Albums, Songs, Genres or Playlists below the search box. Switching category keeps the query. Choose an album edition or request an individual recording. View active requests and history, withdraw eligible requests, and manage server downloads. The download queue groups activity by stage and shows status text, icons, progress and file counts when DN supplies them. Administrators can approve or reject requests. |
 | Discover | Browse recommendations, genres, popular albums, trending artists and personal charts. Open an artist for releases and top songs. Follow artists to see new releases and concerts. Library radio builds a queue from DN files related to an artist, album or genre. |
 | Account | In **Settings > Account on DroppedNeedle**, change your display name, username, email, listening visibility, scrobble preferences and personal-mix settings. Inspect linked services or sign out another device. |
 
-Open a DN playlist and choose **Export playlist** to save an M3U8 or CSV file. This also works for playlists shared with you as a viewer. For M3U8 you can set the path prefix to match the music folder on the receiving device. The app remembers it for this DN account. Android opens the system file picker so you can choose the destination. DN reports how many unavailable entries it skipped.
+Open a DN playlist and choose **Export playlist** to save an M3U8 or CSV file. This also works for playlists shared with you as a viewer. For M3U8 you can set the path prefix to match the music folder on the receiving device. The app remembers it for this DN account. Android opens its document picker and iPhone opens Files so you can choose the destination. DN reports how many unavailable entries it skipped.
 
 In **Requests**, switch between **Activity**, **Downloads**, and, for administrators, **Approvals**. Tap an album in Activity to open it, or use the three dots on a row for actions. Expand **Wanted watches** to see what DN is monitoring. You can filter and sort request history in place.
 
@@ -88,7 +103,7 @@ In **Requests**, switch between **Activity**, **Downloads**, and, for administra
 
 **Review held files** opens files from that task inside the app. **Review all held files** opens the entries available to your account. Listen to the opening audio, inspect why a file was held, and select the files to act on. DN supplies the eligible actions. You can confirm a replacement or discard, and trusted listeners and administrators can match files to an album or check an edition. Edition review compares editions against the library, then retries the selected held files. Bulk imports, quality upgrades and advanced server administration are available in Web tools.
 
-A download in **Requests → Downloads** brings music into the DN server library. **Save offline** keeps a copy on the phone. Android reports playback to DN for listening history and linked scrobbling services when the server is reachable.
+A download in **Requests → Downloads** brings music into the DN server library. **Save offline** keeps a copy on the phone. Android and iPhone report playback to DN for listening history and linked scrobbling services when the server is reachable.
 
 **Settings → Library statistics** shows collection size, formats and favorites. Administrators can run library scans, view server diagnostics and manage release types. In **Edition preferences**, search for release statuses, formats and countries, then put them in priority order. In **Web tools**, tap a group to reveal its links or search across the pages available to your role. Clearing the search restores the groups you had open. Account security, linking services, backups, plugins, matching, duplicates and bulk edits use the server’s browser interface. Album, artist and playlist details also link directly to their DN web pages.
 
@@ -120,7 +135,9 @@ The server’s **Settings → Connect Apps → On-the-fly transcoding** switch, 
 
 **Smart fades** is optional and works with either manual fade turned off. The device measures the last and first eight seconds of adjacent songs in 100 ms windows. It compares the quiet ending and intro to choose an equal-power overlap of up to eight seconds, capped at half the length of either song. When both tracks have a clear, similarly spaced beat, it can align their pulses at the original tempo. Other loud transitions and consecutive numbered tracks on the same album keep their natural boundary. With Smart fades on, **Fade in** and **Fade out** appear under **Fallback fades** and stay editable. Their lengths apply at the start and end of a queue and when the device cannot prepare the transition. Remote Cast and AirPlay receivers manage their own transitions.
 
-On Android, choose **Save offline** on an album, track or selection to keep the music on the phone. **Library → Availability** switches between all library music and tracks available offline on this device. You can also change it inside any category under **Collection filters**. The choice follows you across all five categories and is saved for this DN account on this device. Album and playlist details show how many tracks are playable in DN and how many are on this device. **Track availability** filters playback and selection. Offline music shows which files were downloaded, automatically saved or cached. Playlist editing uses the full order, including repeated tracks. After a restart, a saved album can show the last playable-track count DN reported and the date it was observed. If the phone has never seen a reliable total, or now has more tracks than DN last reported, it shows how many tracks are on the device. A regular playlist is available offline after its membership has been opened and at least one track saved. Use **Library → Offline music** to manage the files.
+On Android or iPhone, choose **Save offline** on an album, track or selection to keep the music on the phone. **Library → Availability** switches between all library music and tracks available offline on this device. You can also change it inside any category under **Collection filters**. The choice follows you across all five categories and is saved for this DN account on this device. Album and playlist details show how many tracks are playable in DN and how many are on this device. **Track availability** filters playback and selection. Offline music shows which files were downloaded, automatically saved or cached. Playlist editing uses the full order, including repeated tracks. After a restart, a saved album can show the last playable-track count DN reported and the date it was observed. If the phone has never seen a reliable total, or now has more tracks than DN last reported, it shows how many tracks are on the device. A regular playlist is available offline after its membership has been opened and at least one track saved. Use **Library → Offline music** to manage the files.
+
+On iPhone, **Save offline** keeps a persistent queue. Downloads can use the time iOS grants when you leave the app. If iOS suspends the transfer, unfinished tracks resume when you reopen DN with the same account.
 
 On Android, **Save offline** queues the selected songs on the device. Downloads continue when you leave the app. The queue waits for an allowed network and pauses for offline-only playback. Tap the download notification or open **Library → Offline music** to see the current song, check which files failed, retry them, or cancel the remaining downloads. Completed songs stay on the device. If Android stops the queue, you can retry it here. **Settings → Offline and cache → Download notifications** shows whether Android allows progress notifications and opens the system control.
 
@@ -140,13 +157,13 @@ Timed lyrics follow the playing line inside the lyrics panel. Scroll to read ahe
 
 You can favorite or rate a saved song while offline. Library and device smart playlists use the change immediately. The app sends it back to the same DN account after it reconnects and you turn off offline-only playback. Offline music shows pending changes and lets you retry a failed sync.
 
-On Android, **Settings → Offline and cache → Offline listening history** shows how many listens are waiting for DN. Turn off **Record offline listens** to pause recording and submission, or discard the pending listens. DN accepts offline listens for up to 14 days. If the phone sends a listen and loses the reply, it skips resending that listen to avoid counting it twice. That listen may be missing from your history.
+On Android or iPhone, **Settings → Offline and cache → Offline listening history** shows how many listens are waiting for DN. Turn off **Record offline listens** to pause recording and submission, or discard the pending listens. DN accepts offline listens for up to 14 days. If the phone sends a listen and loses the reply, it skips resending that listen to avoid counting it twice. That listen may be missing from your history.
 
 Search also works without a connection. Its Songs, Artists, Albums, Genres and Playlists selectors use the completed music on this device. Opening a result keeps your search and place in the list. If DN stops responding while you’re on Wi-Fi, Search offers device results and a way to retry the server.
 
 Use **More actions → Save offline** to keep the playing song. If it is already cached or automatically saved, keeping it makes it a manual download using the file on the phone. Tap **Downloaded** to manage that copy. To put the same button elsewhere, add the **Offline download** field in the Now Playing editor.
 
-Use the cast icon in Now Playing or **Settings → Cast and audio output**. On Android, choose a Google Cast device, or use **Find network speakers** for a DLNA/UPnP receiver on the same local network. Google Cast uses Google Play services on the phone. Sonos and other compatible DLNA/UPnP speakers can use **Find network speakers** directly. Keep the phone connected during playback. The receiver reads the current song from the phone, and the phone authenticates to DN. Stopping the cast returns the queue to the phone paused. Android also offers display mirroring. On iOS, the output button opens the system AirPlay picker.
+Use the cast icon in Now Playing or **Settings → Cast and audio output**. On Android, choose a Google Cast device, or use **Find network speakers** for a DLNA/UPnP receiver on the same local network. Google Cast uses Google Play services on the phone. Sonos and other compatible DLNA/UPnP speakers can use **Find network speakers** directly. Keep the phone connected during playback. The receiver reads the current song from the phone, and the phone authenticates to DN. Stopping the cast returns the queue to the phone paused. Android also offers display mirroring. On iPhone, the output button opens the system AirPlay picker, including compatible Sonos speakers. Direct Chromecast, DLNA discovery and Sonos group controls are available in the Android app. A custom CarPlay library interface requires Apple’s [audio entitlement](https://developer.apple.com/documentation/carplay/requesting-carplay-entitlements).
 
 ## Android Auto, speakers and library shortcuts
 
@@ -197,6 +214,14 @@ pnpm sync
 ```
 
 For Android, install JDK 21 and Android SDK Platform 36. Run `./gradlew assembleDebug` from `android/`. The APK is at `android/app/build/outputs/apk/debug/app-debug.apk`. For iOS, open the project with `pnpm exec cap open ios` on a Mac with Xcode and select a simulator or device. Run `pnpm sync` after you change the Svelte app. The native build reads the copied bundle.
+
+### Build and test the iPhone app
+
+The app targets iOS 16.4 or later for the WebKit features used by the shared player and themes. Use the frontend’s pinned pnpm version for `frontend/` and the mobile package’s pinned version for `mobile/`. From `mobile/` run `pnpm build && pnpm exec cap sync ios`, then open `ios/App/App.xcodeproj` in Xcode 26 or later. Choose an iPhone simulator and run **App**. For installation on a real iPhone, select your Apple development team in **Signing & Capabilities**. [Capacitor iOS setup](https://capacitorjs.com/docs/ios)
+
+The **iPhone simulator** GitHub workflow builds the unsigned simulator app, launches it and checks that the DN sign-in form appears. Run `scripts/test-iphone.sh` from `mobile/` on a Mac or Linux with Swift and a C compiler to exercise the queue archive, library paging, radio selection, audio processing, downloads, artwork, listening history and file export. Use an iPhone for audio-route changes, background playback, the lock screen and AirPlay.
+
+The iPhone uses the same OIDC pairing page as Android. Now Playing supports Up Next, playback handoff, output-specific equalizer settings, ReplayGain, speed, separate fades and smart fades. Open **Cast and audio output** for AirPlay. To pin a playlist, open its menu and choose the shortcut option, then press and hold the app icon on the Home Screen. iPhone updates use Apple distribution channels.
 
 ### Prepare an Android GitHub release
 

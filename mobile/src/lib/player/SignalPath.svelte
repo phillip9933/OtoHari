@@ -22,12 +22,11 @@
 			if (busy || document.hidden) return;
 			busy = true;
 			try {
-				const details =
-					platform === 'android'
-						? await nativePlayer.signalPath()
-						: platform === 'web'
-							? { id, speed: browserSpeed() }
-							: {};
+				const details = Capacitor.isNativePlatform()
+					? await nativePlayer.signalPath()
+					: platform === 'web'
+						? { id, speed: browserSpeed() }
+						: {};
 				if (live) output = details.id === id ? details : {};
 			} catch {
 				if (live) output = {};
@@ -141,7 +140,7 @@
 			<dl>
 				{#if output.speed}<dt>{tr('Playback speed', '再生速度')}</dt>
 					<dd>{output.speed}×</dd>{/if}
-				{#if platform === 'android'}
+				{#if Capacitor.isNativePlatform()}
 					<dt>{tr('Equalizer', 'イコライザー')}</dt>
 					<dd>
 						{output.equalizer === undefined
@@ -162,7 +161,7 @@
 					</dd>
 				{/if}
 			</dl>
-			{#if !output.speed && platform !== 'android'}<p>{unknown}</p>{/if}
+			{#if !output.speed && !Capacitor.isNativePlatform()}<p>{unknown}</p>{/if}
 		</section>
 	{/if}
 	<section>

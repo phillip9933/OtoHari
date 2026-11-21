@@ -43,7 +43,7 @@ function snapshot(state: PlayerState): TransferQueue {
 }
 
 export function connectMobileDevice(session: Session) {
-	if (Capacitor.getPlatform() === 'ios' || !session.userId) return;
+	if (!session.userId) return;
 	let lastTracks: PlayerState['tracks'] | undefined,
 		possible = false;
 	const read: DeviceAdapter['heartbeat'] = async (body, signal) => {
@@ -57,7 +57,12 @@ export function connectMobileDevice(session: Session) {
 	};
 	return connectDeviceLink({
 		scope: JSON.stringify([session.serverUrl, session.userId]),
-		name: Capacitor.isNativePlatform() ? 'Android phone' : 'Mobile player',
+		name:
+			Capacitor.getPlatform() === 'ios'
+				? 'iPhone'
+				: Capacitor.getPlatform() === 'android'
+					? 'Android phone'
+					: 'Mobile player',
 		heartbeat: read,
 		command: (body, signal) =>
 			postJson(session, path('/api/v3/playback/devices/control'), body, signal),

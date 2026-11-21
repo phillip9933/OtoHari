@@ -22,7 +22,9 @@ final class ConvertedTrack: NSObject, URLSessionDataDelegate {
     private let worker = DispatchQueue(label: "app.droppedneedle.converted-audio")
     private let original: URL
     private let request: URLRequest
+    private let received: (String?, String) -> Void
     private let onDirect: (URL, AVAssetResourceLoadingRequest) -> Void
+    private let capture: OfflinePlaybackCapture?
     private let onError: (String) -> Void
     private var session: URLSession!
     private var mode = Mode.waiting
@@ -32,11 +34,14 @@ final class ConvertedTrack: NSObject, URLSessionDataDelegate {
     private var type = ""
     private var pending: [ObjectIdentifier: AVAssetResourceLoadingRequest] = [:]
 
-    init(original: URL, converted: URL, token: String, direct: @escaping (URL, AVAssetResourceLoadingRequest) -> Void,
+    init(original: URL, converted: URL, token: String, capture: OfflinePlaybackCapture?, received: @escaping (String?, String) -> Void, direct: @escaping (URL, AVAssetResourceLoadingRequest) -> Void,
          error: @escaping (String) -> Void) {
+        self.capture = capture
+        self.received = received
         self.original = original
         var request = URLRequest(url: converted)
         request.setValue("Bearer " + token, forHTTPHeaderField: "Authorization")
+        request.setValue("identity", forHTTPHeaderField: "Accept-Encoding")
         self.request = request
         onDirect = direct
         onError = error
@@ -111,7 +116,7 @@ final class ConvertedTrack: NSObject, URLSessionDataDelegate {
     func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive response: URLResponse,
                     completionHandler: @escaping (URLSession.ResponseDisposition) -> Void) {
         guard case .downloading = mode, let http = response as? HTTPURLResponse else { completionHandler(.cancel); return }
-        if http.statusCode == 409 { completionHandler(.cancel); useDirect(original); return }
+        if http.statusCode == 409 { received(nil, "fallback"); completionHandler(.cancel); useDirect(original); return }
         let mime = http.mimeType?.lowercased() ?? ""
         guard http.statusCode == 200, mime.hasPrefix("audio/") || ["application/ogg", "application/flac", "application/octet-stream"].contains(mime) else {
             completionHandler(.cancel); fail("DroppedNeedle could not return audio for this track."); return
@@ -119,7 +124,7 @@ final class ConvertedTrack: NSObject, URLSessionDataDelegate {
         if http.value(forHTTPHeaderField: "Accept-Ranges")?.lowercased() == "bytes",
            response.expectedContentLength > 0, let url = request.url {
             // DN can serve a compatible original directly even when a conversion was requested.
-            completionHandler(.cancel); useDirect(url); return
+            received(mime, "original"); completionHandler(.cancel); useDirect(url); return
         }
         guard response.expectedContentLength <= Self.limit else { completionHandler(.cancel); tooLarge(); return }
         guard let dir = Self.directory else { completionHandler(.cancel); fail("Device storage is unavailable for converted audio."); return }
@@ -131,6 +136,7 @@ final class ConvertedTrack: NSObject, URLSessionDataDelegate {
         file = output
         do { handle = try FileHandle(forWritingTo: output) }
         catch { completionHandler(.cancel); fail("Device storage is unavailable for converted audio."); return }
+        received(mime, "converted")
         type = UTType(mimeType: mime)?.identifier ?? UTType.audio.identifier
         completionHandler(.allow)
     }
@@ -145,9 +151,15 @@ final class ConvertedTrack: NSObject, URLSessionDataDelegate {
     }
     func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
         guard case .downloading = mode else { return }
-        guard error == nil, file != nil, size > 0 else { fail("The converted track could not be downloaded."); return }
+        guard error == nil, let file, size > 0, let http = task.response as? HTTPURLResponse,
+              let range = PlaybackByteRange(status: http.statusCode, header: nil, bytes: http.expectedContentLength,
+                                            coding: http.value(forHTTPHeaderField: "Content-Encoding"), offset: 0),
+              range.end == nil || range.end == size else {
+            fail("The converted track could not be downloaded in full."); return
+        }
         do { try handle?.close(); handle = nil }
         catch { fail("The converted track could not be read."); return }
+        capture?.converted(file, bytes: size, type: type)
         mode = .ready
         session.finishTasksAndInvalidate()
         drain(serve)

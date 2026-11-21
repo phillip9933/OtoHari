@@ -184,10 +184,8 @@
 		<button class="text-button" onclick={readConversion}>{uiText('Check conversion again')}</button>
 	{:else if conversion === 'on'}<p>{uiText('DN can convert streams for both profiles.')}</p>
 	{:else}<p role="status">{uiText('Checking server conversion…')}</p>{/if}
-	{#if Capacitor.getPlatform() !== 'ios'}
-		<h2 id="audio-playback">{uiText('Audio playback')}</h2>
-		<SoundSettings />
-	{/if}
+	<h2 id="audio-playback">{uiText('Audio playback')}</h2>
+	<SoundSettings />
 	<h2 id="track-fades-settings">{uiText('Track fades')}</h2>
 	<div
 		class="settings-panel"

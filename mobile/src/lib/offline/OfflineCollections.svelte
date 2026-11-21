@@ -1,5 +1,6 @@
 <script lang="ts">
-	import { uiText } from '../i18n';
+	import { Capacitor } from '@capacitor/core';
+	import { tr, uiText } from '../i18n';
 	import type { components } from '../../../../frontend/src/lib/api/v3/openapi';
 	import { getJson, type Session } from '../connection';
 	import { path } from '../catalog/catalog';
@@ -170,9 +171,14 @@
 	<button class="secondary" onclick={() => (choosing = true)}>{uiText('Pin a collection')}</button>
 {/if}
 <p>
-	{uiText(
-		'Android checks pinned collections about every six hours on allowed networks. Shared songs use one copy. Unpinning the last collection removes its automatic downloads.'
-	)}
+	{Capacitor.getPlatform() === 'ios'
+		? tr(
+				'Your iPhone checks these collections when you return to the app on an allowed network. Shared songs use one copy. Unpinning the last collection removes its automatic downloads.',
+				'許可されたネットワークでアプリに戻ると、ピン留めしたコレクションを確認します。共通の曲は１回だけ保存されます。最後のピンを外すと自動ダウンロードを削除します。'
+			)
+		: uiText(
+				'Android checks pinned collections about every six hours on allowed networks. Shared songs use one copy. Unpinning the last collection removes its automatic downloads.'
+			)}
 </p>
 
 <style>

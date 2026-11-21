@@ -46,7 +46,6 @@ export interface PlayerAccess {
 }
 
 export type QueuePlacement = 'next' | 'upNext' | 'end';
-export const supportsUpNext = Capacitor.getPlatform() !== 'ios';
 export function placementMessage(placement: QueuePlacement) {
 	if (placement === 'upNext') return tr('Added to Up Next.', '次の再生リストに追加しました。');
 	return placement === 'next'
@@ -287,7 +286,7 @@ async function submitTracks(
 
 export const player = {
 	async restore(access: PlayerAccess) {
-		if (Capacitor.getPlatform() === 'android') {
+		if (Capacitor.isNativePlatform()) {
 			await update(() =>
 				native.restore({
 					serverUrl: access.serverUrl,
@@ -312,8 +311,6 @@ export const player = {
 		playing: boolean,
 		access: PlayerAccess
 	) => {
-		if (Capacitor.getPlatform() === 'ios')
-			throw Error('Device playback transfer is unavailable on iOS.');
 		if (!Number.isFinite(positionSeconds) || positionSeconds < 0)
 			throw Error('Invalid playback position.');
 		return submitTracks(tracks, index, access, undefined, undefined, { positionSeconds, playing });

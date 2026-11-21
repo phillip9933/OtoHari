@@ -65,6 +65,7 @@ export type OfflineOptions = {
 	readAheadWifiKiBps?: number;
 	readAheadCellularKiBps?: number;
 	completeDownloads?: boolean;
+	notifyDownloads?: boolean;
 	downloadWaveforms?: boolean;
 	downloadQuality?: Quality;
 	offlinePins?: OfflinePin[];

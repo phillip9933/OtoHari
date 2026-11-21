@@ -47,7 +47,7 @@
 		trackToolFields,
 		usesFieldCaption
 	} from './player/layout';
-	import { player, queueOrder, supportsUpNext, type PlayerTrack } from './player';
+	import { player, queueOrder, type PlayerTrack } from './player';
 	import ReorderList from './controls/ReorderList.svelte';
 	import { defaultMiniPlayer, readMiniPlayer, type MiniButton } from './appearance/interface';
 	import { swipeTracks } from './player/swipeTracks';
@@ -749,7 +749,7 @@
 
 		{#if queueOpen && track}
 			<div class="queue-tools">
-				{#if supportsUpNext && $store.autoplay !== undefined}
+				{#if $store.autoplay !== undefined}
 					<button class="text-button" onclick={() => openSheet('suggestions')}
 						>{tr('Similar tracks', '似た曲')}</button
 					>
@@ -864,7 +864,7 @@
 									</button>
 									{#if editing}
 										<div class="edit-tools">
-											{#if supportsUpNext && i > $store.index && !upNext.has(i)}
+											{#if i > $store.index && !upNext.has(i)}
 												<button
 													disabled={pending}
 													aria-label={tr('Add to Up Next', '次の再生リストに追加') +
@@ -964,8 +964,8 @@
 							><Disc3 />{uiText('Go to album')}</button
 						>{/if}
 					<SleepTimer timer={$store.sleepTimer} />
-					{#if Capacitor.getPlatform() !== 'ios'}<SoundSettings speedOnly />{/if}
-					{#if Capacitor.getPlatform() === 'android'}<button
+					<SoundSettings speedOnly />
+					{#if Capacitor.isNativePlatform()}<button
 							class="sheet-action"
 							onclick={() => openSheet('equalizer')}
 							><SlidersHorizontal />{uiText('Equalizer')}</button

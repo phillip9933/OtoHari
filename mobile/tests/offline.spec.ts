@@ -406,124 +406,183 @@ test('saved audio keeps viewed timed lyrics usable after restarting in airplane 
 	expect(reads).toBe(1);
 });
 
-async function androidBridge(page: Page, pausedTrack = false) {
-	await page.addInitScript((preview) => {
-		const methods: Record<string, string[]> = {
-			App: ['getLaunchUrl', 'addListener', 'removeListener'],
-			SecureStorage: ['internalGetItem', 'internalSetItem', 'internalRemoveItem'],
-			CapacitorHttp: ['request', 'get'],
-			DNOffline: [
-				'options',
-				'snapshot',
-				'configure',
-				'syncCollections',
-				'refreshMetadata',
-				'diagnostics',
-				'shareDiagnostics',
-				'saveDiagnostics',
-				'addListener',
-				'removeListener',
-				'historySettings',
-				'cancelAutomatic',
-				'downloadNotificationSettings'
-			],
-			DNPlayer: ['restore', 'getState', 'addListener', 'removeListener', 'setSession', 'configure']
-		};
-		const secure = new Map<string, string>();
-		let settings: Record<string, unknown> = {
-			autoDownload: 'favorites',
-			cacheMiB: 512,
-			downloadMiB: 512,
-			offlineOnly: false,
-			autoCache: false,
-			unmeteredOnly: true
-		};
-		Object.assign(window, {
-			androidBridge: {},
-			Capacitor: {
-				PluginHeaders: Object.entries(methods).map(([name, list]) => ({
-					name,
-					methods: list.map((name) => ({
+async function nativeOfflineBridge(
+	page: Page,
+	pausedTrack = false,
+	platform: 'android' | 'ios' = 'android'
+) {
+	await page.addInitScript(
+		({ preview, platform }) => {
+			const methods: Record<string, string[]> = {
+				App: ['getLaunchUrl', 'addListener', 'removeListener'],
+				SecureStorage: ['internalGetItem', 'internalSetItem', 'internalRemoveItem'],
+				CapacitorHttp: ['request', 'get'],
+				DNPlaylistExport: ['saveDiagnostics', 'shareDiagnostics'],
+				DNOffline: [
+					'metadataTargets',
+					'applyMetadata',
+					'resumeManual',
+					'options',
+					'snapshot',
+					'configure',
+					'syncCollections',
+					'refreshMetadata',
+					'diagnostics',
+					'shareDiagnostics',
+					'saveDiagnostics',
+					'addListener',
+					'removeListener',
+					'historySettings',
+					'cancelAutomatic',
+					'openDownloadNotificationSettings',
+					'takeDownloadNotification',
+					'downloadNotificationSettings'
+				],
+				DNPlayer: [
+					'restore',
+					'getState',
+					'addListener',
+					'removeListener',
+					'setSession',
+					'configure'
+				]
+			};
+			const secure = new Map<string, string>();
+			let settings: Record<string, unknown> = {
+				autoDownload: platform === 'android' ? 'favorites' : 'off',
+				cacheMiB: 512,
+				downloadMiB: 512,
+				offlineOnly: false,
+				autoCache: false,
+				unmeteredOnly: true
+			};
+			Object.assign(window, {
+				...(platform === 'ios'
+					? { webkit: { messageHandlers: { bridge: {} } } }
+					: { androidBridge: {} }),
+				Capacitor: {
+					PluginHeaders: Object.entries(methods).map(([name, list]) => ({
 						name,
-						rtype: name === 'addListener' ? 'callback' : 'promise'
-					}))
-				})),
-				nativeCallback: (_plugin: string, _method: string, args: { eventName: string }) =>
-					args.eventName,
-				nativePromise: async (
-					plugin: string,
-					method: string,
-					args: Record<string, unknown> = {}
-				) => {
-					if (plugin === 'SecureStorage') {
-						if (method === 'internalSetItem')
-							secure.set(String(args.prefixedKey), String(args.data));
-						if (method === 'internalRemoveItem') secure.delete(String(args.prefixedKey));
-						return { data: secure.get(String(args.prefixedKey)), success: true };
-					}
-					if (plugin === 'CapacitorHttp') {
-						const res = await fetch(String(args.url), {
-							method: String(args.method || 'GET'),
-							headers: args.headers as HeadersInit,
-							body: args.data ? JSON.stringify(args.data) : undefined
-						});
-						return {
-							data: await res.json(),
-							headers: { 'Content-Type': 'application/json' },
-							status: res.status
-						};
-					}
-					if (plugin === 'DNOffline') {
-						if (method === 'refreshMetadata') return { updated: 4, unavailable: 1 };
-						if (method === 'diagnostics') return { text: '{"cachedTracks":4}' };
-						if (method === 'shareDiagnostics' || method === 'saveDiagnostics') {
+						methods: list.map((name) => ({
+							name,
+							rtype: name === 'addListener' ? 'callback' : 'promise'
+						}))
+					})),
+					nativeCallback: (_plugin: string, _method: string, args: { eventName: string }) =>
+						args.eventName,
+					nativePromise: async (
+						plugin: string,
+						method: string,
+						args: Record<string, unknown> = {}
+					) => {
+						if (plugin === 'SecureStorage') {
+							if (method === 'internalSetItem')
+								secure.set(String(args.prefixedKey), String(args.data));
+							if (method === 'internalRemoveItem') secure.delete(String(args.prefixedKey));
+							return { data: secure.get(String(args.prefixedKey)), success: true };
+						}
+						if (plugin === 'CapacitorHttp') {
+							const res = await fetch(String(args.url), {
+								method: String(args.method || 'GET'),
+								headers: args.headers as HeadersInit,
+								body: args.data ? JSON.stringify(args.data) : undefined
+							});
+							return {
+								data: await res.json(),
+								headers: { 'Content-Type': 'application/json' },
+								status: res.status
+							};
+						}
+						if (plugin === 'DNPlaylistExport') {
 							sessionStorage.setItem(method, String(args.text));
 							return { saved: true };
 						}
-						if (method === 'configure') {
-							settings = args.options as Record<string, unknown>;
-							sessionStorage.setItem('offlineFixtureOptions', JSON.stringify(settings));
-							sessionStorage.setItem('offlineFixtureCleanup', String(args.clearUnpinned));
+						if (plugin === 'DNOffline') {
+							if (method === 'downloadNotificationSettings')
+								return {
+									state: sessionStorage.getItem('notificationsAllowed') ? 'on' : 'undecided'
+								};
+							if (method === 'openDownloadNotificationSettings') {
+								sessionStorage.setItem('notificationsAllowed', 'yes');
+								return {};
+							}
+							if (method === 'takeDownloadNotification') {
+								const pending = sessionStorage.getItem('pendingDownloadFor');
+								sessionStorage.removeItem('pendingDownloadFor');
+								sessionStorage.setItem('downloadTapOwner', JSON.stringify(args));
+								return { open: !!pending && pending === args.userId };
+							}
+							if (method === 'metadataTargets')
+								return {
+									targets: [
+										{ id: 't0', album: 'evening', version: 'revision0' },
+										{ id: 'missing', album: '', version: 'old' }
+									]
+								};
+							if (method === 'applyMetadata') {
+								const updates = args.updates as {
+									version: string;
+									track: { id: string; rating: number };
+								}[];
+								sessionStorage.setItem('appliedRefresh', JSON.stringify(updates));
+								return { updated: updates.map((u) => u.track.id) };
+							}
+							if (method === 'refreshMetadata') return { updated: 4, unavailable: 1 };
+							if (method === 'diagnostics') return { text: '{"cachedTracks":4}' };
+							if (method === 'shareDiagnostics' || method === 'saveDiagnostics') {
+								sessionStorage.setItem(method, String(args.text));
+								return { saved: true };
+							}
+							if (method === 'configure') {
+								settings = args.options as Record<string, unknown>;
+								sessionStorage.setItem('offlineFixtureOptions', JSON.stringify(settings));
+								sessionStorage.setItem('offlineFixtureCleanup', String(args.clearUnpinned));
+							}
+							if (method === 'snapshot') return { items: [], options: settings };
+							if (method === 'syncCollections') return { saved: 0 };
+							return settings;
 						}
-						if (method === 'snapshot') return { items: [], options: settings };
-						if (method === 'syncCollections') return { saved: 0 };
-						return settings;
-					}
-					if (plugin === 'DNPlayer' && preview && (method === 'getState' || method === 'restore')) {
-						sessionStorage.setItem(
-							'nativeSnapshots',
-							String(Number(sessionStorage.getItem('nativeSnapshots') || 0) + 1)
-						);
+						if (
+							plugin === 'DNPlayer' &&
+							preview &&
+							(method === 'getState' || method === 'restore')
+						) {
+							sessionStorage.setItem(
+								'nativeSnapshots',
+								String(Number(sessionStorage.getItem('nativeSnapshots') || 0) + 1)
+							);
+							return {
+								tracks: [
+									{
+										id: 't0',
+										title: 'Held over',
+										artist: 'North',
+										album: 'Pacific Lines',
+										streamUrl: '/api/v3/stream/local/t0'
+									}
+								],
+								index: 0,
+								playing: false,
+								position: 0,
+								duration: 190,
+								repeat: 'off'
+							};
+						}
 						return {
-							tracks: [
-								{
-									id: 't0',
-									title: 'Held over',
-									artist: 'North',
-									album: 'Pacific Lines',
-									streamUrl: '/api/v3/stream/local/t0'
-								}
-							],
-							index: 0,
+							tracks: [],
+							index: -1,
 							playing: false,
 							position: 0,
-							duration: 190,
-							repeat: 'off'
+							duration: 0,
+							shuffle: false,
+							repeat: 0
 						};
 					}
-					return {
-						tracks: [],
-						index: -1,
-						playing: false,
-						position: 0,
-						duration: 0,
-						shuffle: false,
-						repeat: 0
-					};
 				}
-			}
-		});
-	}, pausedTrack);
+			});
+		},
+		{ preview: pausedTrack, platform }
+	);
 }
 
 test('Android keeps source, quality and read-ahead independent and requires a reviewed diagnostic export', async ({
@@ -533,7 +592,7 @@ test('Android keeps source, quality and read-ahead independent and requires a re
 	await page.route(server + '/api/v3/library/artists**', (route) =>
 		route.fulfill({ json: { items: [{ id: 'north', name: 'North' }], total: 1, next: null } })
 	);
-	await androidBridge(page);
+	await nativeOfflineBridge(page);
 	await login(page);
 	await options(page);
 	await expect(page.getByRole('button', { name: 'Unpin Favorite songs' })).toBeVisible();
@@ -583,7 +642,7 @@ test('a paused Android player keeps the same lyrics panel and reading position a
 	page
 }) => {
 	await fixture(page);
-	await androidBridge(page, true);
+	await nativeOfflineBridge(page, true);
 	let reads = 0;
 	let finishRefresh: (() => void) | undefined;
 	await page.route(server + '/api/v3/library/tracks/t0/lyrics', async (route) => {
@@ -624,4 +683,76 @@ test('a paused Android player keeps the same lyrics panel and reading position a
 	}
 	await expect(page.getByRole('button', { name: 'Refresh lyrics' })).toBeEnabled();
 	expect(await node!.evaluate((el) => el.isConnected && el.scrollTop > 250)).toBe(true);
+});
+
+test('iPhone refreshes saved metadata and previews its diagnostic report before opening Files or Share', async ({
+	page
+}) => {
+	await fixture(page);
+	await nativeOfflineBridge(page, false, 'ios');
+	await login(page);
+	await options(page);
+	await chooseOption(page.getByRole('combobox', { name: 'Wi-Fi tracks ahead' }), '2');
+	await chooseOption(page.getByRole('combobox', { name: 'Wi-Fi read-ahead speed' }), '128');
+	await expect(page.getByLabel('Save artwork and lyrics with downloads')).toBeChecked();
+	await page.getByRole('button', { name: 'Refresh saved music' }).click();
+	await expect(
+		page.getByRole('status').filter({ hasText: 'Updated 1 track. 1 unavailable on DN.' })
+	).toBeVisible();
+	const applied = await page.evaluate(() =>
+		JSON.parse(sessionStorage.getItem('appliedRefresh') ?? '[]')
+	);
+	expect(applied).toMatchObject([
+		{ version: 'revision0', track: { id: 't0', title: 'Held over', rating: 5 } }
+	]);
+	await expect(page.getByRole('button', { name: 'Save file' })).toHaveCount(0);
+	await page.getByRole('button', { name: 'Review report' }).click();
+	await expect(page.locator('pre')).toHaveText('{"cachedTracks":4}');
+	await page.getByRole('button', { name: 'Save file' }).click();
+	await page.getByRole('button', { name: 'Share report' }).click();
+	expect(
+		await page.evaluate(() => [
+			sessionStorage.getItem('saveDiagnostics'),
+			sessionStorage.getItem('shareDiagnostics')
+		])
+	).toEqual(['{"cachedTracks":4}', '{"cachedTracks":4}']);
+});
+
+test('iPhone asks for notification permission on demand and opens downloads for the signed-in listener', async ({
+	page
+}) => {
+	await fixture(page);
+	await nativeOfflineBridge(page, false, 'ios');
+	await login(page);
+	await options(page);
+	const notify = page.getByLabel('Notify when a download batch finishes');
+	await expect(notify).not.toBeChecked();
+	await notify.check();
+	expect(await page.evaluate(() => sessionStorage.getItem('notificationsAllowed'))).toBeNull();
+	await expect
+		.poll(() =>
+			page.evaluate(
+				() => JSON.parse(sessionStorage.getItem('offlineFixtureOptions') ?? '{}').notifyDownloads
+			)
+		)
+		.toBe(true);
+	await page.getByRole('button', { name: 'Allow iPhone notifications' }).click();
+	await expect(
+		page.getByRole('status').filter({ hasText: 'Notifications are allowed on this iPhone.' })
+	).toBeVisible();
+	const tap = (account: string) =>
+		page.evaluate((user) => {
+			sessionStorage.setItem('pendingDownloadFor', user);
+			window.dispatchEvent(new Event('dn-download-notification'));
+		}, account);
+	await tap('other listener');
+	await expect
+		.poll(() => page.evaluate(() => sessionStorage.getItem('pendingDownloadFor')))
+		.toBeNull();
+	await expect(notify).toBeVisible();
+	await tap('listener');
+	await expect(page.getByRole('heading', { name: 'Offline music', exact: true })).toBeVisible();
+	expect(
+		await page.evaluate(() => JSON.parse(sessionStorage.getItem('downloadTapOwner') ?? '{}'))
+	).toEqual({ serverUrl: server, userId: 'listener' });
 });

@@ -10,10 +10,18 @@ final class LibraryStream: NSObject, AVAssetResourceLoaderDelegate, URLSessionDa
     private var tasks: [ObjectIdentifier: URLSessionDataTask] = [:]
     private var session: URLSession?
     private var conversion: ConvertedTrack?
+    private let capture: OfflinePlaybackCapture?
+    private struct ReadRange {
+        var current: Int64
+        let response: PlaybackByteRange, wantedEnd: Int64?, identity: String?, mime: String
+    }
+    private var ranges: [Int: ReadRange] = [:]
+    private(set) var openedMIME: String?, deliveryKind: String?
     private(set) var errorMessage: String?
     let asset: AVURLAsset
 
-    init(url: URL, token: String, profile: StreamProfile) {
+    init(url: URL, token: String, profile: StreamProfile, capture: OfflinePlaybackCapture? = nil) {
+        self.capture = capture
         self.url = url
         self.token = token
         var parts = URLComponents()
@@ -29,13 +37,17 @@ final class LibraryStream: NSObject, AVAssetResourceLoaderDelegate, URLSessionDa
         session = URLSession(configuration: config, delegate: self, delegateQueue: .main)
         asset.resourceLoader.setDelegate(self, queue: .main)
         if let converted = profile.convertedURL(url) {
-            conversion = ConvertedTrack(original: url, converted: converted, token: token, direct: { [weak self] url, loading in
+            conversion = ConvertedTrack(original: url, converted: converted, token: token, capture: capture, received: { [weak self] mime, kind in
+                DispatchQueue.main.async { self?.openedMIME = mime; self?.deliveryKind = kind }
+            }, direct: { [weak self] url, loading in
                 _ = self?.loadDirect(loading, from: url)
             }, error: { [weak self] message in self?.errorMessage = message })
         }
     }
 
     func close() {
+        capture?.close()
+        ranges.removeAll()
         conversion?.close()
         conversion = nil
         session?.invalidateAndCancel()
@@ -57,11 +69,19 @@ final class LibraryStream: NSObject, AVAssetResourceLoaderDelegate, URLSessionDa
         guard let session else { return false }
         var request = URLRequest(url: url)
         request.setValue("Bearer " + token, forHTTPHeaderField: "Authorization")
+        request.setValue("identity", forHTTPHeaderField: "Accept-Encoding")
         if let data = loading.dataRequest {
             let offset = max(data.requestedOffset, data.currentOffset)
-            let end = data.requestedOffset + Int64(data.requestedLength) - 1
-            request.setValue(data.requestsAllDataToEndOfResource ? "bytes=\(offset)-" : "bytes=\(offset)-\(end)",
-                             forHTTPHeaderField: "Range")
+            var range = "bytes=\(offset)-"
+            if !data.requestsAllDataToEndOfResource {
+                let (end, overflow) = data.requestedOffset.addingReportingOverflow(Int64(data.requestedLength))
+                guard !overflow, offset >= 0, offset <= end else {
+                    loading.finishLoading(with: URLError(.badServerResponse)); return true
+                }
+                if end == offset { loading.finishLoading(); return true }
+                range += String(end - 1)
+            }
+            request.setValue(range, forHTTPHeaderField: "Range")
         } else {
             request.setValue("bytes=0-1", forHTTPHeaderField: "Range")
         }
@@ -76,6 +96,7 @@ final class LibraryStream: NSObject, AVAssetResourceLoaderDelegate, URLSessionDa
         conversion?.cancel(loading)
         if let task = tasks.removeValue(forKey: ObjectIdentifier(loading)) {
             pending.removeValue(forKey: task.taskIdentifier)
+            ranges.removeValue(forKey: task.taskIdentifier)
             task.cancel()
         }
     }
@@ -87,43 +108,82 @@ final class LibraryStream: NSObject, AVAssetResourceLoaderDelegate, URLSessionDa
 
     func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive response: URLResponse,
                     completionHandler: @escaping (URLSession.ResponseDisposition) -> Void) {
-        guard let loading = pending[dataTask.taskIdentifier], let http = response as? HTTPURLResponse,
-              [200, 206].contains(http.statusCode) else {
+        guard let loading = pending[dataTask.taskIdentifier] else {
             completionHandler(.cancel)
             return
         }
-        let range = http.value(forHTTPHeaderField: "Content-Range")
+        guard let http = response as? HTTPURLResponse, DeviceOffline.audio(http.mimeType) else {
+            finish(dataTask, loading, error: URLError(.badServerResponse))
+            completionHandler(.cancel)
+            return
+        }
         let offset = max(loading.dataRequest?.requestedOffset ?? 0, loading.dataRequest?.currentOffset ?? 0)
-        if http.statusCode == 200 && offset > 0 {
+        guard let range = PlaybackByteRange(status: http.statusCode,
+                                            header: http.value(forHTTPHeaderField: "Content-Range"),
+                                            bytes: response.expectedContentLength,
+                                            coding: http.value(forHTTPHeaderField: "Content-Encoding"),
+                                            offset: offset) else {
+            finish(dataTask, loading, error: URLError(.badServerResponse))
             completionHandler(.cancel)
             return
         }
+        openedMIME = http.mimeType
+        if conversion == nil { deliveryKind = "original" }
         if let info = loading.contentInformationRequest {
             if let mime = response.mimeType { info.contentType = UTType(mimeType: mime)?.identifier }
-            if let length = range?.split(separator: "/").last.flatMap({ Int64($0) }) {
-                info.contentLength = length
-            } else if response.expectedContentLength >= 0 {
-                info.contentLength = response.expectedContentLength
-            }
+            if let length = range.total { info.contentLength = length }
             info.isByteRangeAccessSupported = http.statusCode == 206 || http.value(forHTTPHeaderField: "Accept-Ranges") == "bytes"
         }
-        if loading.dataRequest == nil {
+        guard let wanted = loading.dataRequest else {
             tasks.removeValue(forKey: ObjectIdentifier(loading))
             pending.removeValue(forKey: dataTask.taskIdentifier)
             loading.finishLoading()
             completionHandler(.cancel)
             return
         }
+        let identity = capture == nil ? nil : range.cacheIdentity(
+            tag: http.value(forHTTPHeaderField: "ETag"), modified: http.value(forHTTPHeaderField: "Last-Modified"),
+            date: http.value(forHTTPHeaderField: "Date"), request: dataTask.taskIdentifier)
+        let wantedEnd = wanted.requestsAllDataToEndOfResource ? nil : wanted.requestedOffset + Int64(wanted.requestedLength)
+        ranges[dataTask.taskIdentifier] = ReadRange(current: offset, response: range, wantedEnd: wantedEnd,
+                                                    identity: identity, mime: http.mimeType ?? "application/octet-stream")
         completionHandler(.allow)
     }
 
     func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive data: Data) {
-        pending[dataTask.taskIdentifier]?.dataRequest?.respond(with: data)
+        let id = dataTask.taskIdentifier
+        guard let range = ranges[id], let loading = pending[id] else { return }
+        let (next, overflow) = range.current.addingReportingOverflow(Int64(data.count))
+        guard !overflow, next <= (range.response.end ?? Int64.max) else {
+            finish(dataTask, loading, error: URLError(.badServerResponse))
+            return
+        }
+        if let key = range.identity, let total = range.response.total {
+            capture?.receive(data, at: range.current, length: total, validator: key, mime: range.mime)
+        }
+        let limit = min(next, range.wantedEnd ?? next)
+        loading.dataRequest?.respond(with: limit == next ? data : Data(data.prefix(Int(limit - range.current))))
+        ranges[id]?.current = next
+        if range.wantedEnd == limit && next != range.response.end {
+            finish(dataTask, loading, error: nil)
+        }
+    }
+
+    private func finish(_ task: URLSessionDataTask, _ loading: AVAssetResourceLoadingRequest, error: Error?) {
+        ranges.removeValue(forKey: task.taskIdentifier)
+        pending.removeValue(forKey: task.taskIdentifier)
+        tasks.removeValue(forKey: ObjectIdentifier(loading))
+        if let error { loading.finishLoading(with: error) } else { loading.finishLoading() }
+        task.cancel()
     }
 
     func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
+        let range = ranges.removeValue(forKey: task.taskIdentifier)
         guard let loading = pending.removeValue(forKey: task.taskIdentifier) else { return }
         tasks.removeValue(forKey: ObjectIdentifier(loading))
-        if let error { loading.finishLoading(with: error) } else { loading.finishLoading() }
+        if let error { loading.finishLoading(with: error) }
+        else if let range, let end = range.response.end, range.current != end {
+            loading.finishLoading(with: URLError(.networkConnectionLost))
+        } else { loading.finishLoading() }
     }
 }

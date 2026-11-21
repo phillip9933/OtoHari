@@ -1,4 +1,3 @@
-import { Capacitor } from '@capacitor/core';
 import { getJson, type Session } from '../connection';
 import { localSong, path } from '../catalog/catalog';
 import {
@@ -116,7 +115,7 @@ export async function prepareLibraryPlayback(
 	const params = query(filters),
 		first = await read(session, params, null, 200, signal);
 	signal.throwIfAborted();
-	if (first.total <= maxQueueTracks || Capacitor.getPlatform() === 'ios') {
+	if (first.total <= maxQueueTracks) {
 		const tracks = await prepareLibraryQueue(
 			session,
 			params,

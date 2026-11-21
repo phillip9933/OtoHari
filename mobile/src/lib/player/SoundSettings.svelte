@@ -41,7 +41,7 @@
 				</select>
 			</InlineChoice></label
 		>
-		{#if !speedOnly && Capacitor.getPlatform() === 'android'}
+		{#if !speedOnly && Capacitor.isNativePlatform()}
 			<label
 				>{uiText('Volume normalization')}<InlineChoice
 					selected={value.replayGain}

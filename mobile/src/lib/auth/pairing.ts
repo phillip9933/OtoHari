@@ -86,7 +86,7 @@ export function watchSignIn(
 ) {
 	let closed = false;
 	let verifying: string | undefined;
-	async function finish(url?: string) {
+	async function finish(url?: string, launch = false) {
 		const pending = await readSecret<Pending>(PENDING);
 		if (closed || !pending || verifying === pending.state) return;
 		if (!freshPairing(pending.started)) {
@@ -98,7 +98,9 @@ export function watchSignIn(
 				failed(new Error('This sign-in has expired. Start again.'), false);
 			return;
 		}
-		const reply = url ?? pending.reply;
+		// iOS can retain an earlier launch URL while this installation has a newer
+		// verified pairing reply waiting for its profile request to finish.
+		const reply = launch && pending.reply ? pending.reply : (url ?? pending.reply);
 		if (!reply?.startsWith(CALLBACK + '#')) return;
 		const token = await openReply(reply, pending.state, pending.key);
 		if (!token || closed || verifying === pending.state) return;
@@ -106,13 +108,13 @@ export function watchSignIn(
 		try {
 			if (
 				!(await ifCurrent(pending.state, async (current) => {
-					// Android delivers a warm intent only once. Keep its encrypted
-					// reply until this installation verifies the session with DN.
+					// Keep the encrypted reply through interruptions until DN verifies this phone.
 					if (!current.reply) await writeSecret(PENDING, { ...current, reply });
 				})) ||
 				closed
 			)
 				return;
+			if (Capacitor.getPlatform() === 'ios' && url) void Browser.close().catch(() => {});
 			checking(pending.server);
 			const session = await verifyToken(pending.server, token);
 			await ifCurrent(pending.state, async () => {
@@ -125,7 +127,6 @@ export function watchSignIn(
 				await saveSession(session);
 				await removeSecret(PENDING);
 				if (!closed) connected(session);
-				if (Capacitor.getPlatform() === 'ios') await Browser.close().catch(() => {});
 			});
 		} catch (error) {
 			const revoked = error instanceof DnError && error.status === 401;
@@ -137,9 +138,9 @@ export function watchSignIn(
 			if (verifying === pending.state) verifying = undefined;
 		}
 	}
-	async function retry(url?: string) {
+	async function retry(url?: string, launch = false) {
 		try {
-			await finish(url);
+			await finish(url, launch);
 		} catch (error) {
 			if (!closed) failed(error, false);
 		}
@@ -153,8 +154,7 @@ export function watchSignIn(
 		void listener
 			.then(async () => {
 				const launch = await App.getLaunchUrl();
-				if (launch) await retry(launch.url);
-				if (!closed && !launch) await retry();
+				if (!closed) await retry(launch?.url, true);
 			})
 			.catch((error) => {
 				if (!closed) failed(error, false);

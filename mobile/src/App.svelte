@@ -4,6 +4,7 @@
 	import { get } from 'svelte/store';
 	import { Capacitor } from '@capacitor/core';
 	import { App as NativeApp } from '@capacitor/app';
+	import { widgetLinks } from './lib/player/widgetLinks';
 	import { Menu } from '@lucide/svelte';
 	import Navigation from './lib/Navigation.svelte';
 	import {
@@ -17,6 +18,7 @@
 	} from './lib/appearance/interface';
 	import {
 		offlineSupported,
+		stopIPhoneDownloads,
 		preferredOffline,
 		runAutoDownloads,
 		stopAutoDownloads
@@ -48,6 +50,7 @@
 	import { setDetailSettings } from './lib/catalog/DetailSettings.svelte';
 	import {
 		launcherShortcuts,
+		clearIPhonePlaylistShortcuts,
 		pendingShortcut,
 		takePlaylistShortcut
 	} from './lib/catalog/launcherShortcuts';
@@ -224,8 +227,14 @@
 	}
 	async function openDownloadNotification() {
 		const owner = session;
-		if (!owner?.userId || !offlineSupported || Capacitor.getPlatform() !== 'android') return;
-		const pending = await nativeMedia.takeDownloadNotification().catch(() => undefined);
+		if (!owner?.userId || !offlineSupported || !Capacitor.isNativePlatform()) return;
+		const pending = await nativeMedia
+			.takeDownloadNotification(
+				Capacitor.getPlatform() === 'ios'
+					? { serverUrl: owner.serverUrl, userId: owner.userId }
+					: undefined
+			)
+			.catch(() => undefined);
 		if (pending?.open && session === owner) {
 			navigate('offline');
 		}
@@ -412,6 +421,7 @@
 		const owner = session;
 		if (owner) return untrack(() => connectMobileDevice(owner));
 	});
+	let widget: ReturnType<typeof widgetLinks> | undefined;
 	async function connected(next: Session) {
 		let restoreError: unknown;
 		let hasCurrentTrack = false;
@@ -438,6 +448,7 @@
 		focusMain();
 		await openDownloadNotification();
 		await openPlaylistShortcut();
+		await widget?.consume();
 		if (restoreError) report(restoreError);
 	}
 	async function start(tracks: PlayerTrack[], index: number, continuation?: LibraryContinuation) {
@@ -479,6 +490,8 @@
 		tab = 'home';
 		issue = '';
 		const outcomes = await Promise.allSettled([
+			stopIPhoneDownloads(previous),
+			clearIPhonePlaylistShortcuts(previous),
 			...(Capacitor.getPlatform() === 'android' && previous.userId
 				? [nativeMedia.cancelManual({ serverUrl: previous.serverUrl, userId: previous.userId })]
 				: []),
@@ -490,10 +503,14 @@
 		else if (expired) issue = 'Your session ended. Sign in again.';
 	}
 	onMount(() => {
+		widget = widgetLinks(
+			() => session,
+			() => openPanel('player', true)
+		);
 		void restoreSession()
 			.then(async (result) => {
 				if (result) await connected(result);
-				else if (Capacitor.getPlatform() === 'android') await player.clear();
+				else if (Capacitor.isNativePlatform()) await player.clear();
 			})
 			.catch(report)
 			.finally(() => (loading = false));
@@ -527,6 +544,7 @@
 			void listener?.then((handle) => handle.remove());
 			window.removeEventListener('dn-open-offline', openOffline);
 			window.removeEventListener('dn-download-notification', openDownloadNotification);
+			widget?.stop();
 			window.removeEventListener('dn-playlist-shortcut', openPlaylistShortcut);
 			window.removeEventListener('dn-session-expired', expired);
 			window.removeEventListener('keydown', key);

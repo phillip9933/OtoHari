@@ -42,7 +42,7 @@ type Entry = {
 	anchor?: string;
 	terms?: string;
 	account?: boolean;
-	android?: boolean;
+	native?: boolean;
 };
 const groups: Partial<Record<Page, string>> = {
 	language: 'English Japanese 日本語 英語 言語 system locale',
@@ -54,7 +54,7 @@ const groups: Partial<Record<Page, string>> = {
 		'play queue autoplay similar library music extend playback when the queue ends up next 再生キュー 自動再生 関連する曲 似ている曲 再生を延長',
 	handoff: 'remote control devices transfer 引き継ぎ',
 	themes: 'appearance colors palette dark light midnight custom CSS テーマ 配色',
-	outputs: 'chromecast DLNA Sonos speaker audio output キャスト スピーカー',
+	outputs: 'AirPlay Chromecast DLNA Sonos speaker audio output キャスト スピーカー',
 	equalizer: 'headphones EQ presets frequency bands イコライザー ヘッドホン',
 	account: 'profile username sign in sessions devices services email scrobble last.fm プロフィール',
 	content: 'home discover sidebar sections サイドバー',
@@ -135,7 +135,7 @@ const subsections: Entry[] = [
 		page: 'offline',
 		label: 'Queue read-ahead',
 		anchor: 'queue-read-ahead',
-		android: true,
+		native: true,
 		terms:
 			'upcoming precache preload wifi mobile cellular tracks upcoming songs 先読み 事前読み込み'
 	},
@@ -143,7 +143,7 @@ const subsections: Entry[] = [
 		page: 'offline',
 		label: 'Download quality',
 		anchor: 'download-quality',
-		android: true,
+		native: true,
 		terms: 'format bitrate quality transcoding 形式 音質'
 	},
 	{
@@ -156,21 +156,21 @@ const subsections: Entry[] = [
 		page: 'offline',
 		label: 'Complete downloads',
 		anchor: 'complete-downloads',
-		android: true,
+		native: true,
 		terms: 'download album covers lyrics waveform ダウンロード ジャケット 歌詞 波形'
 	},
 	{
 		page: 'offline',
 		label: 'Refresh saved metadata',
 		anchor: 'offline-metadata-refresh',
-		android: true,
+		native: true,
 		terms: 'repair update tags offline titles rating メタデータ 更新'
 	},
 	{
 		page: 'offline',
 		label: 'Device diagnostics report',
 		anchor: 'offline-diagnostics',
-		android: true,
+		native: true,
 		terms: 'export share private privacy troubleshooting diagnostics 診断 プライバシー'
 	},
 	{
@@ -189,14 +189,14 @@ const subsections: Entry[] = [
 		page: 'offline',
 		label: 'Download notifications',
 		anchor: 'download-notifications',
-		android: true,
+		native: true,
 		terms: 'background notification 通知'
 	},
 	{
 		page: 'offline',
 		label: 'Offline listening history',
 		anchor: 'offline-listening',
-		android: true,
+		native: true,
 		terms: 'scrobble history 再生履歴'
 	},
 	{
@@ -227,15 +227,12 @@ function normalize(value: string) {
 export function findSettings(query: string, access: Access) {
 	const words = normalize(query).split(/\s+/).filter(Boolean);
 	if (!words.length) return [];
-	return entries.filter(({ page, label, terms, account, android }) => {
+	return entries.filter(({ page, label, terms, account, native }) => {
 		if ((!access.signedIn && !publicPages.has(page)) || (adminPages.has(page) && !access.admin))
 			return false;
-		if ((page === 'updates' || page === 'equalizer' || android) && !access.android) return false;
-		if (
-			((page === 'handoff' || account) && !access.account) ||
-			((page === 'handoff' || page === 'queue') && access.ios)
-		)
-			return false;
+		if (page === 'updates' && !access.android) return false;
+		if ((page === 'equalizer' || native) && !access.android && !access.ios) return false;
+		if ((page === 'handoff' || account) && !access.account) return false;
 		if (
 			(page === 'outputs' && !(access.android || access.ios)) ||
 			(page === 'offline' && !access.offline)

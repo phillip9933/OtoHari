@@ -37,10 +37,12 @@ struct StreamProfile: Equatable {
         return parts.url ?? url
     }
 
+    var requestedFormat: String {
+        format == "opus" && !AVURLAsset.isPlayableExtendedMIMEType("audio/ogg; codecs=\"opus\"") ? "mp3" : format
+    }
     func convertedURL(_ url: URL) -> URL? {
         guard format != "original", var parts = URLComponents(url: url, resolvingAgainstBaseURL: false) else { return nil }
-        let codec = format == "opus" && !AVURLAsset.isPlayableExtendedMIMEType("audio/ogg; codecs=\"opus\"") ? "mp3" : format
-        parts.queryItems = (parts.queryItems ?? []) + [URLQueryItem(name: "format", value: codec),
+        parts.queryItems = (parts.queryItems ?? []) + [URLQueryItem(name: "format", value: requestedFormat),
                                                       URLQueryItem(name: "max_bitrate", value: String(rate))]
         return parts.url
     }

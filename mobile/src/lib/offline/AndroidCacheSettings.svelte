@@ -1,4 +1,7 @@
 <script lang="ts">
+	import { Capacitor } from '@capacitor/core';
+	import { onDestroy } from 'svelte';
+	import { nativeDocuments } from '../documentFiles';
 	import { online } from 'svelte/reactivity/window';
 	import type { Session } from '../connection';
 	import InlineChoice from '../controls/InlineChoice.svelte';
@@ -26,6 +29,9 @@
 			name: () => tr('Cellular', 'モバイル回線')
 		}
 	] as const;
+	let refresh = new AbortController();
+	onDestroy(() => refresh.abort());
+	const destinations = Capacitor.getPlatform() === 'ios' ? nativeDocuments : nativeMedia;
 	const counts = [0, 1, 2, 3, 5, 10, 20],
 		rates = [0, 64, 128, 256, 512, 1024, 2048, 4096, 8192];
 	let operation = $state(''),
@@ -49,19 +55,21 @@
 		problem = '';
 		try {
 			if (kind === 'refresh') {
-				const result = await refreshOfflineMetadata(account);
+				refresh.abort();
+				refresh = new AbortController();
+				const result = await refreshOfflineMetadata(session, refresh.signal);
 				if (sameAccount())
 					message = tr(
-						`Updated ${result.updated} tracks. ${result.unavailable} unavailable on DN.`,
+						`Updated ${result.updated} ${result.updated === 1 ? 'track' : 'tracks'}. ${result.unavailable} unavailable on DN.`,
 						`${result.updated} 曲を更新しました。DN で見つからない曲は ${result.unavailable} 曲です。`
 					);
 			} else if (kind === 'review') {
 				const result = await nativeMedia.diagnostics(account);
 				if (sameAccount()) report = result.text;
 			} else if (kind === 'save') {
-				const { saved } = await nativeMedia.saveDiagnostics({ ...account, text: report });
+				const { saved } = await destinations.saveDiagnostics({ ...account, text: report });
 				if (saved && sameAccount()) message = tr('Report saved.', 'レポートを保存しました。');
-			} else await nativeMedia.shareDiagnostics({ ...account, text: report });
+			} else await destinations.shareDiagnostics({ ...account, text: report });
 		} catch {
 			if (sameAccount())
 				problem =
@@ -183,8 +191,8 @@
 <fieldset class="settings-panel" data-surface="panel" aria-labelledby="offline-diagnostics">
 	<p>
 		{tr(
-			'Review Android and connection information, cache totals and pending activity before saving or sharing a copy.',
-			'Android・接続情報、キャッシュの合計、保留中の処理を確認してから、レポートを保存または共有できます。'
+			'Review device and connection information, cache totals and pending activity before saving or sharing a copy.',
+			'端末・接続情報、キャッシュの合計、保留中の処理を確認してから、レポートを保存または共有できます。'
 		)}
 	</p>
 	<button class="secondary" disabled={!session.userId || !!operation} onclick={() => act('review')}

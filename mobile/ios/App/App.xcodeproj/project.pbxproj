@@ -7,8 +7,30 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		38C32D71E01445AFBADA2B21 /* MediaToolbox.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 5DC2336C175445FAA01DA651 /* MediaToolbox.framework */; };
+		BAB0E7F4DE6DE46E325B472D /* WidgetPublishing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F2AEEBFD157F962B120B397 /* WidgetPublishing.swift */; };
+		7030EEF146A99EF605DA2FA8 /* PlayerWidgetSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2CC153EE5F4018EBEC71036A /* PlayerWidgetSnapshot.swift */; };
+		B62BD2AC7090FF765952D405 /* DNPlayerDSP.m in Sources */ = {isa = PBXBuildFile; fileRef = CDDC3820788E20474DED5116 /* DNPlayerDSP.m */; };
+		864DBFACAB87FE4113F3254C /* DNLauncherPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = E16FA28BE48778DAFB1E79BE /* DNLauncherPlugin.swift */; };
+		2D7A1AA5D6959F3FC85DF618 /* PlayerAutoplay.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF912872A503C4EF1158C9AC /* PlayerAutoplay.swift */; };
+		2B7DCCE84772C6C04A4FDFE1 /* PlayerSound.swift in Sources */ = {isa = PBXBuildFile; fileRef = 550B407040981B698F624DFB /* PlayerSound.swift */; };
+		D846965EA99D39DEA6E7318E /* PlayerQueueOrder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 673EBF615F1BBA0A857BA384 /* PlayerQueueOrder.swift */; };
+		BC40000B00000000000000AD /* PlaybackArtwork.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC40000A00000000000000AD /* PlaybackArtwork.swift */; };
+		BC40000B00000000000000AB /* PlaylistExports.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC40000A00000000000000AB /* PlaylistExports.swift */; };
+		BC40000B00000000000000AC /* DNPlaylistExportPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC40000A00000000000000AC /* DNPlaylistExportPlugin.swift */; };
 		BC40000B00000000000000A2 /* StreamProfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC40000A00000000000000A2 /* StreamProfile.swift */; };
 		BC40000B00000000000000A3 /* ConvertedTrack.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC40000A00000000000000A3 /* ConvertedTrack.swift */; };
+		BC40000B00000000000000A4 /* OfflineFiles.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC40000A00000000000000A4 /* OfflineFiles.swift */; };
+		BC40000B00000000000000A7 /* PlaybackArchive.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC40000A00000000000000A7 /* PlaybackArchive.swift */; };
+		BC40000B00000000000000F1 /* PlaybackWaveform.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC40000A00000000000000F1 /* PlaybackWaveform.swift */; };
+		BC40000B00000000000000F2 /* TrackFades.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC40000A00000000000000F2 /* TrackFades.swift */; };
+		BC40000B00000000000000AA /* LibraryContinuation.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC40000A00000000000000AA /* LibraryContinuation.swift */; };
+		BC40000B00000000000000A8 /* PlaybackHistory.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC40000A00000000000000A8 /* PlaybackHistory.swift */; };
+		BC40000B00000000000000A9 /* PlaybackReportSender.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC40000A00000000000000A9 /* PlaybackReportSender.swift */; };
+		BC40000B00000000000000AE /* OfflineListenJournal.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC40000A00000000000000AE /* OfflineListenJournal.swift */; };
+		BC40000B00000000000000AF /* OfflineListenReplay.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC40000A00000000000000AF /* OfflineListenReplay.swift */; };
+		BC40000B00000000000000A5 /* DNOfflinePlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC40000A00000000000000A5 /* DNOfflinePlugin.swift */; };
+		BC40000B00000000000000A6 /* OfflinePlaybackCapture.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC40000A00000000000000A6 /* OfflinePlaybackCapture.swift */; };
 		BC40000B00000000000000A1 /* DNOutputsPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC40000A00000000000000A1 /* DNOutputsPlugin.swift */; };
 		BC40000B0000000000000001 /* LibraryStream.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC40000A0000000000000001 /* LibraryStream.swift */; };
 		BC40000B0000000000000000 /* DNPlayerPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC40000A0000000000000000 /* DNPlayerPlugin.swift */; };
@@ -24,8 +46,33 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		5DC2336C175445FAA01DA651 /* MediaToolbox.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = MediaToolbox.framework; path = System/Library/Frameworks/MediaToolbox.framework; sourceTree = SDKROOT; };
+		7F2AEEBFD157F962B120B397 /* WidgetPublishing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WidgetPublishing.swift"; sourceTree = "<group>"; };
+		2CC153EE5F4018EBEC71036A /* PlayerWidgetSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PlayerWidgetSnapshot.swift"; sourceTree = "<group>"; };
+		265ED0AED87F21BCF8CC5B85 /* DNPlayer-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "DNPlayer-Bridging-Header.h"; sourceTree = "<group>"; };
+		E339F5147930952799AA03C7 /* DNFilterBank.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "DNFilterBank.h"; sourceTree = "<group>"; };
+		2DA0002E45D9F5A7D3E5F824 /* DNPlayerDSP.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "DNPlayerDSP.h"; sourceTree = "<group>"; };
+		CDDC3820788E20474DED5116 /* DNPlayerDSP.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = "DNPlayerDSP.m"; sourceTree = "<group>"; };
+		E16FA28BE48778DAFB1E79BE /* DNLauncherPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "DNLauncherPlugin.swift"; sourceTree = "<group>"; };
+		EF912872A503C4EF1158C9AC /* PlayerAutoplay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PlayerAutoplay.swift"; sourceTree = "<group>"; };
+		550B407040981B698F624DFB /* PlayerSound.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PlayerSound.swift"; sourceTree = "<group>"; };
+		673EBF615F1BBA0A857BA384 /* PlayerQueueOrder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PlayerQueueOrder.swift"; sourceTree = "<group>"; };
+		BC40000A00000000000000AD /* PlaybackArtwork.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackArtwork.swift; sourceTree = "<group>"; };
+		BC40000A00000000000000AB /* PlaylistExports.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaylistExports.swift; sourceTree = "<group>"; };
+		BC40000A00000000000000AC /* DNPlaylistExportPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DNPlaylistExportPlugin.swift; sourceTree = "<group>"; };
 		BC40000A00000000000000A2 /* StreamProfile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StreamProfile.swift; sourceTree = "<group>"; };
 		BC40000A00000000000000A3 /* ConvertedTrack.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConvertedTrack.swift; sourceTree = "<group>"; };
+		BC40000A00000000000000A4 /* OfflineFiles.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OfflineFiles.swift; sourceTree = "<group>"; };
+		BC40000A00000000000000A7 /* PlaybackArchive.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackArchive.swift; sourceTree = "<group>"; };
+		BC40000A00000000000000F1 /* PlaybackWaveform.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackWaveform.swift; sourceTree = "<group>"; };
+		BC40000A00000000000000F2 /* TrackFades.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrackFades.swift; sourceTree = "<group>"; };
+		BC40000A00000000000000AA /* LibraryContinuation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryContinuation.swift; sourceTree = "<group>"; };
+		BC40000A00000000000000A8 /* PlaybackHistory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackHistory.swift; sourceTree = "<group>"; };
+		BC40000A00000000000000A9 /* PlaybackReportSender.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackReportSender.swift; sourceTree = "<group>"; };
+		BC40000A00000000000000AE /* OfflineListenJournal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OfflineListenJournal.swift; sourceTree = "<group>"; };
+		BC40000A00000000000000AF /* OfflineListenReplay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OfflineListenReplay.swift; sourceTree = "<group>"; };
+		BC40000A00000000000000A5 /* DNOfflinePlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DNOfflinePlugin.swift; sourceTree = "<group>"; };
+		BC40000A00000000000000A6 /* OfflinePlaybackCapture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OfflinePlaybackCapture.swift; sourceTree = "<group>"; };
 		BC40000A00000000000000A1 /* DNOutputsPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DNOutputsPlugin.swift; sourceTree = "<group>"; };
 		BC40000A0000000000000001 /* LibraryStream.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryStream.swift; sourceTree = "<group>"; };
 		BC40000A0000000000000000 /* DNPlayerPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DNPlayerPlugin.swift; sourceTree = "<group>"; };
@@ -47,6 +94,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				38C32D71E01445AFBADA2B21 /* MediaToolbox.framework in Frameworks */,
 				4D22ABE92AF431CB00220026 /* CapApp-SPM in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -59,6 +107,7 @@
 			children = (
 				958DCC722DB07C7200EA8C5F /* debug.xcconfig */,
 				504EC3061FED79650016851F /* App */,
+				5DC2336C175445FAA01DA651 /* MediaToolbox.framework */,
 				504EC3051FED79650016851F /* Products */,
 			);
 			sourceTree = "<group>";
@@ -75,12 +124,36 @@
 			isa = PBXGroup;
 			children = (
 				BC40000A0000000000000000 /* DNPlayerPlugin.swift */,
+				BC40000A00000000000000AD /* PlaybackArtwork.swift */,
 				BC40000A00000000000000A1 /* DNOutputsPlugin.swift */,
+				BC40000A00000000000000AB /* PlaylistExports.swift */,
+				BC40000A00000000000000AC /* DNPlaylistExportPlugin.swift */,
 				BC40000A0000000000000001 /* LibraryStream.swift */,
 				BC40000A00000000000000A2 /* StreamProfile.swift */,
 				BC40000A00000000000000A3 /* ConvertedTrack.swift */,
+				BC40000A00000000000000A4 /* OfflineFiles.swift */,
+				BC40000A00000000000000A7 /* PlaybackArchive.swift */,
+				BC40000A00000000000000F1 /* PlaybackWaveform.swift */,
+				BC40000A00000000000000F2 /* TrackFades.swift */,
+				BC40000A00000000000000AA /* LibraryContinuation.swift */,
+				BC40000A00000000000000A8 /* PlaybackHistory.swift */,
+				BC40000A00000000000000A9 /* PlaybackReportSender.swift */,
+				BC40000A00000000000000AE /* OfflineListenJournal.swift */,
+				BC40000A00000000000000AF /* OfflineListenReplay.swift */,
+				BC40000A00000000000000A5 /* DNOfflinePlugin.swift */,
+				BC40000A00000000000000A6 /* OfflinePlaybackCapture.swift */,
 				9582B6822FE993A50072D4E8 /* SceneDelegate.swift */,
 				50379B222058CBB4000EE86E /* capacitor.config.json */,
+				673EBF615F1BBA0A857BA384 /* PlayerQueueOrder.swift */,
+				550B407040981B698F624DFB /* PlayerSound.swift */,
+				EF912872A503C4EF1158C9AC /* PlayerAutoplay.swift */,
+				E16FA28BE48778DAFB1E79BE /* DNLauncherPlugin.swift */,
+				CDDC3820788E20474DED5116 /* DNPlayerDSP.m */,
+				2DA0002E45D9F5A7D3E5F824 /* DNPlayerDSP.h */,
+				E339F5147930952799AA03C7 /* DNFilterBank.h */,
+				265ED0AED87F21BCF8CC5B85 /* DNPlayer-Bridging-Header.h */,
+				2CC153EE5F4018EBEC71036A /* PlayerWidgetSnapshot.swift */,
+				7F2AEEBFD157F962B120B397 /* WidgetPublishing.swift */,
 				504EC3071FED79650016851F /* AppDelegate.swift */,
 				504EC30B1FED79650016851F /* Main.storyboard */,
 				504EC30E1FED79650016851F /* Assets.xcassets */,
@@ -173,12 +246,33 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				D846965EA99D39DEA6E7318E /* PlayerQueueOrder.swift in Sources */,
+				2B7DCCE84772C6C04A4FDFE1 /* PlayerSound.swift in Sources */,
+				2D7A1AA5D6959F3FC85DF618 /* PlayerAutoplay.swift in Sources */,
+				864DBFACAB87FE4113F3254C /* DNLauncherPlugin.swift in Sources */,
+				B62BD2AC7090FF765952D405 /* DNPlayerDSP.m in Sources */,
+				7030EEF146A99EF605DA2FA8 /* PlayerWidgetSnapshot.swift in Sources */,
+				BAB0E7F4DE6DE46E325B472D /* WidgetPublishing.swift in Sources */,
 				504EC3081FED79650016851F /* AppDelegate.swift in Sources */,
 				BC40000B0000000000000000 /* DNPlayerPlugin.swift in Sources */,
+				BC40000B00000000000000AD /* PlaybackArtwork.swift in Sources */,
 				BC40000B00000000000000A1 /* DNOutputsPlugin.swift in Sources */,
+				BC40000B00000000000000AB /* PlaylistExports.swift in Sources */,
+				BC40000B00000000000000AC /* DNPlaylistExportPlugin.swift in Sources */,
 				BC40000B0000000000000001 /* LibraryStream.swift in Sources */,
 				BC40000B00000000000000A2 /* StreamProfile.swift in Sources */,
 				BC40000B00000000000000A3 /* ConvertedTrack.swift in Sources */,
+				BC40000B00000000000000A4 /* OfflineFiles.swift in Sources */,
+				BC40000B00000000000000A7 /* PlaybackArchive.swift in Sources */,
+				BC40000B00000000000000F1 /* PlaybackWaveform.swift in Sources */,
+				BC40000B00000000000000F2 /* TrackFades.swift in Sources */,
+				BC40000B00000000000000AA /* LibraryContinuation.swift in Sources */,
+				BC40000B00000000000000A8 /* PlaybackHistory.swift in Sources */,
+				BC40000B00000000000000A9 /* PlaybackReportSender.swift in Sources */,
+				BC40000B00000000000000AE /* OfflineListenJournal.swift in Sources */,
+				BC40000B00000000000000AF /* OfflineListenReplay.swift in Sources */,
+				BC40000B00000000000000A5 /* DNOfflinePlugin.swift in Sources */,
+				BC40000B00000000000000A6 /* OfflinePlaybackCapture.swift in Sources */,
 				9582B6832FE993A70072D4E8 /* SceneDelegate.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -254,7 +348,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.4;
 				MTL_ENABLE_DEBUG_INFO = YES;
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = iphoneos;
@@ -305,7 +399,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.4;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				SDKROOT = iphoneos;
 				SWIFT_COMPILATION_MODE = wholemodule;
@@ -320,18 +414,19 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 8;
+				CURRENT_PROJECT_VERSION = 29;
 				INFOPLIST_FILE = App/Info.plist;
-				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.4;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 0.7.0;
+				MARKETING_VERSION = 0.23.0;
 				OTHER_SWIFT_FLAGS = "$(inherited) \"-D\" \"COCOAPODS\" \"-DDEBUG\"";
 				PRODUCT_BUNDLE_IDENTIFIER = app.droppedneedle.mobile;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OBJC_BRIDGING_HEADER = "App/DNPlayer-Bridging-Header.h";
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
@@ -342,17 +437,18 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 8;
+				CURRENT_PROJECT_VERSION = 29;
 				INFOPLIST_FILE = App/Info.plist;
-				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.4;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 0.7.0;
+				MARKETING_VERSION = 0.23.0;
 				PRODUCT_BUNDLE_IDENTIFIER = app.droppedneedle.mobile;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "";
+				SWIFT_OBJC_BRIDGING_HEADER = "App/DNPlayer-Bridging-Header.h";
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};

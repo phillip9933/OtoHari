@@ -3,13 +3,7 @@
 	import { onDestroy, type Snippet } from 'svelte';
 	import { saveOfflineTracks, offlineSupported, offlineInventory } from '../offline/media';
 	import { Ellipsis, EllipsisVertical } from '@lucide/svelte';
-	import {
-		player,
-		placementMessage,
-		supportsUpNext,
-		type PlayerTrack,
-		type QueuePlacement
-	} from '../player';
+	import { player, placementMessage, type PlayerTrack, type QueuePlacement } from '../player';
 	import { tr } from '../i18n';
 	import type { Session } from '../connection';
 	import { errorMessage } from './catalog';
@@ -144,9 +138,9 @@
 		{#if tracks.length}<button disabled={busy} onclick={() => enqueue('next')}
 				>{uiText('Play next')}</button
 			>
-			{#if supportsUpNext}<button disabled={busy} onclick={() => enqueue('upNext')}
-					>{tr('Add to Up Next', '次の再生リストに追加')}</button
-				>{/if}
+			<button disabled={busy} onclick={() => enqueue('upNext')}
+				>{tr('Add to Up Next', '次の再生リストに追加')}</button
+			>
 			<button disabled={busy} onclick={() => enqueue('end')}>{uiText('Add to queue')}</button>
 			{#if !localOnly}<button disabled={busy} onclick={() => (menu = 'playlist')}
 					>{uiText('Add to playlist')}</button

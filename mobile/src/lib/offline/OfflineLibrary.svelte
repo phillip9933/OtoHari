@@ -120,7 +120,7 @@
 	data-part="offline-music"
 >
 	<h1>{uiText('Offline music')}</h1>
-	{#if Capacitor.getPlatform() === 'android' && session.userId}
+	{#if ['android', 'ios'].includes(Capacitor.getPlatform()) && session.userId}
 		{#key JSON.stringify([session.serverUrl, session.userId])}<ManualDownloads
 				serverUrl={session.serverUrl}
 				userId={session.userId}

@@ -320,7 +320,7 @@
 					{@render groupHeading('Playback')}
 					<div class="settings-list" data-surface="panel">
 						<Outputs settingsEntry />
-						{#if session.userId && Capacitor.getPlatform() !== 'ios'}<button
+						{#if session.userId}<button
 								class="settings-entry"
 								data-screen-link
 								onclick={() => open('handoff')}
@@ -333,14 +333,11 @@
 								size={16}
 							/></button
 						>
-						{#if Capacitor.getPlatform() !== 'ios'}<button
-								class="settings-entry"
-								data-screen-link
-								onclick={() => open('queue')}
-								><ListMusic size={19} /><span>{uiText(pageTitles.queue)}</span><ChevronRight
-									size={16}
-								/></button
-							>{/if}
+						<button class="settings-entry" data-screen-link onclick={() => open('queue')}
+							><ListMusic size={19} /><span>{uiText(pageTitles.queue)}</span><ChevronRight
+								size={16}
+							/></button
+						>
 						{#if offlineSupported}<button
 								class="settings-entry"
 								data-screen-link
@@ -349,7 +346,7 @@
 									size={16}
 								/></button
 							>{/if}
-						{#if Capacitor.getPlatform() === 'android'}<button
+						{#if Capacitor.isNativePlatform()}<button
 								class="settings-entry"
 								data-screen-link
 								onclick={() => open('equalizer')}
@@ -409,8 +406,7 @@
 			{/if}
 		{:else}
 			<div class="settings-content">
-				{#if page === 'equalizer' && session && Capacitor.getPlatform() === 'android'}<EqualizerSettings
-					/>
+				{#if page === 'equalizer' && session && Capacitor.isNativePlatform()}<EqualizerSettings />
 				{:else if page === 'language'}
 					<label class="language-choice"
 						>{uiText('App language')}
@@ -430,9 +426,7 @@
 				{:else if page === 'interface'}<InterfaceSettings {session} offline={offlineSupported} />
 				{:else if page === 'offline' && session && offlineSupported}<OfflineSettings {session} />
 				{:else if page === 'playback' && session}<PlaybackSettings {session} />
-				{:else if page === 'queue' && session && Capacitor.getPlatform() !== 'ios'}<QueueSettings
-						{session}
-					/>
+				{:else if page === 'queue' && session}<QueueSettings {session} />
 				{:else if page === 'handoff' && session}<LinkedPlayers />
 				{:else if page === 'themes'}<ThemeSettings {session} />
 				{:else if page === 'updates' && android}<UpdateSettings

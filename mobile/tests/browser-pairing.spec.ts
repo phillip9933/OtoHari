@@ -1,5 +1,5 @@
 import { chooseOption } from './fixtures/inlineChoice';
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test as base, type Page } from '@playwright/test';
 import { touchRange } from './fixtures/touchRange';
 import type { ManualStatus } from '../src/lib/offline/nativeMedia';
 import {
@@ -8,15 +8,19 @@ import {
 	sealToken
 } from '../../frontend/src/routes/connect/mobile/handoff';
 
-test.beforeEach(async ({ page }) => {
-	await page.addInitScript(() => {
+const test = base.extend<{ nativePlatform: 'android' | 'ios' }>({
+	nativePlatform: ['android', { option: true }]
+});
+test.beforeEach(async ({ page, nativePlatform }) => {
+	await page.addInitScript((platform) => {
 		const listeners = new Map<string, (event: { url: string }) => void>();
 		const plugins: Record<string, string[]> = {
 			App: ['getLaunchUrl', 'addListener', 'removeListener'],
-			Browser: ['open'],
+			Browser: ['open', 'close'],
+			DNOutputs: ['choose'],
 			SecureStorage: ['internalGetItem', 'internalSetItem', 'internalRemoveItem'],
 			CapacitorHttp: ['request', 'get'],
-			DNLauncher: ['pinPlaylist', 'takePlaylist'],
+			DNLauncher: ['pinPlaylist', 'playlistPinned', 'takePlaylist', 'clearShortcuts'],
 			DNOffline: [
 				'snapshot',
 				'options',
@@ -32,9 +36,20 @@ test.beforeEach(async ({ page }) => {
 				'retryManual',
 				'addListener',
 				'removeListener',
-				'cancelAutomatic'
+				'cancelAutomatic',
+				'resumeManual',
+				'canSyncCollections',
+				'planCollections',
+				'configure',
+				'save',
+				'cancelTransfer'
 			],
 			DNPlayer: [
+				'getEqualizer',
+				'soundSettings',
+				'autoplaySetting',
+				'getTrackFade',
+				'getStreamNetwork',
 				'getState',
 				'command',
 				'restore',
@@ -46,7 +61,9 @@ test.beforeEach(async ({ page }) => {
 			]
 		};
 		Object.assign(window, {
-			androidBridge: {},
+			...(platform === 'ios'
+				? { webkit: { messageHandlers: { bridge: {} } } }
+				: { androidBridge: {} }),
 			deliverLink: (url: string) => listeners.get('appUrlOpen')?.({ url }),
 			pressAndroidBack: () => listeners.get('backButton')?.({ url: '' }),
 			Capacitor: {
@@ -72,6 +89,8 @@ test.beforeEach(async ({ page }) => {
 					opts: Record<string, string> = {}
 				) => {
 					if (plugin === 'App') {
+						if (method === 'getLaunchUrl' && sessionStorage.getItem('launch-url'))
+							return { url: sessionStorage.getItem('launch-url') };
 						if (method === 'removeListener') listeners.delete(opts.eventName);
 						return undefined;
 					}
@@ -162,7 +181,19 @@ test.beforeEach(async ({ page }) => {
 									}
 								: status;
 						}
+						if (method === 'canSyncCollections')
+							return { permitted: sessionStorage.getItem('pin-network') !== 'blocked' };
+						if (method === 'planCollections') {
+							sessionStorage.setItem('planned-members', JSON.stringify(opts.members));
+							return { ids: ['song-a', 'song-b'] };
+						}
+						if (method === 'save' && opts.collection) {
+							const track = opts.track as unknown as { id: string };
+							sessionStorage.setItem('saved-pin-' + track.id, 'yes');
+							return;
+						}
 						const options = {
+							offlinePins: JSON.parse(sessionStorage.getItem('fixture-pins') ?? '[]'),
 							offlineOnly: sessionStorage.getItem('offline-only') === '1',
 							autoDownload: 'off',
 							downloadMiB: 512,
@@ -199,19 +230,55 @@ test.beforeEach(async ({ page }) => {
 							'token' in opts
 						)
 							throw Error('Wrong shortcut account');
+						if (method === 'playlistPinned')
+							return { pinned: sessionStorage.getItem('pinned') === opts.id };
 						if (method === 'pinPlaylist') {
-							sessionStorage.setItem('pinned', opts.id);
+							if (opts.remove) sessionStorage.removeItem('pinned');
+							else sessionStorage.setItem('pinned', opts.id);
+							return {};
+						}
+						if (method === 'clearShortcuts') {
+							sessionStorage.removeItem('pinned');
+							sessionStorage.removeItem('shortcut-launch');
 							return {};
 						}
 						const id = sessionStorage.getItem('shortcut-launch');
 						sessionStorage.removeItem('shortcut-launch');
 						return { id };
 					}
+					if (plugin === 'DNOutputs' && method === 'choose') {
+						sessionStorage.setItem('opened-airplay', '1');
+						return;
+					}
 					if (plugin === 'Browser') {
-						sessionStorage.setItem('browser-url', opts.url);
+						if (method === 'close') sessionStorage.setItem('browser-closed', '1');
+						else sessionStorage.setItem('browser-url', opts.url);
 						return;
 					}
 					if (plugin === 'DNPlayer') {
+						if (method === 'getEqualizer')
+							return {
+								available: true,
+								enabled: false,
+								centers: [1000000],
+								levels: [0],
+								minimum: -1200,
+								maximum: 1200,
+								preset: ''
+							};
+						if (method === 'soundSettings') {
+							if (opts.replayGain) sessionStorage.setItem('iphone-gain', opts.replayGain);
+							return { speed: 1, replayGain: sessionStorage.getItem('iphone-gain') ?? 'off' };
+						}
+						if (method === 'getStreamNetwork') return { network: 'wifi' };
+						if (method === 'getTrackFade') return { fadeInMs: 0, fadeOutMs: 0, smart: false };
+						if (method === 'autoplaySetting') {
+							if (opts.userId !== 'fixture-id') throw Error('Wrong autoplay account');
+							if (opts.enabled !== undefined)
+								sessionStorage.setItem('iphone-autoplay', String(opts.enabled));
+							return { enabled: sessionStorage.getItem('iphone-autoplay') === 'true' };
+						}
+
 						if (method === 'command' && opts.action === 'toggle')
 							sessionStorage.setItem('toggled-playback', '1');
 						if (method === 'findOutputs') {
@@ -299,7 +366,25 @@ test.beforeEach(async ({ page }) => {
 								is_redacted: false,
 								tracks: []
 							};
-						else if (opts.url.includes('/library/albums')) data = { items: [], next: null };
+						else if (
+							sessionStorage.getItem('fixture-pins') &&
+							opts.url.includes('/library/tracks?')
+						) {
+							const query = new URL(opts.url).searchParams;
+							let ids = ['song-a'];
+							if (query.has('artist_id')) ids = ['song-a', 'song-b'];
+							data = {
+								items: ids.map((id) => ({
+									id,
+									title: id,
+									artist_name: 'Dawn',
+									album_title: 'Night',
+									album_id: 'a'
+								})),
+								total: ids.length,
+								next: null
+							};
+						} else if (opts.url.includes('/library/albums')) data = { items: [], next: null };
 						else throw new Error('Unexpected test request.');
 						return { status: 200, headers: { 'Content-Type': 'application/json' }, data };
 					}
@@ -311,7 +396,7 @@ test.beforeEach(async ({ page }) => {
 		window.addEventListener('fixture-download-update', () =>
 			listeners.get('manualChanged')?.({ url: '' })
 		);
-	});
+	}, nativePlatform);
 });
 
 test('Android explains how to enable OIDC pairing before asking for local credentials on a stock server', async ({
@@ -334,7 +419,7 @@ test('Android explains how to enable OIDC pairing before asking for local creden
 	await expect(guidance).toBeVisible();
 });
 
-async function deliverApproval(page: Page) {
+async function deliverApproval(page: Page, cold = false) {
 	await page.goto('/');
 	await page.getByLabel('Server address').fill('https://library.example/dn');
 	await page.getByRole('button', { name: 'Continue', exact: true }).click();
@@ -345,9 +430,14 @@ async function deliverApproval(page: Page) {
 	const launched = await page.evaluate(() => sessionStorage.getItem('browser-url'));
 	const pairing = readPairing(new URL(launched!).searchParams)!;
 	const reply = await sealToken(pairing, await recipient(pairing), 'synthetic-device-session');
-	await page.evaluate((url) => {
-		(window as unknown as { deliverLink(url: string): void }).deliverLink(url);
-	}, reply);
+	if (cold) {
+		await page.evaluate((url) => sessionStorage.setItem('launch-url', url), reply);
+		await page.reload();
+	} else {
+		await page.evaluate((url) => {
+			(window as unknown as { deliverLink(url: string): void }).deliverLink(url);
+		}, reply);
+	}
 	return launched;
 }
 
@@ -732,4 +822,114 @@ test('a sustained player swipe survives a native playback-state refresh', async 
 	} finally {
 		await touch.close();
 	}
+});
+
+test.describe('iPhone integration', () => {
+	test.use({ nativePlatform: 'ios' });
+	test('iPhone exposes handoff, queue extension and native audio preferences', async ({ page }) => {
+		await page.addInitScript(() => sessionStorage.setItem('reconnected', '1'));
+		await deliverApproval(page);
+		await expect(page.getByRole('heading', { name: 'Home', exact: true })).toBeVisible();
+		const button = (name: string) => page.getByRole('button', { name, exact: true });
+		await button('Settings').click();
+		await expect(button('Player handoff')).toBeVisible();
+		await button('Equalizer').click();
+		await expect(page.getByRole('heading', { name: 'Frequency bands' })).toBeVisible();
+		await button('Back').click();
+		await button('Queue and autoplay').click();
+		await page.getByRole('checkbox', { name: 'Autoplay similar library music' }).check();
+		await expect
+			.poll(() => page.evaluate(() => sessionStorage.getItem('iphone-autoplay')))
+			.toBe('true');
+		await button('Back').click();
+		await button('Streaming and fades').click();
+		await chooseOption(page.getByRole('combobox', { name: 'Volume normalization' }), 'album');
+		await expect
+			.poll(() => page.evaluate(() => sessionStorage.getItem('iphone-gain')))
+			.toBe('album');
+	});
+	test('pinned collections sync together on an allowed network', async ({ page }) => {
+		const pins = [
+			{ kind: 'artist', id: 'artist-a', name: 'Dawn' },
+			{ kind: 'recent', id: 'recent', name: 'Recent' }
+		];
+		await page.addInitScript((pins) => {
+			sessionStorage.setItem('reconnected', '1');
+			sessionStorage.setItem('fixture-pins', JSON.stringify(pins));
+			sessionStorage.setItem('pin-network', 'blocked');
+		}, pins);
+		await deliverApproval(page);
+		await expect(page.getByRole('heading', { name: 'Home', exact: true })).toBeVisible();
+		const button = (name: string) => page.getByRole('button', { name, exact: true });
+		await button('Settings').click();
+		await button('Offline and cache').click();
+		await expect(button('Unpin Dawn')).toBeVisible();
+		expect(await page.evaluate(() => sessionStorage.getItem('planned-members'))).toBeNull();
+		await page.evaluate(() => sessionStorage.setItem('pin-network', 'allowed'));
+		await button('Update automatic downloads').click();
+		await expect
+			.poll(() => page.evaluate(() => sessionStorage.getItem('saved-pin-song-b')))
+			.toBe('yes');
+		const members = await page.evaluate(() =>
+			JSON.parse(sessionStorage.getItem('planned-members')!)
+		);
+		expect(members).toEqual([
+			{ ...pins[0], ids: ['song-a', 'song-b'], complete: true },
+			{ ...pins[1], ids: ['song-a'], complete: true }
+		]);
+	});
+	test('a returned OIDC session survives a network failure and a stale launch URL', async ({
+		page
+	}) => {
+		await deliverApproval(page);
+		await expect(page.getByRole('alert')).toContainText('Server unreachable.');
+		expect(await page.evaluate(() => sessionStorage.getItem('browser-closed'))).toBe('1');
+		await page.evaluate(() => {
+			sessionStorage.setItem('launch-url', 'app.droppedneedle.mobile://connect#state=older');
+			sessionStorage.setItem('reconnected', '1');
+		});
+		await page.reload();
+		await expect(page.getByRole('heading', { name: 'Home', exact: true })).toBeVisible();
+	});
+	test('the signed-in listener can open AirPlay and return to a pinned playlist', async ({
+		page
+	}) => {
+		await page.addInitScript(() => sessionStorage.setItem('reconnected', '1'));
+		await deliverApproval(page, true);
+		const button = (name: string) => page.getByRole('button', { name, exact: true });
+		await button('Settings').click();
+		await button('Cast and audio output').click();
+		await expect
+			.poll(() => page.evaluate(() => sessionStorage.getItem('opened-airplay')))
+			.toBe('1');
+		await page
+			.locator('nav.shortcuts')
+			.getByRole('button', { name: 'Library', exact: true })
+			.click();
+		await button('Browse Playlists').click();
+		await button('More options for Night drive').click();
+		await button('Add Home Screen quick action').click();
+		await expect(
+			page.getByText('Touch and hold DroppedNeedle on the Home Screen to open this playlist.')
+		).toBeVisible();
+		await page.evaluate(() => sessionStorage.setItem('shortcut-launch', 'playlist:night'));
+		await page.reload();
+		await expect(page.getByRole('heading', { name: 'Night drive' })).toBeVisible();
+		await button('Home').click();
+		await page.evaluate(() => {
+			sessionStorage.setItem('shortcut-launch', 'playlist:night');
+			window.dispatchEvent(new Event('dn-playlist-shortcut'));
+		});
+		await expect(page.getByRole('heading', { name: 'Night drive' })).toBeVisible();
+		await button('Back to playlists').click();
+		await button('More options for Night drive').click();
+		await button('Remove Home Screen quick action').click();
+		await expect(page.getByText('Home Screen quick action removed.')).toBeVisible();
+		await button('More options for Night drive').click();
+		await button('Add Home Screen quick action').click();
+		await button('Settings').click();
+		await button('Sign out').click();
+		await expect(page.getByLabel('Server address')).toBeVisible();
+		await expect.poll(() => page.evaluate(() => sessionStorage.getItem('pinned'))).toBeNull();
+	});
 });
