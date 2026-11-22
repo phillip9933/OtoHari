@@ -1,4 +1,7 @@
 {
+	"Album artwork colors": "アルバムアートの色",
+	"Now Playing only": "再生画面のみ",
+	"Entire app": "アプリ全体",
 	"The server returned an unsupported or oversized response.": "サーバーの応答形式が未対応か、サイズが上限を超えています。",
 	"The server returned an unsupported response.": "サーバーの応答形式に対応していません。",
 	"Could not finish the DroppedNeedle request.": "DroppedNeedle へのリクエストを完了できませんでした。",

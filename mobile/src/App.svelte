@@ -62,6 +62,8 @@
 		takePlayerNotification
 	} from './lib/catalog/launcherShortcuts';
 	import type { Category } from './lib/catalog/libraryBrowse';
+	import { artworkColorScope, showArtworkPalette } from './lib/appearance/theme';
+	import { watchArtworkPalette, type ArtworkPalette } from './lib/player/artworkPalette';
 	import Appearance from './lib/appearance/Appearance.svelte';
 	import brand from '../../frontend/static/logo_icon.png';
 	let session = $state<Session | null>(null);
@@ -96,6 +98,34 @@
 	const surface = $derived<PlayerSurface>(
 		!related && (panel === 'player' || panel === 'queue') ? panel : 'base'
 	);
+	const followArtwork = $derived($artworkColorScope !== 'off');
+	let coverColors = $state.raw<ArtworkPalette>();
+	$effect(() => {
+		const account = session;
+		coverColors = undefined;
+		if (!followArtwork || !account) return;
+		let previous: string | undefined;
+		let stopCover: (() => void) | undefined;
+		const stopPlayer = player.subscribe((state) => {
+			const url = state.tracks[state.index]?.artworkUrl;
+			if (url === previous) return;
+			previous = url;
+			stopCover?.();
+			const path = url?.startsWith(account.serverUrl + '/')
+				? url.slice(account.serverUrl.length)
+				: url;
+			stopCover = watchArtworkPalette(account, path, (colors) => (coverColors = colors));
+		});
+		return () => {
+			stopPlayer();
+			stopCover?.();
+		};
+	});
+	$effect(() => {
+		const visible =
+			$artworkColorScope === 'app' || ($artworkColorScope === 'player' && surface !== 'base');
+		showArtworkPalette(visible ? coverColors : undefined);
+	});
 	const peekingCatalog = $derived(surface !== 'base' && pull.includes('base'));
 	const baseVisible = $derived(surface === 'base' || peekingCatalog);
 	const layers = ['player', 'queue'] as const;

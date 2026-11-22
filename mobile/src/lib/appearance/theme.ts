@@ -1,6 +1,8 @@
 import { Capacitor, SystemBars, SystemBarsStyle } from '@capacitor/core';
 
 import type { components } from '../../../../frontend/src/lib/api/v3/openapi';
+import { writable } from 'svelte/store';
+import type { ArtworkPalette } from '../player/artworkPalette';
 import { androidAppearance } from './nativeAppearance';
 
 export type Mode = components['schemas']['ThemeChoice'];
@@ -191,12 +193,69 @@ export function asTheme(selection: Selection): Theme {
 		) as Theme['colors']
 	};
 }
+type ArtworkColorScope = 'off' | 'player' | 'app';
+const scopeKey = 'dn.mobile.artworkColors.v1';
+function readArtworkScope(): ArtworkColorScope {
+	try {
+		const saved = localStorage.getItem(scopeKey);
+		if (saved === 'player' || saved === 'app') return saved;
+	} catch {
+		/* A device can disable persistent storage. */
+	}
+	return 'off';
+}
+export const artworkColorScope = writable<ArtworkColorScope>(readArtworkScope());
+export function saveArtworkScope(value: string) {
+	if (value !== 'off' && value !== 'player' && value !== 'app') return;
+	artworkColorScope.set(value);
+	try {
+		localStorage.setItem(scopeKey, value);
+	} catch {
+		/* Keep the live choice. */
+	}
+}
+let activeSelection: Selection;
+let cover: ArtworkPalette | undefined;
+export function showArtworkPalette(palette: ArtworkPalette | undefined) {
+	if (cover === palette) return;
+	cover = palette;
+	if (activeSelection) paint(activeSelection);
+}
 function paint(selection: Selection) {
-	const mode = base(selection),
-		theme = asTheme(selection),
-		tokens = { ...palettes[mode] };
+	const mode = cover ? (isLight(cover.text) ? 'dark' : 'light') : base(selection);
+	const theme = asTheme(selection);
+	const tokens = { ...palettes[mode] };
+	let displayed = theme.colors;
 	const root = document.documentElement;
-	if (selection.mode === 'custom') {
+	if (cover) {
+		displayed = {
+			bg: cover.background,
+			surface: cover.surface,
+			raised: cover.raised,
+			text: cover.text,
+			muted: cover.muted,
+			accent: cover.accent,
+			'on-accent': cover.onAccent,
+			line: cover.line
+		};
+		for (const key of colors) tokens[colorSources[key]] = displayed[key];
+		Object.assign(tokens, {
+			'--color-base-300': cover.raised,
+			'--color-neutral-content': cover.text,
+			'--dn-title': cover.text,
+			'--dn-action': cover.accent,
+			'--dn-action-content': cover.onAccent,
+			'--dn-action-edge': cover.accent,
+			'--dn-focus': cover.accent,
+			'--dn-edge': cover.line,
+			'--dn-paper': cover.surface,
+			'--dn-paper-content': cover.text,
+			'--dn-paper-border': cover.line,
+			'--dn-paper-tile': cover.accent,
+			'--dn-paper-tile-content': cover.onAccent,
+			'--dn-selected': cover.raised
+		});
+	} else if (selection.mode === 'custom') {
 		for (const key of colors) tokens[colorSources[key]] = theme.colors[key];
 		if (
 			!theme.base ||
@@ -214,11 +273,11 @@ function paint(selection: Selection) {
 		if (!theme.base || theme.colors.accent !== palettes[mode]['--color-primary'])
 			tokens['--dn-focus'] = theme.colors.accent;
 	}
-	if (theme.roles) Object.assign(tokens, theme.roles);
+	if (!cover && theme.roles) Object.assign(tokens, theme.roles);
 	root.style.setProperty('--heading', tokens['--dn-title']);
 	root.dataset.theme = mode;
 	for (const [name, value] of Object.entries(tokens)) root.style.setProperty(name, value);
-	for (const key of colors) root.style.setProperty('--' + key, theme.colors[key]);
+	for (const key of colors) root.style.setProperty('--' + key, displayed[key]);
 	root.style.setProperty('--radius', theme.corners + 'px');
 	root.style.setProperty('--gap', theme.spacing + 'px');
 	root.style.setProperty(
@@ -229,7 +288,7 @@ function paint(selection: Selection) {
 			serif: 'Georgia, serif'
 		}[theme.typeface]
 	);
-	root.style.colorScheme = isLight(theme.colors.bg) ? 'light' : 'dark';
+	root.style.colorScheme = cover ? mode : isLight(displayed.bg) ? 'light' : 'dark';
 	if (Capacitor.isNativePlatform()) {
 		const style = root.style.colorScheme === 'light' ? SystemBarsStyle.Light : SystemBarsStyle.Dark;
 		// Capacitor sets the Android decor background while applying the icon style.
@@ -237,16 +296,17 @@ function paint(selection: Selection) {
 			.then(() => {
 				if (
 					Capacitor.getPlatform() === 'android' &&
-					root.style.getPropertyValue('--bg') === theme.colors.bg
+					root.style.getPropertyValue('--bg') === displayed.bg
 				)
-					return androidAppearance.setBackground({ color: theme.colors.bg });
+					return androidAppearance.setBackground({ color: displayed.bg });
 			})
 			.catch(() => {});
 	}
-	document.querySelector('meta[name="theme-color"]')?.setAttribute('content', theme.colors.bg);
+	document.querySelector('meta[name="theme-color"]')?.setAttribute('content', displayed.bg);
 }
 let stopWatching: (() => void) | undefined;
 export function applyTheme(selection: Selection) {
+	activeSelection = selection;
 	stopWatching?.();
 	stopWatching = undefined;
 	paint(selection);

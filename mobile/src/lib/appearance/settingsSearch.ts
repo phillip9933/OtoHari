@@ -104,6 +104,12 @@ const formerNames: Partial<Record<Page, string>> = {
 const controls: Entry[] = [
 	{
 		page: 'themes',
+		label: 'Album artwork colors',
+		anchor: 'theme-artwork',
+		terms: 'automatic dynamic background cover tint now playing 自動 背景 アートワーク'
+	},
+	{
+		page: 'themes',
 		label: 'Edit or share theme',
 		anchor: 'theme-sharing',
 		terms: 'import export JSON colors 共有 色'

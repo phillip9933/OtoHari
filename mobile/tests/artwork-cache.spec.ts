@@ -1,3 +1,4 @@
+import { silentWav } from './fixtures/silentWav';
 import { chooseOption } from './fixtures/inlineChoice';
 import { expect, test, type Page } from '@playwright/test';
 import { fileURLToPath } from 'node:url';
@@ -120,4 +121,78 @@ test('turning off artwork caching prevents an older request from refilling it', 
 	await options(page);
 	await expect(page.getByLabel('Artwork cache limit')).toHaveAttribute('data-value', '0');
 	await expect(page.getByRole('group', { name: 'Cover artwork' })).toContainText(/0\s+covers\s*·/);
+});
+
+test('album artwork colors can follow the player or entire app and revert for missing covers', async ({
+	page
+}) => {
+	const { fetched } = await fixture(page);
+	await page.route(server + '/api/v3/library/albums/match/night*', (route) =>
+		route.fulfill({
+			json: {
+				items: [
+					{ id: 'side-a', title: 'Night ride', cover_available: true },
+					{ id: 'side-b', title: 'Morning ride', art_missing: true }
+				].map((track, index) => ({
+					...track,
+					album_id: 'night',
+					album_title: 'Night train',
+					artist_name: 'Harbour',
+					disc_number: 1,
+					track_number: index + 1,
+					duration_seconds: 60
+				})),
+				total: 2
+			}
+		})
+	);
+	const audio = silentWav();
+	await page.route(server + '/api/v3/stream/local/**', (route) =>
+		route.fulfill({ body: audio, contentType: 'audio/wav' })
+	);
+	const themes = async () => {
+		await button(page, 'Settings').click();
+		await button(page, 'Themes').click();
+	};
+	const root = page.locator('html');
+	const scope = page.getByRole('combobox', { name: 'Album artwork colors' });
+	const background = () =>
+		root.evaluate((el) => getComputedStyle(el).getPropertyValue('--bg').trim());
+	await localSignIn(page, server);
+	const base = await background();
+	await themes();
+	await expect(scope).toHaveAttribute('data-value', 'off');
+	await chooseOption(scope, 'player');
+	await button(page, 'Back').click();
+	await button(page, 'Back').click();
+	await page
+		.getByRole('button', { name: /Night train Harbour/i })
+		.first()
+		.click();
+	await button(page, 'Play album').click();
+	const player = page.locator('[data-part="now-playing"]');
+	await expect(player.getByRole('heading', { name: 'Night ride' })).toBeVisible();
+	await expect.poll(background).not.toBe(base);
+	const artwork = await background();
+	await player.getByRole('button', { name: 'More actions', exact: true }).click();
+	await page.getByRole('dialog').getByRole('button', { name: 'Close player', exact: true }).click();
+	await expect(root).toHaveCSS('--bg', base);
+	await themes();
+	const requests = fetched.length;
+	await chooseOption(scope, 'app');
+	await expect(root).toHaveCSS('--bg', artwork);
+	expect(fetched.length).toBe(requests);
+	await chooseOption(scope, 'off');
+	await expect(root).toHaveCSS('--bg', base);
+	await chooseOption(scope, 'app');
+	await button(page, 'Back').click();
+	await button(page, 'Back').click();
+	await button(page, 'Open player for Night ride').click();
+	await expect(root).toHaveCSS('--bg', artwork);
+	await player.getByRole('button', { name: 'Next track' }).click();
+	await expect(player.getByRole('heading', { name: 'Morning ride' })).toBeVisible();
+	await expect(root).toHaveCSS('--bg', base);
+	await page.reload();
+	await themes();
+	await expect(scope).toHaveAttribute('data-value', 'app');
 });

@@ -2,6 +2,7 @@
 	import { uiText, uiFormat, tr } from '../i18n';
 
 	import { onMount } from 'svelte';
+	import InlineChoice from '../controls/InlineChoice.svelte';
 	import WebPaletteImport from './WebPaletteImport.svelte';
 	import { Check } from '@lucide/svelte';
 	import { getJson, putJson, type Session } from '../connection';
@@ -9,6 +10,8 @@
 	import {
 		asTheme,
 		albumSheetColor,
+		artworkColorScope,
+		saveArtworkScope,
 		isMode,
 		labels,
 		presets,
@@ -170,6 +173,20 @@
 				if (lastCustom) choose({ mode: 'custom', theme: lastCustom });
 			}}>{uiText('Use custom theme')} {lastCustom.name}</button
 		>{/if}
+	<label id="theme-artwork" class="artwork-setting">
+		<span>{uiText('Album artwork colors')}</span>
+		<InlineChoice selected={$artworkColorScope} label={uiText('Album artwork colors')}
+			><select
+				aria-label={uiText('Album artwork colors')}
+				value={$artworkColorScope}
+				onchange={(e) => saveArtworkScope(e.currentTarget.value)}
+			>
+				<option value="off">{uiText('Off')}</option>
+				<option value="player">{uiText('Now Playing only')}</option>
+				<option value="app">{uiText('Entire app')}</option>
+			</select></InlineChoice
+		>
+	</label>
 	<details id="theme-sharing" class="settings-disclosure" data-surface="panel">
 		<summary>{uiText('Edit or share theme')}</summary>
 		<p>
@@ -265,6 +282,13 @@
 	}
 	label {
 		margin-top: 0.6rem;
+	}
+	label.artwork-setting {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		flex-wrap: wrap;
+		gap: 0.4rem 1rem;
 	}
 	textarea {
 		width: 100%;
