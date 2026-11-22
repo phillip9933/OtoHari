@@ -19,7 +19,8 @@ const { uuid: host, firstTarget: target } = project.getFirstTarget();
 const hostName = 'AppWidgets.xcodeproj';
 const extension = 'NowPlayingWidget';
 const output = file(hostName);
-const hostBundle = process.argv[2] ?? 'app.droppedneedle.mobile';
+const baseSettings = settings(host);
+const hostBundle = process.argv[2] ?? baseSettings[0].PRODUCT_BUNDLE_IDENTIFIER;
 if (!/^[a-z][a-z0-9-]*(?:\.[a-z0-9-]+)+$/.test(hostBundle)) {
 	throw Error('Supply a reverse-DNS iPhone app bundle identifier in lowercase.');
 }
@@ -93,7 +94,6 @@ addFiles('PBXResourcesBuildPhase', 'Resources', [
 const product = objects.PBXFileReference[objects.PBXNativeTarget[widget].productReference];
 delete product.fileEncoding;
 delete product.lastKnownFileType;
-const baseSettings = settings(host);
 for (const s of baseSettings) {
 	Object.assign(s, {
 		CODE_SIGN_ENTITLEMENTS: entitlements,
