@@ -93,6 +93,10 @@ export async function readSmallResponse(
 	});
 	const status = response.status;
 	const type = (response.headers.get('content-type') ?? '').split(';')[0].trim().toLowerCase();
+	if (kind === 'artwork' && status === 202) {
+		await response.body?.cancel();
+		return { status, type };
+	}
 	if (!response.ok) {
 		if (type === 'application/json')
 			return { status, type, data: await (await limitedBlob(response, 32768)).text() };

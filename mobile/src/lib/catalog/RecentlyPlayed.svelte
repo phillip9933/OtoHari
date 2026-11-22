@@ -4,7 +4,7 @@
 	import PreviewItem from '../boards/PreviewItem.svelte';
 	import type { Session } from '../connection';
 	import { errorMessage, type OnPlay } from './catalog';
-	import { findListen, recentListens, type Listen } from './libraryWidgets';
+	import { findListen, recentListens, recentPlayPreviews, type Listen } from './libraryWidgets';
 
 	let {
 		display,
@@ -42,6 +42,7 @@
 			try {
 				const result = await recentListens(account);
 				if (!valid) return;
+				recentPlayPreviews.set(account, result);
 				listens = result.listens;
 				refreshing = result.refreshing;
 				disabled = result.disabled;
@@ -53,9 +54,12 @@
 			}
 		}
 		error = '';
-		listens = [];
+		const preview = recentPlayPreviews.get(account);
+		listens = preview?.listens ?? [];
+		disabled = preview?.disabled ?? false;
+		refreshing = preview?.refreshing ?? false;
 		unavailable = {};
-		loading = true;
+		loading = !preview;
 		notice = '';
 		resolving = null;
 		void load();

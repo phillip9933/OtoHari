@@ -31,6 +31,7 @@
 		subtitle?: string;
 		detail?: string;
 		art?: string;
+		fallbackArt?: string;
 		seed?: string;
 		label?: string;
 		part?: string;
@@ -66,6 +67,7 @@
 					title: a.name,
 					detail,
 					art: a.art,
+					fallbackArt: a.fallbackArt,
 					seed: target?.id || a.name,
 					action: target ? () => onartist(target) : undefined
 				});
@@ -111,6 +113,7 @@
 			subtitle={item.subtitle}
 			detail={item.detail}
 			artwork={item.art}
+			fallbackArt={item.fallbackArt}
 			coverSeed={item.seed}
 			onclick={item.action}
 			label={item.label}

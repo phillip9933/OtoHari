@@ -1,9 +1,10 @@
 <script lang="ts">
-	import { uiText } from '../i18n';
+	import { tr, uiText } from '../i18n';
 	import InlineChoice from '../controls/InlineChoice.svelte';
-	import { onMount } from 'svelte';
+	import { onMount, onDestroy } from 'svelte';
 	import type { Session } from '../connection';
 	import { mediaLimits, cacheUsage, setCacheLimit, type MediaKind } from './viewedMedia';
+	import { syncArtistArtwork, type ArtworkProgress } from './syncArtistArtwork';
 	import { storageSize } from './media';
 	let { session, kind }: { session: Session; kind: MediaKind } = $props();
 	const art = $derived(kind === 'artwork');
@@ -13,6 +14,35 @@
 		busy = $state(false),
 		confirming = $state(false),
 		error = $state('');
+	let operation = $state.raw<AbortController>();
+	let progress = $state<ArtworkProgress>();
+	let syncStatus = $state('');
+	onDestroy(() => operation?.abort());
+	async function sync() {
+		if (operation) return;
+		const active = new AbortController();
+		operation = active;
+		error = '';
+		syncStatus = '';
+		progress = undefined;
+		try {
+			const result = await syncArtistArtwork(session, active.signal, (value) => (progress = value));
+			syncStatus = tr(
+				`Checked ${result.checked} artists. Updated ${result.updated} images.`,
+				`${result.checked} 件のアーティストを確認し、${result.updated} 枚の画像を更新しました。`
+			);
+		} catch (cause) {
+			if (active.signal.aborted) syncStatus = tr('Sync stopped.', '同期を停止しました。');
+			else
+				error =
+					cause instanceof Error
+						? cause.message
+						: tr('Could not sync artwork.', 'アートワークを同期できませんでした。');
+		} finally {
+			operation = undefined;
+			await refresh();
+		}
+	}
 	async function refresh() {
 		try {
 			info = await cacheUsage(session, kind);
@@ -49,9 +79,16 @@
 		<label
 			>{label}
 			{uiText('cache limit')}<InlineChoice selected={info.limit}
-				><select value={info.limit} onchange={(e) => change(Number(e.currentTarget.value))}
+				><select
+					disabled={!!operation}
+					value={info.limit}
+					onchange={(e) => change(Number(e.currentTarget.value))}
 					>{#each mediaLimits[kind] as limit (limit)}<option value={limit}
-							>{limit ? limit + ' MiB' : 'Off (remove cached ' + contents + ')'}</option
+							>{limit
+								? limit >= 1024
+									? limit / 1024 + ' GiB'
+									: limit + ' MiB'
+								: 'Off (remove cached ' + contents + ')'}</option
 						>{/each}</select
 				></InlineChoice
 			></label
@@ -68,6 +105,25 @@
 					? uiText('Covers you’ve viewed are available offline.')
 					: uiText('Lyrics you’ve opened are available offline.')}{/if}
 		</p>
+		{#if art}
+			<button
+				class="text-button"
+				disabled={!info.limit || confirming}
+				onclick={() => (operation ? operation.abort() : sync())}
+			>
+				{operation
+					? tr('Stop artwork sync', 'アートワークの同期を停止')
+					: tr('Sync artist artwork', 'アーティスト画像を同期')}
+			</button>
+			{#if operation && progress}<p role="status">
+					{tr(
+						`Checking artists: ${progress.checked} / ${progress.total}`,
+						`アーティストを確認中: ${progress.checked} / ${progress.total}`
+					)}
+				</p>
+			{:else if operation}<p role="status">{tr('Loading artists…', 'アーティストを読み込み中…')}</p>
+			{:else if syncStatus}<p role="status">{syncStatus}</p>{/if}
+		{/if}
 		{#if confirming}<p>
 				{uiText('Remove the cached')}
 				{contents}
@@ -79,8 +135,10 @@
 					>{uiText('Remove cached')} {contents}</button
 				>
 			</div>
-		{:else}<button class="text-button" disabled={!info.count} onclick={() => (confirming = true)}
-				>{uiText('Clear')} {kind} {uiText('cache')}</button
+		{:else}<button
+				class="text-button"
+				disabled={!info.count || !!operation}
+				onclick={() => (confirming = true)}>{uiText('Clear')} {kind} {uiText('cache')}</button
 			>{/if}
 	{/if}
 	{#if error}<p role="alert">{error}</p>{/if}

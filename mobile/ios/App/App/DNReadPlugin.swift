@@ -45,9 +45,10 @@ final class DNReadTransfer: NSObject, URLSessionDataDelegate, @unchecked Sendabl
         status = http.statusCode
         mime = http.mimeType?.lowercased() ?? ""
         let ok = (200...299).contains(status)
-        readBody = ok || mime == "application/json"
+        let warming = kind == .artwork && status == 202
+        readBody = !warming && (ok || mime == "application/json")
         limit = ok ? kind.limit : 32768
-        guard !ok || (status == (kind == .preview ? 206 : 200) && kind.accepts(mime)),
+        guard warming || !ok || (status == (kind == .preview ? 206 : 200) && kind.accepts(mime)),
               !readBody || response.expectedContentLength <= Int64(limit) else { completionHandler(.cancel); return }
         accepted = true
         completionHandler(readBody ? .allow : .cancel)

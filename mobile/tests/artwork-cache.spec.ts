@@ -196,3 +196,119 @@ test('album artwork colors can follow the player or entire app and revert for mi
 	await themes();
 	await expect(scope).toHaveAttribute('data-value', 'app');
 });
+
+test('artist portraits retry while warming and use local artwork when DN has no photo', async ({
+	page
+}) => {
+	await fixture(page);
+	const people = ['Warming', 'Missing'];
+	await page.route(server + '/api/v3/library/artists?*', (route) =>
+		route.fulfill({
+			json: {
+				items: people.map((name, i) => ({
+					name,
+					id: 'local' + i,
+					artist_mbid: 'mbid' + i,
+					album_count: 1
+				})),
+				total: 2
+			}
+		})
+	);
+	let warm = 0;
+	await page.route(server + '/api/v3/covers/artist/mbid0?*', (route) =>
+		++warm === 1
+			? route.fulfill({ status: 202 })
+			: route.fulfill({ path: file, contentType: 'image/webp' })
+	);
+	await page.route(server + '/api/v3/covers/artist/mbid1?*', (route) =>
+		route.fulfill({ status: 404 })
+	);
+	let mosaic = 0;
+	await page.route(server + '/api/v3/library/artists/local1/artwork?*', (route) => {
+		mosaic++;
+		return route.fulfill({ path: file, contentType: 'image/webp' });
+	});
+	await localSignIn(page, server);
+	await button(page, 'Library').click();
+	await button(page, 'Browse Artists').click();
+	await expect(page.locator('[data-part=category-items] img')).toHaveCount(2);
+	expect(warm).toBe(2);
+	expect(mosaic).toBe(1);
+});
+
+test('manual artist sync follows pages, stores fallback images, respects offline mode and allows 4 GiB', async ({
+	page
+}) => {
+	await fixture(page);
+	const pages: string[] = [];
+	await page.route(server + '/api/v3/library/artists?*', (route) => {
+		const after = new URL(route.request().url()).searchParams.get('after');
+		pages.push(after ?? '');
+		return route.fulfill({
+			json: {
+				items: [
+					after
+						? { id: 'local2', name: 'Second', artist_mbid: 'mbid2' }
+						: { id: 'local1', name: 'First', artist_mbid: 'mbid1' }
+				],
+				total: 2,
+				next: after ? null : 'next'
+			}
+		});
+	});
+	await page.route(server + '/api/v3/covers/artist/mbid1?*', (route) =>
+		route.fulfill({ path: file, contentType: 'image/webp' })
+	);
+	await page.route(server + '/api/v3/covers/artist/mbid2?*', (route) =>
+		route.fulfill({ status: 404 })
+	);
+	await page.route(server + '/api/v3/library/artists/local2/artwork?*', (route) =>
+		route.fulfill({ path: file, contentType: 'image/webp' })
+	);
+	await localSignIn(page, server);
+	await options(page);
+	await chooseOption(page.getByLabel('Artwork cache limit'), '4096');
+	await expect(page.getByLabel('Artwork cache limit')).toHaveText(/4 GiB/);
+	const count = pages.length;
+	await button(page, 'Sync artist artwork').click();
+	await expect(page.getByRole('status')).toContainText('Checked 2 artists. Updated 2 images.');
+	expect(pages.slice(count)).toEqual(['', 'next']);
+	await page.context().setOffline(true);
+	await button(page, 'Sync artist artwork').click();
+	await expect(page.getByRole('alert')).toContainText('turn off offline mode');
+	expect(pages.slice(count)).toEqual(['', 'next']);
+});
+
+test('stopping an artist sync keeps the cache and stops further artist requests', async ({
+	page
+}) => {
+	await fixture(page);
+	await localSignIn(page, server);
+	await options(page);
+	await page.route(server + '/api/v3/library/artists?*', (route) =>
+		route.fulfill({
+			json: {
+				items: [
+					{ id: 'one', artist_mbid: 'first' },
+					{ id: 'two', artist_mbid: 'second' }
+				],
+				total: 2
+			}
+		})
+	);
+	let release!: () => void;
+	const gate = new Promise<void>((resolve) => (release = resolve));
+	const ids: string[] = [];
+	await page.route(server + '/api/v3/covers/artist/**', async (route) => {
+		ids.push(new URL(route.request().url()).pathname.split('/').at(-1)!);
+		await gate;
+		await route.fulfill({ path: file, contentType: 'image/webp' }).catch(() => {});
+	});
+	await button(page, 'Sync artist artwork').click();
+	await expect.poll(() => ids).toEqual(['first']);
+	await button(page, 'Stop artwork sync').click();
+	await expect(page.getByRole('status')).toContainText('Sync stopped.');
+	release();
+	expect(ids).toEqual(['first']);
+});

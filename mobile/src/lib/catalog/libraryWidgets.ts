@@ -1,9 +1,13 @@
 import type { components } from '../../../../frontend/src/lib/api/v3/openapi';
 import { getJson, type Session } from '../connection';
-import { localSong, path } from './catalog';
+import { localSong, path, type Album } from './catalog';
 
 type Schema = components['schemas'];
 export type Listen = Schema['TrackRef'];
+
+// Seed a newly opened section with the preview this sign-in has already loaded.
+export const recentAlbumPreviews = new WeakMap<Session, Album[]>();
+export const recentPlayPreviews = new WeakMap<Session, Awaited<ReturnType<typeof recentListens>>>();
 
 export const libraryWidgets = [
 	{ id: 'library-albums', label: 'Albums' },

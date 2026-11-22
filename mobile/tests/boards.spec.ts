@@ -704,3 +704,100 @@ test('selection applies playlist actions to chosen items across library shelves 
 	await modal.getByRole('button', { name: 'Done' }).click();
 	expect(writes[1]).toEqual(['s3', 's3']);
 });
+
+test('Home opens recent sections with their visible results while the server refreshes', async ({
+	page
+}) => {
+	await fixture(page);
+	const serverAlbum = 'Night train';
+	const serverTrack = 'Night song';
+	await page.route(server + '/api/v3/home', (route) =>
+		route.fulfill({
+			json: {
+				refreshing: false,
+				sections: [
+					{
+						key: 'recently_played',
+						content: {
+							shape: 'shelf',
+							shelf: {
+								type: 'tracks',
+								source: 'local',
+								title: 'Recently played',
+								items: [{ kind: 'track', title: serverTrack, artist_name: 'Southerly' }]
+							}
+						}
+					}
+				]
+			}
+		})
+	);
+	await page.goto('/');
+	await login(page);
+	const home = page.locator('[data-home-feed]:visible');
+	for (const [title, item, path] of [
+		['Recently added', serverAlbum, '/library/albums'],
+		['Recently played', serverTrack, '/home']
+	]) {
+		const browse = button(page, 'Browse ' + title);
+		await browse.scrollIntoViewIfNeeded();
+		await expect(home.getByText(item, { exact: true }).first()).toBeVisible();
+		const offset = await page.locator('main').evaluate((main) => main.scrollTop);
+		let release!: () => void;
+		const gate = new Promise<void>((done) => (release = done));
+		const url = server + '/api/v3' + path + '*';
+		const request = page.waitForRequest((r) => new URL(r.url()).pathname.endsWith(path));
+		await page.route(
+			url,
+			async (route) => {
+				await gate;
+				await route.fallback();
+			},
+			{ times: 1 }
+		);
+		try {
+			await browse.click();
+			await request;
+			await expect(page.getByRole('heading', { name: title, exact: true })).toBeVisible();
+			await expect(
+				page.locator('[data-collection="expanded"]').getByText(item, { exact: true })
+			).toBeVisible();
+			expect(await page.locator('main').evaluate((main) => main.scrollTop)).toBe(0);
+			await button(page, 'Back to Home').click();
+			await expect(home.getByText(item, { exact: true }).first()).toBeVisible();
+			expect(await page.locator('main').evaluate((main) => main.scrollTop)).toBe(offset);
+		} finally {
+			release();
+		}
+	}
+});
+
+test('a section transition starts after navigation and follows reduced motion', async ({
+	page
+}) => {
+	await fixture(page);
+	await page.goto('/');
+	await login(page);
+	const arrivals: string[] = [];
+	await page.exposeFunction('recordPageArrival', (text: string) => arrivals.push(text));
+	await page.evaluate(() => {
+		const record = (window as Window & { recordPageArrival?: (heading: string) => void })
+			.recordPageArrival!;
+		const animate = Element.prototype.animate;
+		Element.prototype.animate = function (frames, timing) {
+			if (Array.isArray(frames) && frames.some((frame) => 'opacity' in frame)) {
+				const heading = this.querySelector('h1');
+				if (heading) record(heading.textContent.trim());
+			}
+			return animate.call(this, frames, timing);
+		};
+	});
+	await button(page, 'Browse Recently added').click();
+	await expect.poll(() => arrivals).toEqual(['Recently added']);
+	await page.emulateMedia({ reducedMotion: 'reduce' });
+	await button(page, 'Back to Home').click();
+	await expect(page.getByRole('heading', { name: 'Home', exact: true })).toBeVisible();
+	await button(page, 'Browse Recently played').click();
+	await expect(page.getByRole('heading', { name: 'Recently played', exact: true })).toBeVisible();
+	expect(arrivals).toEqual(['Recently added']);
+});

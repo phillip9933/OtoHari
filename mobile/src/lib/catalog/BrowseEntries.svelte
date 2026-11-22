@@ -246,7 +246,13 @@
 										<Cover {session} {cacheOnly} path={art} seed={art} />
 									{/each}
 								{:else if category === 'Playlists'}<ListMusic strokeWidth={1.3} size="48%" />
-								{:else}<Cover {session} {cacheOnly} path={item.art} seed={item.id} />{/if}
+								{:else}<Cover
+										{session}
+										{cacheOnly}
+										path={item.art}
+										fallback={item.fallbackArt}
+										seed={item.id}
+									/>{/if}
 							</span>
 							{#if layout === 'grid' && origins.length}{@render badge(origins, badgeId)}{/if}
 						</span>

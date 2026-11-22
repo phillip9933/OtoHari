@@ -924,7 +924,7 @@ test('an older header keeps its control sizes and accessible inspector focus whe
 	expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });
 
-test('animated seek uses the played region and keeps the thumb inside the grid at both ends', async ({
+test('animated seek tapers into the buffered rail without a thumb and still seeks to both ends', async ({
 	page
 }) => {
 	const { defaultGridLayout } = await import('../src/lib/player/grid');
@@ -946,14 +946,45 @@ test('animated seek uses the played region and keeps the thumb inside the grid a
 	await expect(boundary).toHaveAttribute('x', '112');
 	await expect(bar.locator('clipPath[id$="-buffered"] rect')).toHaveAttribute('width', '224');
 	await expect(bar.locator('clipPath[id$="-played"] rect')).toHaveAttribute('width', '112');
+	await expect(bar.locator('.thumb')).toHaveCount(0);
+	await expect(wave).toHaveAttribute('transform', 'translate(112 0)');
 	const unplayedClip = await boundary.locator('..').getAttribute('id');
 	expect(await bar.locator('use.unplayed').locator('..').getAttribute('clip-path')).toBe(
 		'url(#' + unplayedClip + ')'
 	);
 	await live.getByRole('button', { name: 'Play', exact: true }).click();
-	await expect(wave).not.toHaveCSS('animation-name', 'none');
+	const animation = wave.locator('animate');
+	await expect(animation).toHaveCount(1);
+	const phases = await wave.evaluate((element) => {
+		const path = element as SVGPathElement;
+		const svg = path.ownerSVGElement!;
+		const start = svg.getCurrentTime();
+		svg.pauseAnimations();
+		try {
+			return [0, 0.25, 0.5, 0.75].map((phase) => {
+				svg.setCurrentTime(start + phase);
+				const end = path.getTotalLength();
+				return {
+					tip: path.getPointAtLength(end).y,
+					tangent: path.getPointAtLength(end - 1).y,
+					taper: path.getPointAtLength(end - 6).y,
+					wave: path.getPointAtLength(end - 30).y
+				};
+			});
+		} finally {
+			svg.setCurrentTime(start);
+			svg.unpauseAnimations();
+		}
+	});
+	for (const phase of phases) {
+		expect(phase.tip).toBeCloseTo(12);
+		expect(phase.tangent).toBeCloseTo(12);
+		expect(Math.abs(phase.taper - 12)).toBeLessThan(1);
+	}
+	const heights = phases.map((phase) => phase.wave);
+	expect(Math.max(...heights) - Math.min(...heights)).toBeGreaterThan(3);
 	await page.emulateMedia({ reducedMotion: 'reduce' });
-	await expect(wave).toHaveCSS('animation-name', 'none');
+	await expect(animation).toHaveCount(0);
 	await live.getByRole('button', { name: 'Pause', exact: true }).click();
 	await slider.focus();
 	await slider.press('Home');
@@ -969,17 +1000,11 @@ test('animated seek uses the played region and keeps the thumb inside the grid a
 		);
 		await page.mouse.down();
 		await expect(slider).toHaveValue(edge === 'left' ? '0' : '60');
-		await expect
-			.poll(
-				async () => {
-					const thumb = (await bar.locator('.thumb').boundingBox())!;
-					return Math.abs(
-						edge === 'left' ? thumb.x - rail.x : rail.x + rail.width - thumb.x - thumb.width
-					);
-				},
-				{ message: 'Thumb should remain fully visible when seeking to the ' + edge }
-			)
-			.toBeLessThan(1);
+		await expect(boundary).toHaveAttribute('x', edge === 'left' ? '0' : '224');
+		await expect(wave).toHaveAttribute(
+			'transform',
+			edge === 'left' ? 'translate(0 0)' : 'translate(224 0)'
+		);
 		await page.mouse.up();
 	}
 });
@@ -1019,6 +1044,7 @@ test('the waveform measures the playing file and its time labels can be chosen i
 	const region = page.locator('[data-part=now-playing]'),
 		bar = region.locator('[data-part=playback-bar]');
 	await expect(bar).toHaveAttribute('data-seek-style', 'waveform');
+	await expect(bar.locator('.thumb')).toBeVisible();
 	await expect(bar.locator('clipPath[id$="-buffered"] rect')).toHaveAttribute('width', '224');
 	const path = bar.locator('defs path');
 	await expect(path).toHaveCount(1);

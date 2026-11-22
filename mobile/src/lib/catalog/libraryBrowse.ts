@@ -17,10 +17,13 @@ import { rememberAlbumCounts } from './albumTrackCounts';
 import { offlinePlaylists } from './playlistOffline';
 import { readLibraryGenres, tracksInGenre, displayTag } from './libraryGenres';
 
+import { artistArtwork } from './artistArtwork';
+
 type Schema = components['schemas'];
 export const categories = ['Playlists', 'Artists', 'Albums', 'Tracks', 'Genres'] as const;
 export type Category = (typeof categories)[number];
 export type BrowseItem = {
+	fallbackArt?: string;
 	id: string;
 	title: string;
 	subtitle?: string;
@@ -306,7 +309,7 @@ export async function browsePage(
 				get subtitle() {
 					return albumCount(a.album_count);
 				},
-				art: path('/api/v3/library/artists/{id}/artwork', { id: a.id }, { size: 250 }),
+				...artistArtwork(a.artist_mbid, a.id, a.art_missing),
 				artist: a
 			}))
 		};

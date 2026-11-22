@@ -166,7 +166,6 @@ export function setInterface(changes: Partial<InterfacePreferences>) {
 	interfacePreferences.set(next);
 }
 let animation: Animation | undefined;
-let departure: Animation | undefined;
 let visit = 0;
 
 export function motionDuration() {
@@ -177,71 +176,46 @@ export function motionDuration() {
 }
 
 export function applyInterface() {
-	const unsubscribe = interfacePreferences.subscribe((p) => {
+	return interfacePreferences.subscribe((p) => {
 		const root = document.documentElement;
 		root.dataset.material = p.surface;
 		root.dataset.navigation = p.bar;
 		root.dataset.motion = p.motion;
 		root.style.setProperty('--material-blur', p.blur + 'px');
 	});
-	// Fade the outgoing screen on press. A tap commits the route immediately,
-	// including when two navigation actions arrive in the same frame.
-	function press(event: Event) {
-		if (!(event.target instanceof Element) || !event.target.closest('[data-screen-link]')) return;
-		if (event instanceof KeyboardEvent && event.key !== 'Enter' && event.key !== ' ') return;
-		const main = document.querySelector('main'),
-			ms = motionDuration();
-		if (!main?.animate || !ms) return;
-		animation?.cancel();
-		departure?.cancel();
-		departure = main.animate([{ opacity: 1 }, { opacity: 0.45 }], {
-			duration: ms * 0.45,
-			easing: 'ease-in',
-			fill: 'forwards'
-		});
-	}
-	function release() {
-		const current = departure;
-		// pointerup fires before click. Also restore a press dragged off its target.
-		requestAnimationFrame(() => {
-			if (current === departure) {
-				departure?.cancel();
-				departure = undefined;
-			}
-		});
-	}
-	window.addEventListener('pointerdown', press);
-	window.addEventListener('keydown', press);
-	window.addEventListener('pointerup', release);
-	window.addEventListener('pointercancel', release);
-	window.addEventListener('keyup', release);
-	return () => {
-		unsubscribe();
-		window.removeEventListener('pointerdown', press);
-		window.removeEventListener('keydown', press);
-		window.removeEventListener('pointerup', release);
-		window.removeEventListener('pointercancel', release);
-		window.removeEventListener('keyup', release);
-	};
 }
 
 export function cancelScreenMotion() {
 	visit++;
-	departure?.cancel();
-	departure = undefined;
 	animation?.cancel();
+	animation = undefined;
+}
+
+export function revealScreen({
+	content,
+	restore,
+	animate = true
+}: {
+	content?: HTMLElement;
+	restore?: () => void;
+	animate?: boolean;
+}) {
+	cancelScreenMotion();
+	const id = visit;
+	void tick().then(() => {
+		if (id !== visit) return;
+		restore?.();
+		const ms = animate ? motionDuration() : 0;
+		if (!ms) return;
+		const target = content ?? document.querySelector('main');
+		animation = target?.animate?.([{ opacity: 0.8 }, { opacity: 1 }], {
+			duration: ms * 0.7,
+			easing: 'ease-out'
+		});
+	});
 }
 
 export function changeScreen(update: () => void, animate = true) {
-	cancelScreenMotion();
-	const id = visit;
 	update();
-	const ms = animate ? motionDuration() : 0;
-	if (!ms) return;
-	void tick().then(() => {
-		if (id !== visit) return;
-		animation = document
-			.querySelector('main')
-			?.animate?.([{ opacity: 0.35 }, { opacity: 1 }], { duration: ms * 0.7, easing: 'ease-out' });
-	});
+	revealScreen({ animate });
 }

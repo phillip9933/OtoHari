@@ -6,12 +6,14 @@
 	let {
 		session,
 		path,
+		fallback,
 		seed,
 		cacheOnly = false,
 		onimage
 	}: {
 		session: Session;
 		path?: string;
+		fallback?: string;
 		seed: string;
 		cacheOnly?: boolean;
 		onimage?: (image: HTMLImageElement) => void;
@@ -24,22 +26,39 @@
 
 	$effect(() => {
 		const src = path,
+			alternate = fallback,
 			local = cacheOnly,
 			account = session;
 		let unsubscribe: (() => void) | undefined;
+		let stopFallback: (() => void) | undefined;
 		source = '';
 		if (!src) return;
 		const observer = new IntersectionObserver(
 			(entries) => {
 				if (!entries.some((e) => e.isIntersecting)) return;
 				observer.disconnect();
-				unsubscribe = observeCover(account, src, (data) => (source = data), local);
+				unsubscribe = observeCover(
+					account,
+					src,
+					(data) => {
+						if (data) source = data;
+						else if (alternate && !stopFallback)
+							stopFallback = observeCover(
+								account,
+								alternate,
+								(fallbackData) => (source = fallbackData),
+								local
+							);
+					},
+					local
+				);
 			},
 			{ rootMargin: '100px' }
 		);
 		observer.observe(element);
 		return () => {
 			unsubscribe?.();
+			stopFallback?.();
 			observer.disconnect();
 		};
 	});

@@ -12,6 +12,7 @@
 		detail,
 		time,
 		artwork,
+		fallbackArt,
 		coverSeed,
 		cacheOnly = false,
 		onclick,
@@ -27,6 +28,7 @@
 		detail?: string;
 		time?: { value: string; label: string };
 		artwork?: string;
+		fallbackArt?: string;
 		coverSeed?: string;
 		cacheOnly?: boolean;
 		onclick?: () => void;
@@ -40,7 +42,7 @@
 
 {#snippet content()}
 	{#if coverSeed}<span class="art"
-			><Cover {session} {cacheOnly} path={artwork} seed={coverSeed} /></span
+			><Cover {session} {cacheOnly} path={artwork} fallback={fallbackArt} seed={coverSeed} /></span
 		>{/if}
 	<span class="text"
 		><strong>{title}</strong>{#if subtitle}<small>{subtitle}</small>{/if}{#if time}<small

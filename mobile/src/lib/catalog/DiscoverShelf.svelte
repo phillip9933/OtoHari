@@ -22,9 +22,9 @@
 {#each shelf.artists as artist (artist.target?.id || artist.name)}
 	{@const target = artist.target}
 	{#if target}<button class="artist" onclick={() => onartist(target)}
-			><span class="avatar"><Cover {session} path={artist.art} seed={target.id} /></span><strong
-				>{artist.name}</strong
-			></button
+			><span class="avatar"
+				><Cover {session} path={artist.art} fallback={artist.fallbackArt} seed={target.id} /></span
+			><strong>{artist.name}</strong></button
 		>
 	{:else}<p>{artist.name}</p>{/if}
 {/each}

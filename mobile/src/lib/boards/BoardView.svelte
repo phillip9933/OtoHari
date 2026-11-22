@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { uiText, tr } from '../i18n';
-	import { onMount, tick } from 'svelte';
+	import { onMount } from 'svelte';
+	import { revealScreen } from '../appearance/interface';
 	import { ArrowLeft, ChevronRight, PanelsTopLeft, Download, ListFilterPlus } from '@lucide/svelte';
 	import type { Session } from '../connection';
 	import { catalogSource } from '../catalog/catalogSource.svelte';
@@ -167,10 +168,13 @@
 		};
 	});
 	function scroll(y: number) {
-		void tick().then(() => {
-			const main = root?.closest('main');
-			main?.scrollTo(0, y);
-			main?.focus({ preventScroll: true });
+		revealScreen({
+			content: root,
+			restore: () => {
+				const main = root.closest('main');
+				main?.scrollTo(0, y);
+				main?.focus({ preventScroll: true });
+			}
 		});
 	}
 	function enter(item: Section) {

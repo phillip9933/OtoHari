@@ -17,6 +17,7 @@
 	import type { components } from '../../../../frontend/src/lib/api/v3/openapi';
 	import { getJson, type Session } from '../connection';
 	import { loadNearEnd } from './browseViewport';
+	import { recentAlbumPreviews } from './libraryWidgets';
 	import { trackChoice, useLibrarySelection } from './librarySelection.svelte';
 	import {
 		albumTracks,
@@ -27,6 +28,7 @@
 		type Album,
 		type OnPlay
 	} from './catalog';
+	import { artistArtwork } from './artistArtwork';
 	import PreviewItem from '../boards/PreviewItem.svelte';
 	import TrackActions from './TrackActions.svelte';
 	import Albums from './Albums.svelte';
@@ -266,10 +268,11 @@
 					: path('/api/v3/library/albums', {}, params);
 				const result = await getJson<Schema['AlbumPage']>(session, url);
 				if (version !== generation) return;
-				albums = [
-					...albums,
-					...result.items.filter((a) => !albums.some((v) => v.localId === a.id)).map(localAlbum)
-				];
+				const page = result.items.map(localAlbum);
+				if (recent && preview && !cursor) recentAlbumPreviews.set(session, page);
+				albums = cursor
+					? [...albums, ...page.filter((a) => !albums.some((v) => v.localId === a.localId))]
+					: page;
 				if (fixedFilter)
 					recordShelfMatches(
 						session,
@@ -362,7 +365,8 @@
 		const version = ++generation;
 		popularityNote = '';
 		rankedLimit = 30;
-		albums = [];
+		const seed = recent && !preview && !term && !favorites && !rating && !formats.length;
+		albums = seed ? (recentAlbumPreviews.get(session) ?? []) : [];
 		artists = [];
 		songs = [];
 		next = null;
@@ -525,12 +529,14 @@
 			/>
 		{/each}
 		{#each artists.slice(0, display.limit) as a (a.id)}
+			{@const picture = artistArtwork(a.artist_mbid, a.id, a.art_missing)}
 			<PreviewItem
 				{session}
 				choice={artistChoice(a)}
 				title={a.name}
 				subtitle={a.album_count + (a.album_count === 1 ? ' album' : ' albums')}
-				artwork={path('/api/v3/library/artists/{id}/artwork', { id: a.id }, { size: 250 })}
+				artwork={picture.art}
+				fallbackArt={picture.fallbackArt}
 				coverSeed={a.id}
 				onclick={() => onartist(a)}
 			/>

@@ -1,4 +1,4 @@
-import { getArtwork, type Session } from '../connection';
+import { DnError, getArtwork, type Session } from '../connection';
 import { cachedValue, storeValue } from '../offline/viewedMedia';
 import { companion } from '../offline/companions';
 import { mediaChanged, preferredOffline } from '../offline/media';
@@ -11,6 +11,7 @@ type CoverRequest = {
 	listeners: Set<(source: string) => void>;
 	source?: string;
 	settled?: boolean;
+	retry?: ReturnType<typeof setTimeout>;
 };
 const freshFor = 7 * 24 * 60 * 60 * 1000;
 let offlineModes = new WeakMap<Session, Promise<boolean>>();
@@ -24,6 +25,7 @@ function offlineOnly(session: Session) {
 	offlineModes.set(session, mode);
 	return mode;
 }
+const warmingDelays = [1200, 3200, 8000];
 let running = 0;
 function drain() {
 	for (const request of waiting) {
@@ -49,9 +51,11 @@ export function observeCover(
 	let request = entries.get(key);
 	if (!request) {
 		const listeners = new Set<(source: string) => void>();
+		let retries = 0;
 		const job: CoverRequest = {
 			listeners,
 			start: async () => {
+				job.retry = undefined;
 				let reusable = false;
 				try {
 					const cached = await cachedValue(session, 'artwork', path).catch(() => undefined);
@@ -79,13 +83,25 @@ export function observeCover(
 					reusable = true;
 					for (const listener of listeners) listener(source);
 					if (cached) await storeValue(session, 'artwork', path, source, cached.revision);
-				} catch {
-					// Cover keeps its local artwork placeholder when the server has no image.
+				} catch (error) {
+					if (
+						error instanceof DnError &&
+						error.status === 202 &&
+						retries < warmingDelays.length &&
+						listeners.size
+					) {
+						job.retry = setTimeout(() => {
+							waiting.add(job);
+							drain();
+						}, warmingDelays[retries++]);
+					}
 				} finally {
-					job.settled = true;
+					if (!job.retry && !job.source) for (const listener of listeners) listener('');
+					job.settled = !job.retry;
 					// A player and its palette can subscribe at different times to
 					// the same visible cover, even if persistent caching is off.
-					if (!reusable || !listeners.size) entries.delete(key);
+					if (!job.retry && (!reusable || !listeners.size) && entries.get(key) === job)
+						entries.delete(key);
 				}
 			}
 		};
@@ -98,6 +114,11 @@ export function observeCover(
 	drain();
 	return () => {
 		request.listeners.delete(receive);
+		if (!request.listeners.size && request.retry) {
+			clearTimeout(request.retry);
+			request.retry = undefined;
+			request.settled = true;
+		}
 		if (
 			!request.listeners.size &&
 			(waiting.delete(request) || request.settled) &&

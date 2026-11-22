@@ -1,7 +1,10 @@
 import type { Session } from '../connection';
 
 const mib = 1024 * 1024;
-export const mediaLimits = { artwork: [0, 32, 64, 128, 256], lyrics: [0, 2, 8, 32] };
+export const mediaLimits = {
+	artwork: [0, 32, 64, 128, 256, 512, 1024, 2048, 4096],
+	lyrics: [0, 2, 8, 32]
+};
 export type MediaKind = keyof typeof mediaLimits;
 const defaults = { artwork: 64, lyrics: 8 };
 const entryLimits = { artwork: 4 * mib, lyrics: mib / 2 };
@@ -150,13 +153,14 @@ export async function storeValue(
 	revision: number
 ) {
 	const scope = scopeOf(session, kind);
-	if (!scope || !source || source.length > entryLimits[kind]) return;
-	if (kind === 'artwork' && !/^data:image\/(jpeg|png|webp|avif|gif);base64,/i.test(source)) return;
+	if (!scope || !source || source.length > entryLimits[kind]) return false;
+	if (kind === 'artwork' && !/^data:image\/(jpeg|png|webp|avif|gif);base64,/i.test(source))
+		return false;
 	const bytes = kind === 'artwork' ? source.length : new TextEncoder().encode(source).length;
-	if (bytes > entryLimits[kind]) return;
-	await transaction('readwrite', async (s) => {
+	if (bytes > entryLimits[kind]) return false;
+	return transaction('readwrite', async (s) => {
 		const p = await policyAt(s.policy, scope, kind);
-		if (!p.limit || p.revision !== revision) return;
+		if (!p.limit || p.revision !== revision) return false;
 		const key = [scope, path],
 			previous: Metadata | undefined = await read(s.metadata.get(key));
 		const now = Date.now();
@@ -166,6 +170,7 @@ export async function storeValue(
 		await read(s.metadata.put({ scope, path, used: now, fetched: now, bytes } satisfies Metadata));
 		await trim(s, scope, p, p.limit * mib);
 		await read(s.policy.put(p, scope));
+		return true;
 	});
 }
 

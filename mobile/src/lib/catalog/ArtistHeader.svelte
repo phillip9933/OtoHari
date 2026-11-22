@@ -11,7 +11,7 @@
 	import { artistPin, stationPin, type HomePin } from './homePins';
 	import LibraryRadio from './LibraryRadio.svelte';
 	import type { OnPlay } from './catalog';
-	import { artistCover } from './discovery';
+	import { artistArtwork } from './artistArtwork';
 	import WebDetail from './WebDetail.svelte';
 
 	let {
@@ -43,7 +43,7 @@
 		previous = $state.raw<PlayerTrack[]>([]);
 	const pinnedTarget = $derived(device ? device.pin : artistPin(name, localId, mbid));
 	const identityKey = $derived(localId || mbid || device?.pin?.id || name);
-	const ref = $derived({ id: localId || mbid || '', name, localOnly: !!localId });
+	const picture = $derived(artistArtwork(mbid, localId));
 	$effect(() => {
 		void session;
 		void identityKey;
@@ -79,9 +79,10 @@
 		<div class="portrait">
 			<Cover
 				{session}
-				path={device ? device.art : artistCover(ref)}
+				path={device ? device.art : picture.art}
 				cacheOnly={!!device}
-				seed={ref.id || name}
+				fallback={device ? undefined : picture.fallbackArt}
+				seed={identityKey}
 			/>
 		</div>
 		<div class="name">

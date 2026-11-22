@@ -1,6 +1,23 @@
+<script module lang="ts">
+	// The playhead is at x=0 in every frame. Taper the final wavelength down
+	// to a horizontal tangent so the moving wave meets the upcoming rail.
+	const waveFrames = Array.from({ length: 9 }, (_, frame) => {
+		const points: string[] = [];
+		for (let x = -224; x <= 0; x += 2) {
+			const t = Math.min(1, Math.max(0, (-x - 2) / 18));
+			const amplitude = 5 * t * t * (3 - 2 * t);
+			const y = 12 + amplitude * Math.sin(2 * Math.PI * (x / 20 - frame / 8));
+			points.push(`${x} ${y.toFixed(2)}`);
+		}
+		return 'M' + points.join(' ');
+	});
+	const waveCycle = waveFrames.join(';');
+</script>
+
 <script lang="ts">
 	import { uiText } from '../i18n';
 	import { untrack } from 'svelte';
+	import { prefersReducedMotion } from 'svelte/motion';
 	import type { Session } from '../connection';
 	import type { Section } from '../boards/layout';
 	import type { PlayerTrack } from '../player';
@@ -47,7 +64,6 @@
 	const demo = Array.from({ length: 112 }, (_, i) =>
 		Math.abs(Math.sin(i * 0.13) * Math.cos(i * 0.39) * 0.71 + Math.sin(i * 0.033) * 0.22)
 	);
-	const animatedPath = 'M-20 12 ' + 'q5 -10 10 0 t10 0 '.repeat(13);
 	const waveform = $derived(style === 'waveform' && peaks.length > 0);
 	const trackPath = $derived(
 		waveform
@@ -91,7 +107,7 @@
 </script>
 
 <div class="progress" class:grid={!!section?.grid} data-seek-style={style} data-part="playback-bar">
-	<div class="rail" class:running={playing}>
+	<div class="rail">
 		<div class="drawing" aria-hidden="true">
 			<svg viewBox="0 0 224 24" preserveAspectRatio="none">
 				<defs>
@@ -126,13 +142,17 @@
 				</g>
 				<g clip-path={'url(#' + clip + '-played)'}>
 					{#if style === 'animated'}
-						<path class="played wave" d={animatedPath} />
+						<path class="played wave" d={waveFrames[0]} transform={`translate(${224 * ratio} 0)`}>
+							{#if playing && !prefersReducedMotion.current}
+								<animate attributeName="d" values={waveCycle} dur="1s" repeatCount="indefinite" />
+							{/if}
+						</path>
 					{:else}
 						<use href={'#' + clip + '-track'} class="played" />
 					{/if}
 				</g>
 			</svg>
-			<span class="thumb" style:left={ratio * 100 + '%'}></span>
+			{#if style !== 'animated'}<span class="thumb" style:left={ratio * 100 + '%'}></span>{/if}
 		</div>
 		<input
 			type="range"
@@ -247,19 +267,6 @@
 	}
 	.unplayed {
 		stroke: color-mix(in srgb, var(--text) 33%, transparent);
-	}
-	.running .wave {
-		animation: travel 1s linear infinite;
-	}
-	@keyframes travel {
-		to {
-			transform: translateX(20px);
-		}
-	}
-	@media (prefers-reduced-motion: reduce) {
-		.running .wave {
-			animation: none;
-		}
 	}
 	.times {
 		display: flex;

@@ -214,6 +214,7 @@ async function request<T>(
 	}
 	if (options.expectNoContent && status !== 204) throw Error('Server sign-out was not confirmed.');
 	if (artwork) {
+		if (status === 202) throw new DnError('Artwork is being prepared.', status);
 		const mime = contentType.split(';')[0].trim().toLowerCase();
 		if (
 			!['image/jpeg', 'image/png', 'image/webp', 'image/avif', 'image/gif'].includes(mime) ||
@@ -251,8 +252,8 @@ export function mutateJson<T>(
 export function putJson<T>(session: Session, path: string, body?: unknown): Promise<T> {
 	return mutateJson(session, path, 'PUT', body);
 }
-export function getArtwork(session: Session, path: string): Promise<string> {
-	return request(session.serverUrl, path, { session, artwork: true });
+export function getArtwork(session: Session, path: string, signal?: AbortSignal): Promise<string> {
+	return request(session.serverUrl, path, { session, artwork: true, signal });
 }
 
 const SESSION_KEY = 'dn.mobile.session';

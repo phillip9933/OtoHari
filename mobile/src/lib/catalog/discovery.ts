@@ -3,11 +3,13 @@ import { getJson, putJson, postJson, type Session } from '../connection';
 import { radioSong, cover, path, playerTrack, type Album } from './catalog';
 import { validLocalFileId } from '../offline/tracks';
 
+import { artistArtwork } from './artistArtwork';
+
 type Schema = components['schemas'];
 export type DiscoverArtistRef = { id: string; name: string; localOnly?: boolean };
 export type DiscoverView = 'popular' | 'trending' | 'top' | 'following' | 'releases' | 'concerts';
 export type ChartRange = Schema['StatsRange'];
-type Artist = { name: string; target?: DiscoverArtistRef; art?: string };
+type Artist = { name: string; target?: DiscoverArtistRef; art?: string; fallbackArt?: string };
 export type Shelf = { title: string; albums: Album[]; artists: Artist[]; unlinked: string[] };
 export type DiscoveryPage = {
 	shelves: Shelf[];
@@ -21,17 +23,11 @@ export function createShelf(title: string): Shelf {
 	return { title, albums: [], artists: [], unlinked: [] };
 }
 
-export function artistCover(artist: DiscoverArtistRef) {
-	return artist.localOnly
-		? path('/api/v3/library/artists/{id}/artwork', { id: artist.id }, { size: 250 })
-		: path('/api/v3/covers/artist/{artist_id}', { artist_id: artist.id }, { size: 250 });
-}
-
 export function addArtist(list: Shelf, row: Schema['ArtistRef']) {
 	const id = row.musicbrainz_id || row.local_id;
 	const target = id ? { id, name: row.name, localOnly: !row.musicbrainz_id } : undefined;
 	if (list.artists.some((a) => (id ? a.target?.id === id : a.name === row.name))) return;
-	list.artists.push({ name: row.name, target, art: target && artistCover(target) });
+	list.artists.push({ name: row.name, target, ...artistArtwork(row.musicbrainz_id, row.local_id) });
 }
 
 export function addAlbum(list: Shelf, row: Schema['AlbumRef']) {

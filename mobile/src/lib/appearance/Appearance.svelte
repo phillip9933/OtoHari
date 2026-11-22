@@ -29,6 +29,7 @@
 		Palette,
 		UserRound,
 		SlidersHorizontal,
+		Volume2,
 		Globe,
 		Activity,
 		Download,
@@ -327,7 +328,7 @@
 					<div class="settings-list" data-surface="panel">
 						{@render link('playback', Music2)}
 						{@render link('fades', SlidersHorizontal)}
-						{#if supportsPlayerPreferences}{@render link('sound', SlidersHorizontal)}{/if}
+						{#if supportsPlayerPreferences}{@render link('sound', Volume2)}{/if}
 						<Outputs settingsEntry />
 						{#if session.userId && supportsPlayerPreferences}{@render link('handoff', Disc3)}{/if}
 					</div>

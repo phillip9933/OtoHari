@@ -14,7 +14,7 @@
 	} from './browsePreferences';
 	import CollectionDisplayFields from './CollectionDisplayFields.svelte';
 	import BrowseEntries from './BrowseEntries.svelte';
-	import { artistCover } from './discovery';
+	import { artistArtwork } from './artistArtwork';
 	import { ChevronLeft, SlidersHorizontal } from '@lucide/svelte';
 	import { search, errorMessage, type Album, type OnPlay, type SearchScope } from './catalog';
 	import type { Playlist } from './playlists';
@@ -72,9 +72,7 @@
 			id: 'artist:' + (a.localId || a.mbid),
 			title: a.name,
 			subtitle: a.disambiguation || undefined,
-			art: a.artMissing
-				? undefined
-				: artistCover({ id: (a.mbid || a.localId)!, name: a.name, localOnly: !a.mbid })
+			...artistArtwork(a.mbid, a.localId, a.artMissing)
 		})) ?? []
 	);
 	const songRows = $derived(

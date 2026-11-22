@@ -62,7 +62,8 @@ public class DNReadPlugin extends Plugin {
                         String mime = response.header("Content-Type", "").split(";", 2)[0].trim().toLowerCase(Locale.ROOT);
                         boolean ok = response.isSuccessful();
                         JSObject result = new JSObject().put("status", response.code()).put("type", mime);
-                        if (ok || mime.equals("application/json")) {
+                        boolean warming = kind.equals("artwork") && response.code() == 202;
+                        if (!warming && (ok || mime.equals("application/json"))) {
                             boolean text = !ok || kind.equals("search");
                             int limit = !ok ? 32768 : kind.equals("preview") ? 2097152 : 8388608;
                             if (ok && (response.code() != (kind.equals("preview") ? 206 : 200)
