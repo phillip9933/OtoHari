@@ -71,7 +71,7 @@ final class DNReadTransfer: NSObject, URLSessionDataDelegate, @unchecked Sendabl
 public final class DNReadPlugin: CAPPlugin, CAPBridgedPlugin {
     public let identifier = "DNReadPlugin"
     public let jsName = "DNRead"
-    public let pluginMethods = [
+    public let pluginMethods: [CAPPluginMethod] = [
         CAPPluginMethod(name: "read", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "cancel", returnType: CAPPluginReturnPromise)
     ]
