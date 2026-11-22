@@ -76,6 +76,8 @@ export type PlaybackDelivery = {
 };
 
 export interface PlayerState {
+	/** Buffered or cached portions of the current track, in seconds. */
+	bufferedRanges?: readonly { start: number; end: number }[];
 	queueVersion?: string;
 	upNext?: number[];
 	shuffled?: boolean;
@@ -147,7 +149,7 @@ const empty: PlayerState = {
 	error: null
 };
 export const nativeEqualizer: EqualizerBridge = native;
-const backend: PlaybackBridge = Capacitor.isNativePlatform() ? native : browserPlayer();
+const backend: PlaybackBridge = Capacitor.isNativePlatform() ? native : browserPlayer(publish);
 let latest = empty;
 let polling = false;
 let pendingActions = 0;

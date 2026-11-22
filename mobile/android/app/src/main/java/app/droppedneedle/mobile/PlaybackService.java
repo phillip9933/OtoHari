@@ -1196,6 +1196,23 @@ public final class PlaybackService extends MediaLibraryService {
         if (order.consume(player)) queueVersion = UUID.randomUUID().toString();
     }
 
+    private JSArray bufferedRanges(@Nullable JSONObject track, double duration) {
+        JSArray ranges = new JSArray();
+        if (track == null || !(duration > 0) || !Double.isFinite(duration) || !player.destination().isEmpty()) return ranges;
+        if (trackIdentity(localPlayback.getCurrentMediaItem()) != track) return ranges;
+        boolean complete = audioSource.hasCompleteFile(track);
+        // After a seek, Media3 only guarantees the continuous buffer ahead of the playhead.
+        double start = complete ? 0 : Math.max(0, localPlayback.getCurrentPosition() / 1000.0);
+        double end = complete ? duration : Math.min(duration, localPlayback.getBufferedPosition() / 1000.0);
+        if (end > start) {
+            JSObject range = new JSObject();
+            range.put("start", start);
+            range.put("end", end);
+            ranges.put(range);
+        }
+        return ranges;
+    }
+
     JSObject snapshot() { return snapshot(null); }
 
     JSObject snapshot(@Nullable String knownQueue) {
@@ -1239,6 +1256,7 @@ public final class PlaybackService extends MediaLibraryService {
         if (radioProblem != null) result.put("autoplayProblem", radioProblem);
         result.put("index", index);
         result.put("playing", index >= 0 && (showsPauseControl() || pager.waiting() || radio != null));
+        result.put("bufferedRanges", bufferedRanges(track, duration));
         result.put("position", player.getCurrentPosition() / 1000.0);
         result.put("duration", duration);
         result.put("error", !player.routeError().isEmpty() ? player.routeError()

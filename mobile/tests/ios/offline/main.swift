@@ -21,6 +21,18 @@ var options = initial
 options.autoCache = true; options.autoDownload = "recent"; options.downloadMiB = 128
 try store.configure(options)
 
+// An independently downloaded version of the same song cannot fill the current stream's buffer.
+let raceStore = try OfflineFiles(folder: root.appendingPathComponent("rendition-race"))
+try raceStore.configure(options)
+let playbackTicket = try raceStore.begin(track, origin: .cached)!
+let downloadTicket = try raceStore.begin(track, origin: .downloaded)!
+let alternate = root.appendingPathComponent("other.m4a")
+let alternateBytes = Data([1, 2, 3])
+try alternateBytes.write(to: alternate)
+let downloaded = try raceStore.install(alternate, bytes: Int64(alternateBytes.count), ext: "m4a", track: track, ticket: downloadTicket)
+let captured = try raceStore.install(audio, bytes: Int64(bytes.count), ext: "wav", track: track, ticket: playbackTicket)
+precondition(downloaded != nil && raceStore.playable(track.id) == downloaded && captured == nil)
+
 let cache = try store.begin(track, origin: .cached)!
 try store.install(audio, bytes: Int64(bytes.count), ext: "wav", track: track, ticket: cache)
 precondition(store.rows().first?.origin == .cached)

@@ -21,7 +21,34 @@ import { similarTracks, type HeardTrack } from './autoplay';
 import { albumSequence, maxOverlap, smartOverlap } from './smartFades';
 import { shuffleInPlace, shuffleLocally } from './shuffle';
 
-export function browserPlayer(): PlaybackBridge {
+async function playbackBlob(response: Response, onprogress?: (fraction: number) => void) {
+	const length = Number(response.headers.get('Content-Length'));
+	const encoding = response.headers.get('Content-Encoding');
+	if (
+		!onprogress ||
+		!response.body ||
+		response.status !== 200 ||
+		!Number.isSafeInteger(length) ||
+		length <= 0 ||
+		(encoding && encoding !== 'identity')
+	)
+		return response.blob();
+	let received = 0;
+	const body = response.body.pipeThrough(
+		new TransformStream<Uint8Array, Uint8Array>({
+			transform(chunk, controller) {
+				received += chunk.byteLength;
+				// Transfer percentage is useful before the authenticated Blob can be played.
+				// Leave completion to the resolved Blob, even when the final chunk has arrived.
+				if (received < length) onprogress(received / length);
+				controller.enqueue(chunk);
+			}
+		})
+	);
+	return new Response(body, { headers: response.headers }).blob();
+}
+
+export function browserPlayer(onbuffer?: (state: PlayerState) => void): PlaybackBridge {
 	let audio = new Audio();
 	function speed(element: HTMLAudioElement) {
 		element.defaultPlaybackRate = element.playbackRate = browserSpeed();
@@ -269,6 +296,7 @@ export function browserPlayer(): PlaybackBridge {
 	let fades = browserFade();
 	let fadeTimer: ReturnType<typeof setTimeout> | undefined;
 	let sourceBlob: Blob | undefined;
+	let transferFraction = 0;
 	let preserveIntro = false;
 	type Prepared = {
 		current: PlayerTrack;
@@ -446,6 +474,7 @@ export function browserPlayer(): PlaybackBridge {
 	function unload() {
 		discardNext();
 		sourceBlob = undefined;
+		transferFraction = 0;
 		preserveIntro = false;
 		clearTimeout(fadeTimer);
 		setBrowserWaveformSource(null);
@@ -462,6 +491,10 @@ export function browserPlayer(): PlaybackBridge {
 
 	function snapshot(): PlayerState {
 		checkSleep();
+		const duration = Number.isFinite(audio.duration)
+			? audio.duration
+			: (state.tracks[state.index]?.duration ?? 0);
+		const bufferedEnd = duration * (sourceBlob?.size ? 1 : transferFraction);
 		return {
 			...state,
 			shuffled: !!original,
@@ -483,13 +516,16 @@ export function browserPlayer(): PlaybackBridge {
 				: null,
 			playing: waitingAtEnd || !!radio || !audio.paused,
 			position: heldPosition ?? (audio.currentTime || 0),
-			duration: Number.isFinite(audio.duration)
-				? audio.duration
-				: (state.tracks[state.index]?.duration ?? 0)
+			bufferedRanges: bufferedEnd > 0 ? [{ start: 0, end: bufferedEnd }] : [],
+			duration
 		};
 	}
 
-	async function loadTrack(track: PlayerTrack, request: AbortController) {
+	async function loadTrack(
+		track: PlayerTrack,
+		request: AbortController,
+		onprogress?: (fraction: number) => void
+	) {
 		// A web preview cannot attach a bearer header to an audio element.
 		const account = userId ? { serverUrl, userId } : null;
 		const accessToken = token;
@@ -534,7 +570,7 @@ export function browserPlayer(): PlaybackBridge {
 			if (fallback) delivery.response = 'fallback';
 			else if (profile.format === 'original' || ranges === 'bytes') delivery.response = 'original';
 			else if (ranges === 'none') delivery.response = 'converted';
-			blob = await response.blob();
+			blob = await playbackBlob(response, onprogress);
 			if (
 				account &&
 				policy?.options.autoCache &&
@@ -568,7 +604,16 @@ export function browserPlayer(): PlaybackBridge {
 		const request = new AbortController();
 		active = request;
 		try {
-			const source = await loadTrack(track, request);
+			let lastUpdate = -Infinity;
+			const source = await loadTrack(track, request, (fraction) => {
+				if (request !== active || request.signal.aborted) return;
+				transferFraction = fraction;
+				const now = performance.now();
+				if (onbuffer && !document.hidden && now - lastUpdate >= 250) {
+					lastUpdate = now;
+					onbuffer(snapshot());
+				}
+			});
 			if (request.signal.aborted) return;
 			source.cache?.();
 			state.delivery = source.delivery;
@@ -586,7 +631,9 @@ export function browserPlayer(): PlaybackBridge {
 			if (play && playRevision === pauseRevision) await audio.play();
 		} catch (error) {
 			if (request.signal.aborted) return;
+			transferFraction = 0;
 			state.error = 'This track could not be played.';
+			onbuffer?.(snapshot());
 			throw error;
 		}
 	}

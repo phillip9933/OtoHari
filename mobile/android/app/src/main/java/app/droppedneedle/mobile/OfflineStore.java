@@ -703,6 +703,7 @@ final class OfflineStore {
         private final File temp;
         private final FileOutputStream output;
         private long bytes;
+        @Nullable File installedFile;
         private long nextNetworkCheck = 1_048_576;
         private boolean closed;
         Capture(String key, JSONObject track, String origin, @Nullable String source, long expected, Set<String> protectedIds) throws IOException {
@@ -788,6 +789,7 @@ final class OfflineStore {
                     keep.add(track.getString("id"));
                     evict(CACHE, budget(),keep);
                 }
+                installedFile = destination;
                 changed();
             }
         }

@@ -33,6 +33,7 @@ final class OfflineDataSource implements DataSource {
     private final List<TransferListener> listeners = new ArrayList<>();
     private DataSource source;
     private OfflineStore.Capture capture;
+    private ConversionSource.OpenedAudio opened;
     private long expected;
     private long read;
 
@@ -82,6 +83,8 @@ final class OfflineDataSource implements DataSource {
             expected = openSource(online.createDataSource(), physical.withUri(representation));
             originalFallback = true;
         }
+        opened = new ConversionSource.OpenedAudio(file);
+        timeline.opened = opened;
         if (file == null && selection != null) selection.opened(representation);
         if (file == null) timeline.delivery = StreamProfiles.networkDelivery(selection, representation, header("Accept-Ranges"), originalFallback);
         else {
@@ -136,6 +139,7 @@ final class OfflineDataSource implements DataSource {
                 }
                 if (count == C.RESULT_END_OF_INPUT || (expected >= 0 && read == expected)) {
                     capture.finish();
+                    opened.file = capture.installedFile;
                     closeCapture();
                 }
             } catch (IOException | JSONException ignored) {

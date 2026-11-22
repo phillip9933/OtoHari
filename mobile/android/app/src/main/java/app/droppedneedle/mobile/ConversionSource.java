@@ -22,6 +22,7 @@ import androidx.media3.extractor.PositionHolder;
 import androidx.media3.extractor.SeekMap;
 import androidx.media3.extractor.SeekPoint;
 import androidx.media3.extractor.TrackOutput;
+import java.io.File;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
@@ -48,6 +49,18 @@ final class ConversionSource implements MediaSource.Factory {
     synchronized JSObject delivery(Object occurrence) {
         Timeline timeline = timelines.get(occurrence);
         return timeline == null ? null : timeline.delivery;
+    }
+
+    synchronized boolean hasCompleteFile(Object occurrence) {
+        Timeline timeline = timelines.get(occurrence);
+        File file = timeline == null ? null : timeline.opened.file;
+        return file != null && file.isFile();
+    }
+
+    // A late completion on an older DataSource cannot mark a newly opened rendition as complete.
+    static final class OpenedAudio {
+        @Nullable volatile File file;
+        OpenedAudio(@Nullable File file) { this.file = file; }
     }
 
     @Override
@@ -82,6 +95,7 @@ final class ConversionSource implements MediaSource.Factory {
     /** A byte address identifies both a new conversion and the bytes consumed on a subsequent read retry. */
     static final class Timeline implements SeekMap {
         volatile JSObject delivery;
+        volatile OpenedAudio opened = new OpenedAudio(null);
         // The gateway can never serve a local audio file at this offset (one exbibyte).
         private static final long FIRST_SEGMENT = 1L << 60;
         private static final long BLOCK = 1L << 40;

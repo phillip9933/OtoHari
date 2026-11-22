@@ -924,6 +924,66 @@ test('an older header keeps its control sizes and accessible inspector focus whe
 	expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });
 
+test('animated seek uses the played region and keeps the thumb inside the grid at both ends', async ({
+	page
+}) => {
+	const { defaultGridLayout } = await import('../src/lib/player/grid');
+	const sections = defaultGridLayout();
+	sections.find((section) => section.id === 'player-timeline')!.seekStyle = 'animated';
+	await page.addInitScript(
+		({ key, sections }) => localStorage.setItem(key, JSON.stringify({ version: 3, sections })),
+		{ key: 'dn.mobile.layout.v1.' + JSON.stringify([server, 'alex', 'player']), sections }
+	);
+	await fixture(page);
+	await play(page);
+	const live = page.locator('[data-part=now-playing]');
+	const bar = live.locator('[data-part=playback-bar]');
+	const slider = bar.getByRole('slider');
+	const wave = bar.locator('path.wave');
+	await expect(wave).toBeVisible();
+	await slider.fill('30');
+	const boundary = bar.locator('clipPath[id$="-upcoming"] rect');
+	await expect(boundary).toHaveAttribute('x', '112');
+	await expect(bar.locator('clipPath[id$="-buffered"] rect')).toHaveAttribute('width', '224');
+	await expect(bar.locator('clipPath[id$="-played"] rect')).toHaveAttribute('width', '112');
+	const unplayedClip = await boundary.locator('..').getAttribute('id');
+	expect(await bar.locator('use.unplayed').locator('..').getAttribute('clip-path')).toBe(
+		'url(#' + unplayedClip + ')'
+	);
+	await live.getByRole('button', { name: 'Play', exact: true }).click();
+	await expect(wave).not.toHaveCSS('animation-name', 'none');
+	await page.emulateMedia({ reducedMotion: 'reduce' });
+	await expect(wave).toHaveCSS('animation-name', 'none');
+	await live.getByRole('button', { name: 'Pause', exact: true }).click();
+	await slider.focus();
+	await slider.press('Home');
+	await expect(slider).toHaveValue('0');
+	await slider.press('ArrowRight');
+	await expect(slider).toHaveValue('0.1');
+	await slider.fill('30');
+	const rail = (await slider.boundingBox())!;
+	for (const edge of ['left', 'right']) {
+		await page.mouse.move(
+			rail.x + (edge === 'left' ? 1 : rail.width - 1),
+			rail.y + rail.height / 2
+		);
+		await page.mouse.down();
+		await expect(slider).toHaveValue(edge === 'left' ? '0' : '60');
+		await expect
+			.poll(
+				async () => {
+					const thumb = (await bar.locator('.thumb').boundingBox())!;
+					return Math.abs(
+						edge === 'left' ? thumb.x - rail.x : rail.x + rail.width - thumb.x - thumb.width
+					);
+				},
+				{ message: 'Thumb should remain fully visible when seeking to the ' + edge }
+			)
+			.toBeLessThan(1);
+		await page.mouse.up();
+	}
+});
+
 test('the waveform measures the playing file and its time labels can be chosen independently', async ({
 	page
 }) => {
@@ -959,6 +1019,7 @@ test('the waveform measures the playing file and its time labels can be chosen i
 	const region = page.locator('[data-part=now-playing]'),
 		bar = region.locator('[data-part=playback-bar]');
 	await expect(bar).toHaveAttribute('data-seek-style', 'waveform');
+	await expect(bar.locator('clipPath[id$="-buffered"] rect')).toHaveAttribute('width', '224');
 	const path = bar.locator('defs path');
 	await expect(path).toHaveCount(1);
 	const heights = Array.from((await path.getAttribute('d'))!.matchAll(/v([\d.]+)/g), (match) =>

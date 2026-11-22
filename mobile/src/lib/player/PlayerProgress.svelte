@@ -12,6 +12,7 @@
 		section,
 		position,
 		duration,
+		bufferedRanges = [],
 		playing,
 		sample = false,
 		onpreview,
@@ -22,6 +23,7 @@
 		section?: Section;
 		position: number;
 		duration: number;
+		bufferedRanges?: readonly { start: number; end: number }[];
 		playing: boolean;
 		sample?: boolean;
 		onpreview?: (seconds: number | null) => void;
@@ -45,7 +47,18 @@
 	const demo = Array.from({ length: 112 }, (_, i) =>
 		Math.abs(Math.sin(i * 0.13) * Math.cos(i * 0.39) * 0.71 + Math.sin(i * 0.033) * 0.22)
 	);
-	const animatedPath = 'M-24 12 ' + Array.from({ length: 12 }, () => 'q5 -10 10 0 t10 0').join(' ');
+	const animatedPath = 'M-20 12 ' + 'q5 -10 10 0 t10 0 '.repeat(13);
+	const waveform = $derived(style === 'waveform' && peaks.length > 0);
+	const trackPath = $derived(
+		waveform
+			? peaks
+					.map((v, i) => {
+						const height = Math.max(0.8, v * 11);
+						return `M${(224 * (i + 0.5)) / peaks.length} ${12 - height}v${2 * height}`;
+					})
+					.join(' ')
+			: 'M0 12H224'
+	);
 	$effect(() => {
 		void identity;
 		dragging = null;
@@ -78,49 +91,49 @@
 </script>
 
 <div class="progress" class:grid={!!section?.grid} data-seek-style={style} data-part="playback-bar">
-	<div
-		class="rail"
-		class:animated={style === 'animated'}
-		class:running={playing}
-		class:peaks={style === 'waveform' && peaks.length > 0}
-	>
-		{#if style === 'waveform' && peaks.length}
-			<svg viewBox="0 0 224 24" preserveAspectRatio="none" aria-hidden="true">
-				<defs
-					><path
-						id={clip + '-bars'}
-						d={peaks
-							.map(
-								(v, i) =>
-									'M' +
-									(224 * (i + 0.5)) / peaks.length +
-									' ' +
-									(12 - Math.max(0.8, v * 11)) +
-									'v' +
-									Math.max(0.8, v * 11) * 2
-							)
-							.join(' ')}
-					/>
-					<clipPath id={clip}><rect x="0" y="0" width={224 * ratio} height="24" /></clipPath></defs
-				>
-				<use href={'#' + clip + '-bars'} class="unplayed" /><use
-					href={'#' + clip + '-bars'}
-					class="played"
-					clip-path={'url(#' + clip + ')'}
-				/>
+	<div class="rail" class:running={playing}>
+		<div class="drawing" aria-hidden="true">
+			<svg viewBox="0 0 224 24" preserveAspectRatio="none">
+				<defs>
+					<path id={clip + '-track'} d={trackPath} class:line={!waveform && style !== 'animated'} />
+					<clipPath id={clip + '-played'}><rect width={224 * ratio} height="24" /></clipPath>
+					<clipPath id={clip + '-upcoming'}
+						><rect x={224 * ratio} width={224 * (1 - ratio)} height="24" /></clipPath
+					>
+					{#if duration > 0 && bufferedRanges.length}
+						<clipPath id={clip + '-buffered'}>
+							{#each bufferedRanges as { start, end }, index (index)}
+								{#if Number.isFinite(start) && Number.isFinite(end) && end > start}
+									<rect
+										x={(224 * start) / duration}
+										width={(224 * (end - start)) / duration}
+										height="24"
+									/>
+								{/if}
+							{/each}
+						</clipPath>
+					{/if}
+				</defs>
+				<g clip-path={'url(#' + clip + '-upcoming)'}>
+					<use href={'#' + clip + '-track'} class="unplayed" />
+					{#if duration > 0 && bufferedRanges.length}
+						<use
+							href={'#' + clip + '-track'}
+							class="buffered"
+							clip-path={'url(#' + clip + '-buffered)'}
+						/>
+					{/if}
+				</g>
+				<g clip-path={'url(#' + clip + '-played)'}>
+					{#if style === 'animated'}
+						<path class="played wave" d={animatedPath} />
+					{:else}
+						<use href={'#' + clip + '-track'} class="played" />
+					{/if}
+				</g>
 			</svg>
-		{:else if style === 'animated'}
-			<svg viewBox="0 0 200 24" preserveAspectRatio="none" aria-hidden="true">
-				<defs
-					><clipPath id={clip}><rect x="0" y="0" width={200 * ratio} height="24" /></clipPath></defs
-				>
-				<path class="unplayed" d="M0 12h200" />
-				<g clip-path={'url(#' + clip + ')'}><path class="played wave" d={animatedPath} /></g>
-			</svg>
-		{:else}
-			<span class="line"><span style:width={ratio * 100 + '%'}></span></span>
-		{/if}
-		<span class="thumb" style:left={ratio * 100 + '%'}></span>
+			<span class="thumb" style:left={ratio * 100 + '%'}></span>
+		</div>
 		<input
 			type="range"
 			aria-label={uiText('Playback position')}
@@ -161,6 +174,7 @@
 		color: var(--accent);
 	}
 	.rail {
+		--thumb-size: 10px;
 		position: relative;
 		height: clamp(24px, 3.4dvh, 34px);
 		display: flex;
@@ -169,9 +183,9 @@
 	.grid:has(.times) .rail {
 		max-height: max(4px, calc(100cqh - 2 * var(--field-padding, 0px) - 0.9rem));
 	}
-	.rail:focus-within {
+	.rail:has(input:focus-visible) {
 		outline: 2px solid var(--accent);
-		outline-offset: 1px;
+		outline-offset: -2px;
 		border-radius: 6px;
 	}
 	.rail input {
@@ -183,35 +197,50 @@
 		opacity: 0;
 		cursor: pointer;
 		padding: 0;
+		appearance: none;
+		border: 0;
+		background: transparent;
 	}
-	.line {
-		width: 100%;
-		height: 4px;
-		border-radius: 8px;
-		background: color-mix(in srgb, var(--text) 28%, transparent);
-		overflow: hidden;
+	.rail input::-webkit-slider-thumb {
+		appearance: none;
+		width: var(--thumb-size);
+		height: var(--thumb-size);
 	}
-	.line span {
-		display: block;
-		height: 100%;
-		background: currentColor;
+	.rail input::-moz-range-thumb {
+		width: var(--thumb-size);
+		height: var(--thumb-size);
+		border: 0;
+	}
+	.drawing {
+		position: absolute;
+		inset: 0 calc(var(--thumb-size) / 2);
+		display: grid;
+		align-items: center;
+		pointer-events: none;
 	}
 	.thumb {
 		position: absolute;
-		width: 10px;
-		height: 10px;
+		top: 50%;
+		width: var(--thumb-size);
+		height: var(--thumb-size);
 		border-radius: 50%;
-		transform: translateX(-50%);
+		transform: translate(-50%, -50%);
 		background: currentColor;
-		pointer-events: none;
 	}
 	svg {
 		width: 100%;
-		height: 24px;
+		height: min(100%, 24px);
 		overflow: hidden;
 		fill: none;
 		stroke-width: 1.6;
 		stroke-linecap: round;
+	}
+	.line {
+		vector-effect: non-scaling-stroke;
+		stroke-width: 4px;
+	}
+	.buffered {
+		stroke: color-mix(in srgb, currentColor 55%, transparent);
 	}
 	.played {
 		stroke: currentColor;

@@ -6,6 +6,8 @@ final class OfflinePlaybackCapture {
     private let queue = DispatchQueue(label: "app.droppedneedle.offline-capture")
     private let store: OfflineFiles, track: OfflineFiles.Track, ticket: OfflineFiles.Ticket
     private var file: URL?, output: FileHandle?, coverage: OfflineCoverage?, validator: String?, done = false
+    // Published on main for the AVPlayerItem that owns this exact transfer.
+    private(set) var installedFile: URL?
     private static let temp: URL? = {
         let files = FileManager.default
         let path = files.temporaryDirectory.appendingPathComponent("dn-playback-cache", isDirectory: true)
@@ -47,7 +49,8 @@ final class OfflinePlaybackCapture {
                 if self.coverage?.add(offset, count: data.count) == true, let file = self.file {
                     try self.output?.close(); self.output = nil
                     let ext = UTType(mimeType: mime)?.preferredFilenameExtension ?? self.track.format ?? "audio"
-                    try self.store.install(file, bytes: length, ext: ext, track: self.track, ticket: self.ticket)
+                    let installed = try self.store.install(file, bytes: length, ext: ext, track: self.track, ticket: self.ticket)
+                    DispatchQueue.main.async { self.installedFile = installed }
                     self.done = true; self.clear()
                 }
             } catch { self.done = true; self.clear() }

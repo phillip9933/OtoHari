@@ -477,6 +477,7 @@
 				</div>
 			{:else if section.id === 'player-timeline' || section.id === 'player-seek'}
 				<PlayerProgress
+					bufferedRanges={$store.bufferedRanges}
 					{section}
 					{session}
 					{track}

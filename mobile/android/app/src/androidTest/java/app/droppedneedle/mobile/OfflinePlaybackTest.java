@@ -196,6 +196,25 @@ public final class OfflinePlaybackTest {
         }
     }
     @Test
+    public void aConcurrentDownloadDoesNotMarkThePlaybackRenditionAsFullyCached() throws Exception {
+        byte[] audio = wav();
+        store.configure(store.options().put("autoCache", true).put("unmeteredOnly", false));
+        try (OfflineStore.Capture playback = store.begin(track(), false, audio.length);
+             OfflineStore.Capture pinned = store.begin(track(), true, audio.length - 2)) {
+            playback.write(audio, 0, 100);
+            assertNull(playback.installedFile);
+            pinned.write(audio, 0, audio.length - 2);
+            pinned.finish();
+            assertEquals(store.playable(URI), pinned.installedFile);
+            playback.write(audio, 100, audio.length - 100);
+            playback.finish();
+            assertNull(playback.installedFile);
+        } finally {
+            store.remove(new JSONArray().put("t"));
+        }
+    }
+
+    @Test
     public void automaticSourcesRetainRealAudioAndManualSavesSurviveRotation() throws Exception {
         byte[] audio = wav();
         JSONObject metadata = track().put("genre", "Folk").put("year", 2004).put("rating", 5);

@@ -18,6 +18,7 @@ final class LibraryStream: NSObject, AVAssetResourceLoaderDelegate, URLSessionDa
     private var ranges: [Int: ReadRange] = [:]
     private(set) var openedMIME: String?, deliveryKind: String?
     private(set) var errorMessage: String?
+    var completeFile: URL? { conversion?.completeFile ?? capture?.installedFile }
     let asset: AVURLAsset
 
     init(url: URL, token: String, profile: StreamProfile, capture: OfflinePlaybackCapture? = nil) {

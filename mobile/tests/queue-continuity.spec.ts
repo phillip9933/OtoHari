@@ -304,3 +304,76 @@ test('offline listening and a DN without radio keep the completed queue availabl
 	expect(unsupported.playing).toBe(false);
 	expect(requests).toBe(1);
 });
+
+test('the buffer follows the current transfer and only fills for a complete Blob', async ({
+	page
+}) => {
+	const result = await page.evaluate(
+		async ({ access, bytes }) => {
+			const tracks = window.continuityTracks;
+			const module = '/queue-fixture.js';
+			const partial: number[] = [];
+			let reached!: () => void;
+			const started = () => new Promise<void>((resolve) => (reached = resolve));
+			const player: PlaybackBridge = (await import(module)).browserPlayer(
+				(state: import('../src/lib/player').PlayerState) => {
+					if (state.bufferedRanges?.length) {
+						partial.push(state.bufferedRanges[0].end);
+						reached();
+					}
+				}
+			);
+			const wav = Uint8Array.from(bytes);
+			const split = wav.length / 2;
+			let finish!: () => void;
+			let requests = 0;
+			const fetch = window.fetch.bind(window);
+			window.fetch = (input, init) => {
+				if (!String(input).includes('/api/v3/stream/local/')) return fetch(input, init);
+				requests++;
+				const body = new ReadableStream<Uint8Array>({
+					start(controller) {
+						controller.enqueue(wav.slice(0, split));
+						finish = () => {
+							controller.enqueue(wav.slice(split));
+							controller.close();
+						};
+					}
+				});
+				return Promise.resolve(
+					new Response(body, {
+						headers: { 'Content-Type': 'audio/wav', 'Content-Length': String(wav.length) }
+					})
+				);
+			};
+			const half = started();
+			const first = player.setQueue({ ...access, tracks, index: 0 });
+			await half;
+			const next = await player.setQueue({ ...access, tracks, index: 1, playing: false });
+			finish();
+			await first;
+			const afterCancellation = await player.getState();
+			const nextHalf = started();
+			const second = player.setQueue({ ...access, tracks, index: 1 });
+			await nextHalf;
+			finish();
+			const ready = await second;
+			return {
+				requests,
+				partial,
+				idle: next.bufferedRanges,
+				cancelled: afterCancellation.bufferedRanges,
+				index: afterCancellation.index,
+				complete: ready.bufferedRanges,
+				duration: ready.duration
+			};
+		},
+		{ access, bytes: [...silentWav(0.1)] }
+	);
+	expect(result.requests).toBe(2);
+	expect(result.partial).toEqual([30, 30]);
+	expect(result.index).toBe(1);
+	expect(result.idle).toEqual([]);
+	expect(result.cancelled).toEqual([]);
+	expect(result.complete).toEqual([{ start: 0, end: result.duration }]);
+});

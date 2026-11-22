@@ -189,7 +189,7 @@ During a slide, hold your finger still to pause it or move back to reverse it. A
 
 Under **Settings → Appearance & layout → Mini-player**, choose whether to show the cover and a track progress line. The second line can show the artist, album, both, or be hidden. The two positions beside Play/Pause can each hold Previous, Next or Queue, or be left empty. Opening Queue here and pressing Back takes you to the same place in your library. These choices are saved for this DN account on this device.
 
-Now Playing uses plain icons across all three surface styles. Active controls such as Lyrics and Repeat use the theme accent. The floating navigation bar and mini-player use a soft shadow over the content.
+The seek bar shows available audio ahead of the playhead as a lighter track. In the animated style, the wave fills the played portion. Now Playing uses plain icons across all three surface styles. Active controls such as Lyrics and Repeat use the theme accent. The floating navigation bar and mini-player use a soft shadow over the content.
 
 Choose **Start screen** under **Navigation bar and start screen** to open Home, Library or Now Playing when the app launches. **Now Playing** opens the restored song at its saved position and takes you to Library when the queue is empty. **Automatic** opens Home when connected and Offline music when offline. Each listener can choose a start screen for their DN server on this device.
 

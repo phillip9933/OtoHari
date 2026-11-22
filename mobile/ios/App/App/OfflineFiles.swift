@@ -528,16 +528,17 @@ final class OfflineFiles {
                       generation: origin == .automatic ? index.autoGeneration : index.cacheGeneration,
                       transferRevision: transferRevision, origin: origin, source: source, owner: owner)
     }
-    func install(_ temporary: URL, bytes: Int64, ext: String, track: Track, ticket: Ticket, mime: String? = nil) throws {
+    @discardableResult
+    func install(_ temporary: URL, bytes: Int64, ext: String, track: Track, ticket: Ticket, mime: String? = nil) throws -> URL? {
         lock.lock(); defer { lock.unlock() }
         guard ticket.id == track.id, ticket.revision == (index.revisions[track.id] ?? 0) else { throw Failure("The offline copy was removed.") }
         guard permitsTransfer(ticket) else {
             if ticket.origin == .downloaded { throw Failure("Download stopped by offline settings.") }
-            return
+            return nil
         }
-        if ticket.origin == .cached && bytes > Int64(index.options.cacheMiB) * Self.mib { return }
+        if ticket.origin == .cached && bytes > Int64(index.options.cacheMiB) * Self.mib { return nil }
         if let old = index.rows[track.id], file(old) != nil,
-           (ticket.origin == .cached || old.origin == .downloaded || (ticket.origin == .automatic && old.origin == .automatic)) { return }
+           (ticket.origin == .cached || old.origin == .downloaded || (ticket.origin == .automatic && old.origin == .automatic)) { return nil }
         if ticket.origin == .automatic { try room(bytes) }
         guard bytes > 0, let size = try temporary.resourceValues(forKeys: [.fileSizeKey]).fileSize, Int64(size) == bytes else { throw Failure("The audio download was incomplete.") }
         let suffix = !ext.isEmpty && ext.count <= 8 && ext.allSatisfy({ $0.isLetter || $0.isNumber }) ? ext : "audio"
@@ -549,6 +550,7 @@ final class OfflineFiles {
         if ticket.origin == .cached { prune(.cached, limit: index.options.cacheMiB, in: &next) }
         do { try commit(next) }
         catch { try? files.removeItem(at: dest); throw error }
+        return next.rows[track.id]?.name == dest.lastPathComponent ? dest : nil
     }
     static func dictionary<T: Encodable>(_ value: T) throws -> [String: Any] {
         guard let object = try JSONSerialization.jsonObject(with: JSONEncoder().encode(value)) as? [String: Any] else { throw Failure("Invalid offline metadata.") }
