@@ -49,6 +49,8 @@
                 <data android:scheme="app.droppedneedle.mobile" android:host="connect" />
             </intent-filter>
         </activity>
+        <activity-alias android:name="app.droppedneedle.mobile.NowPlayingNotification"
+            android:targetActivity="app.droppedneedle.mobile.MainActivity" android:exported="false" />
         <activity-alias android:name="app.droppedneedle.mobile.DownloadsNotification"
             android:targetActivity="app.droppedneedle.mobile.MainActivity" android:exported="false" />
         <activity android:name=".VoiceSearchActivity" android:exported="true"

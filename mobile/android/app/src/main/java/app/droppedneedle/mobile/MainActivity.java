@@ -6,13 +6,13 @@ import android.os.Bundle;
 import com.getcapacitor.BridgeActivity;
 
 public class MainActivity extends BridgeActivity {
-    private final DownloadNotificationRoute downloads = new DownloadNotificationRoute();
+    final NotificationRoute notifications = new NotificationRoute();
     final PlaylistShortcut shortcuts = new PlaylistShortcut();
     private boolean creating;
 
     @Override
     public void onCreate(Bundle state) {
-        downloads.restore(this, getIntent(), state);
+        notifications.restore(this, getIntent(), state);
         shortcuts.restore(getIntent(), state);
         creating = true;
         registerPlugin(DNReadPlugin.class);
@@ -29,16 +29,21 @@ public class MainActivity extends BridgeActivity {
 
     @Override protected void onNewIntent(Intent intent) {
         // BridgeActivity also dispatches the launch intent here while creating its bridge.
-        if (!creating && downloads.receive(this, intent) && getBridge() != null)
-            getBridge().triggerWindowJSEvent("dn-download-notification");
+        if (!creating) {
+            NotificationRoute.Destination destination = notifications.receive(this, intent);
+            if (destination != null && getBridge() != null) {
+                getBridge().triggerWindowJSEvent(destination == NotificationRoute.Destination.PLAYER
+                        ? "dn-player-notification" : "dn-download-notification");
+            }
+        }
         if (!creating && shortcuts.receive(intent) && getBridge() != null)
             getBridge().triggerWindowJSEvent("dn-playlist-shortcut");
         super.onNewIntent(intent);
     }
     @Override public void onSaveInstanceState(Bundle state) {
         super.onSaveInstanceState(state);
-        downloads.save(state);
+        notifications.save(state);
         shortcuts.save(state);
     }
-    boolean takeDownloadNotification() { return downloads.take(); }
+    boolean takeDownloadNotification() { return notifications.take(NotificationRoute.Destination.DOWNLOADS); }
 }

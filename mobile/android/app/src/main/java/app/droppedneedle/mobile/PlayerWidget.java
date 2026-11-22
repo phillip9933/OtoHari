@@ -33,9 +33,7 @@ public final class PlayerWidget extends AppWidgetProvider {
         views.setTextViewText(R.id.widget_artist, meta.artist == null ? context.getText(R.string.widget_resume) : meta.artist);
         views.setImageViewResource(R.id.widget_toggle, playing ? R.drawable.widget_pause : R.drawable.widget_play);
         views.setContentDescription(R.id.widget_toggle, context.getText(playing ? R.string.widget_pause : R.string.widget_play));
-        Intent open = new Intent(context, MainActivity.class).setAction(Intent.ACTION_MAIN)
-                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP);
-        views.setOnClickPendingIntent(R.id.widget_text, PendingIntent.getActivity(context, 0, open, FLAGS));
+        views.setOnClickPendingIntent(R.id.widget_text, NotificationRoute.Destination.PLAYER.pendingIntent(context));
         views.setOnClickPendingIntent(R.id.widget_previous, control(context, "PREVIOUS", 1));
         views.setOnClickPendingIntent(R.id.widget_toggle, control(context, "TOGGLE", 2));
         views.setOnClickPendingIntent(R.id.widget_next, control(context, "NEXT", 3));

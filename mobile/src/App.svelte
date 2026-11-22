@@ -58,7 +58,8 @@
 		launcherShortcuts,
 		clearIPhonePlaylistShortcuts,
 		pendingShortcut,
-		takePlaylistShortcut
+		takePlaylistShortcut,
+		takePlayerNotification
 	} from './lib/catalog/launcherShortcuts';
 	import type { Category } from './lib/catalog/libraryBrowse';
 	import Appearance from './lib/appearance/Appearance.svelte';
@@ -230,6 +231,12 @@
 		)
 			navigate('library', libraryDestinations.find((d) => d.id === to)?.label);
 		else navigate(to);
+	}
+	async function openPlayerNotification() {
+		const owner = session;
+		if (!owner || Capacitor.getPlatform() !== 'android') return;
+		const pending = await takePlayerNotification().catch(() => undefined);
+		if (pending?.open && session === owner && surface !== 'player') openPanel('player');
 	}
 	async function openDownloadNotification() {
 		const owner = session;
@@ -454,6 +461,7 @@
 		focusMain();
 		await openDownloadNotification();
 		await openPlaylistShortcut();
+		await openPlayerNotification();
 		await widget?.consume();
 		if (restoreError) report(restoreError);
 	}
@@ -547,6 +555,7 @@
 		window.addEventListener('resize', resetPull);
 		window.addEventListener('dn-open-offline', openOffline);
 		window.addEventListener('dn-download-notification', openDownloadNotification);
+		window.addEventListener('dn-player-notification', openPlayerNotification);
 		window.addEventListener('dn-playlist-shortcut', openPlaylistShortcut);
 		window.addEventListener('dn-session-expired', expired);
 		window.addEventListener('keydown', key);
@@ -556,6 +565,7 @@
 			void listener?.then((handle) => handle.remove());
 			window.removeEventListener('dn-open-offline', openOffline);
 			window.removeEventListener('dn-download-notification', openDownloadNotification);
+			window.removeEventListener('dn-player-notification', openPlayerNotification);
 			widget?.stop();
 			window.removeEventListener('dn-playlist-shortcut', openPlaylistShortcut);
 			window.removeEventListener('dn-session-expired', expired);

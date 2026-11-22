@@ -400,6 +400,7 @@ public final class PlaybackService extends MediaLibraryService {
             }
         };
         session = new MediaLibrarySession.Builder(this, player, car)
+                .setSessionActivity(NotificationRoute.Destination.PLAYER.pendingIntent(this))
                 .setBitmapLoader(new PlaybackArtwork(() -> access, http))
                 .build();
         addSession(session);

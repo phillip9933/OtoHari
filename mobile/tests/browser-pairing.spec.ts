@@ -21,7 +21,13 @@ test.beforeEach(async ({ page, nativePlatform }) => {
 			DNOutputs: ['choose'],
 			SecureStorage: ['internalGetItem', 'internalSetItem', 'internalRemoveItem'],
 			CapacitorHttp: ['request', 'get'],
-			DNLauncher: ['pinPlaylist', 'playlistPinned', 'takePlaylist', 'clearShortcuts'],
+			DNLauncher: [
+				'takePlayerNotification',
+				'pinPlaylist',
+				'playlistPinned',
+				'takePlaylist',
+				'clearShortcuts'
+			],
 			DNOffline: [
 				'snapshot',
 				'options',
@@ -225,6 +231,11 @@ test.beforeEach(async ({ page, nativePlatform }) => {
 						return;
 					}
 					if (plugin === 'DNLauncher') {
+						if (method === 'takePlayerNotification') {
+							const open = sessionStorage.getItem('media-tap') === '1';
+							sessionStorage.removeItem('media-tap');
+							return { open };
+						}
 						if (
 							opts.userId !== 'fixture-id' ||
 							opts.serverUrl !== 'https://library.example/dn' ||
@@ -446,6 +457,30 @@ async function deliverApproval(page: Page, cold = false) {
 	}
 	return launched;
 }
+
+test('Android media notification opens the paused player on cold and warm taps', async ({
+	page
+}) => {
+	await page.addInitScript(() => sessionStorage.setItem('reconnected', '1'));
+	await deliverApproval(page);
+	await page.evaluate(() => {
+		sessionStorage.setItem('restored-song', 'Night service');
+		sessionStorage.setItem('media-tap', '1');
+	});
+	await page.reload();
+	const active = page.getByRole('region', { name: 'Now playing', exact: true });
+	await expect(active).toBeVisible();
+	await minimizePlayer(page);
+	await page.getByRole('button', { name: 'Settings', exact: true }).click();
+	await page.evaluate(() => window.dispatchEvent(new Event('dn-player-notification')));
+	await expect(page.getByRole('heading', { name: 'Settings', exact: true })).toBeVisible();
+	await page.evaluate(() => {
+		sessionStorage.setItem('media-tap', '1');
+		window.dispatchEvent(new Event('dn-player-notification'));
+	});
+	await expect(active).toBeVisible();
+	expect(await page.evaluate(() => sessionStorage.getItem('toggled-playback'))).toBeNull();
+});
 
 test('a download notification waits for browser sign-in and opens Offline music only once per tap', async ({
 	page

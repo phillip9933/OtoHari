@@ -14,6 +14,11 @@ public class DNLauncherPlugin extends Plugin {
         if (owner != null && owner.server.equals(server) && owner.userId.equals(call.getString("userId"))) return owner;
         return null;
     }
+    @PluginMethod public void takePlayerNotification(PluginCall call) {
+        boolean open = getActivity() instanceof MainActivity activity
+                && activity.notifications.take(NotificationRoute.Destination.PLAYER);
+        call.resolve(new JSObject().put("open", open));
+    }
     @PluginMethod public void pinPlaylist(PluginCall call) {
         HeadsetAccount owner = current(call);
         if (owner == null) { call.reject("Sign into DroppedNeedle first."); return; }

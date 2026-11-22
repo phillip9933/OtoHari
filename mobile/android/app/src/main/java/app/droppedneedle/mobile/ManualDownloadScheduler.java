@@ -89,7 +89,7 @@ final class ManualDownloadScheduler implements ManualDownloads.Scheduler {
         NotificationCompat.Builder notification = new NotificationCompat.Builder(ctx, CHANNEL)
                 .setSmallIcon(android.R.drawable.stat_sys_download).setOngoing(true).setOnlyAlertOnce(true)
                 .setContentTitle(ctx.getString(R.string.saving_offline)).addAction(0, ctx.getString(android.R.string.cancel), action)
-                .setContentIntent(PendingIntent.getActivity(ctx, 0, DownloadNotificationRoute.intent(ctx), PendingIntent.FLAG_IMMUTABLE));
+                .setContentIntent(NotificationRoute.Destination.DOWNLOADS.pendingIntent(ctx));
         if (total > 0) notification.setContentText(ctx.getString(R.string.download_progress, done, total));
         notification.setProgress(total, done, total == 0);
         return notification.build();
