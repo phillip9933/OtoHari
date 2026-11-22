@@ -229,6 +229,32 @@ The **iPhone simulator** GitHub workflow uses the committed Swift package versio
 
 The iPhone uses the same OIDC pairing page as Android. Now Playing supports Up Next, playback handoff, output-specific equalizer settings, ReplayGain, speed, separate fades and smart fades. Open **Cast and audio output** for AirPlay. To pin a playlist, open its menu and choose the shortcut option, then press and hold the app icon on the Home Screen. iPhone updates use Apple distribution channels. The current queue takes priority when its saved data and the previous queue would exceed the 3 MiB restore limit. The app reports queue edits that exceed the limit before applying them. Playlist exports support up to 64 MiB per file and reserve 32 MiB of free space on the device.
 
+### Send the iPhone app to TestFlight
+
+The development branch runs the simulator checks on GitHub’s macOS runners. The distribution job uses the standard app project and starts only for an `ios-v<version>-build.<build>` tag. The widget-enabled project requires its own App Group and extension provisioning.
+
+**One-time setup**
+
+1. In your paid Apple Developer account, register the explicit bundle ID `app.droppedneedle.mobile` if available. In **App Store Connect → Apps → + → New App**, select iOS and that bundle ID, enter a unique SKU of your choice, and choose an available name that identifies this as an unofficial client. If the identifier is unavailable, choose one you own and update the Xcode target and simulator launch identifier before releasing. [Create an app record](https://developer.apple.com/help/app-store-connect/create-an-app-record/add-a-new-app/)
+2. Create an **Apple Distribution** certificate and an **App Store Connect** provisioning profile for the app and certificate. Keep the certificate’s private key safe. Export the certificate and private key together as a password-protected PKCS#12 file. These steps can be done from Linux using an OpenSSL certificate signing request and Apple’s developer portal. [App Store Connect provisioning profile](https://developer.apple.com/help/account/provisioning-profiles/create-an-app-store-provisioning-profile/)
+3. In **App Store Connect → Users and Access → Integrations**, create a team API key with permission to upload builds (Developer or App Manager). Keep the downloaded `.p8` private. Record the key ID and issuer ID. [App Store Connect API keys](https://developer.apple.com/help/app-store-connect/get-started/app-store-connect-api/)
+4. In your fork’s **Settings → Environments**, create `testflight`. Restrict deployment to your release tags and configure reviewer approval if appropriate for your team. Add the following **environment** settings. Keep private credentials out of the repository and release notes.
+
+| Type | Name | Value |
+| --- | --- | --- |
+| Secret | `IOS_DISTRIBUTION_P12_BASE64` | Base64-encoded password-protected distribution PKCS#12 |
+| Secret | `IOS_DISTRIBUTION_P12_PASSWORD` | Password for that file |
+| Secret | `IOS_APPSTORE_PROFILE_BASE64` | Base64-encoded App Store Connect provisioning profile |
+| Secret | `ASC_PRIVATE_KEY` | Full contents of the API key’s `.p8` file, including the PEM header and footer |
+| Variable | `ASC_KEY_ID` | App Store Connect API key ID |
+| Variable | `ASC_ISSUER_ID` | App Store Connect issuer ID |
+
+**Each beta**
+
+Choose the iOS version and a fresh build number in the **App** target (`MARKETING_VERSION` and `CURRENT_PROJECT_VERSION`). Commit them on `feat/mobile-iphone`, push that commit, then push its matching tag. For example, version `0.7.0`, build `31`, uses tag `ios-v0.7.0-build.31`. The workflow tests the commit, checks the version inside the archive, signs it, and uploads it to App Store Connect. A subsequent build for the same version needs a higher build number.
+
+After Apple processes the upload, open **App Store Connect → your app → TestFlight** and complete any compliance prompts. Add the build to an external testing group, fill in beta review information (including a working reviewer login for this server-based app), and submit it for beta review. Once approved, invite testers by email; they install it through TestFlight on their iPhone. [Invite external testers](https://developer.apple.com/help/app-store-connect/test-a-beta-version/invite-external-testers/)
+
 ### Prepare an Android GitHub release
 
 Set the mobile package version and Android `versionName` to the same version, and increase the Android `versionCode` for every release, including betas. After `pnpm sync`, generate a signed, standalone **release APK** in Android Studio using the same signing identity as the builds distributed to users. Android requires that identity for an in-place upgrade. Ordinary `assembleDebug` builds are for USB testing.
