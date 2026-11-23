@@ -56,6 +56,13 @@ async function connect(page: Page) {
 		playlist('readonly', 'Listening room', false, false)
 	];
 	let members: Schema['PlaylistMember'][] = [];
+	const covers = new Map<string, Schema['CoverUploadBody']>();
+	function setCover(p: Schema['PlaylistDetail'], data?: Schema['CoverUploadBody']) {
+		p.updated_at++;
+		p.custom_cover_url = data ? '/api/v3/playlists/' + p.id + '/cover' : null;
+		if (data) covers.set(p.id, data);
+		else covers.delete(p.id);
+	}
 	const writes: string[] = [],
 		streams: string[] = [];
 	await page.route(api + '/**', async (route) => {
@@ -148,6 +155,27 @@ async function connect(page: Page) {
 				return json({ status: 'ok', message: 'Deleted' });
 			}
 		}
+		if (action === 'cover') {
+			if (method === 'GET') {
+				expect(new URL(req.url()).searchParams.get('v')).toBe(String(p.updated_at));
+				const image = covers.get(p.id);
+				return image
+					? route.fulfill({
+							body: Buffer.from(image.image_base64, 'base64'),
+							contentType: image.content_type
+						})
+					: json({}, 404);
+			}
+			expect(p.is_owner).toBe(true);
+			if (method === 'POST') {
+				const body = req.postDataJSON() as Schema['CoverUploadBody'];
+				setCover(p, body);
+				return json({ cover_url: p.custom_cover_url });
+			}
+			expect(method).toBe('DELETE');
+			setCover(p);
+			return json({ status: 'ok' });
+		}
 		if (action === 'visibility' && method === 'PATCH') {
 			expect(p.is_owner).toBe(true);
 			p.is_public = req.postDataJSON().is_public;
@@ -205,8 +233,100 @@ async function connect(page: Page) {
 	await page.getByLabel('Password', { exact: true }).fill('fixture');
 	await page.getByRole('button', { name: 'Sign in', exact: true }).click();
 	await expect(page.getByRole('heading', { name: 'Home', exact: true })).toBeVisible();
-	return { lists, writes, streams, members: () => members };
+	return { lists, writes, streams, covers, setCover, members: () => members };
 }
+
+test('owned playlist artwork syncs in both directions and can be restored from the library', async ({
+	page
+}) => {
+	const state = await connect(page);
+	await page.getByRole('button', { name: 'Library', exact: true }).click();
+	await page.getByRole('button', { name: 'Browse Playlists' }).click();
+	const playlist = page.getByRole('button', { name: 'My mix', exact: true });
+	await playlist.click();
+	const artwork = page.getByRole('button', { name: 'Change playlist artwork' });
+	await artwork.click();
+	const dialog = page.getByRole('dialog', { name: 'Playlist artwork' });
+	const png = await page.evaluate(() => {
+		const canvas = document.createElement('canvas');
+		canvas.width = 920;
+		canvas.height = 640;
+		const context = canvas.getContext('2d')!;
+		context.fillStyle = 'teal';
+		context.fillRect(0, 0, canvas.width, canvas.height);
+		return canvas.toDataURL().split(',')[1];
+	});
+	const photo = { name: 'art.png', mimeType: 'image/png', buffer: Buffer.from(png, 'base64') };
+	const endpoint = api + '/playlists/mine/cover';
+	await page.route(endpoint, (r) =>
+		r.fulfill({ status: 403, json: { error: { message: 'Cover update denied' } } })
+	);
+	await dialog.locator('input[type=file]').setInputFiles(photo);
+	await expect(dialog.getByRole('alert')).toHaveText('Cover update denied');
+	await expect(artwork.locator('img')).toHaveCount(0);
+	await page.unroute(endpoint);
+	await dialog.locator('input[type=file]').setInputFiles(photo);
+	await expect(dialog).toHaveCount(0);
+	await expect(artwork.locator('img')).toHaveJSProperty('naturalWidth', 512);
+	expect(state.covers.get('mine')?.content_type).toBe('image/webp');
+	await page.getByRole('button', { name: 'Back to playlists' }).click();
+	await expect(playlist.locator('img')).toHaveJSProperty('naturalWidth', 512);
+	state.setCover(state.lists[0], { content_type: 'image/png', image_base64: png });
+	await playlist.click();
+	await expect(artwork.locator('img')).toHaveJSProperty('naturalWidth', 920);
+	await page.getByRole('button', { name: 'Back to playlists' }).click();
+	await page.getByRole('button', { name: 'More options for My mix' }).click();
+	await page.getByRole('button', { name: 'Use automatic artwork' }).click();
+	await expect(playlist.locator('img')).toHaveCount(0);
+	expect(state.writes.filter((line) => line.includes('/playlists/'))).toEqual([
+		'POST /playlists/mine/cover',
+		'DELETE /playlists/mine/cover'
+	]);
+});
+
+test('a pinned playlist shows the current DN cover when Home opens', async ({ page }) => {
+	const state = await connect(page);
+	const nav = (name: string) => page.getByRole('button', { name, exact: true });
+	await nav('Library').click();
+	await nav('Browse Playlists').click();
+	await nav('My mix').click();
+	await nav('Pin to Home').click();
+	await expect(nav('Unpin from Home')).toBeVisible();
+	const png = await page.evaluate(() => {
+		const canvas = document.createElement('canvas');
+		canvas.width = canvas.height = 21;
+		return canvas.toDataURL().split(',')[1];
+	});
+	state.setCover(state.lists[0], { content_type: 'image/png', image_base64: png });
+	await nav('Home').click();
+	const art = page
+		.getByRole('region', { name: 'Pinned to Home' })
+		.getByRole('button', { name: /My mix/ })
+		.locator('img');
+	await expect(art).toHaveJSProperty('naturalWidth', 21);
+	await nav('Library').click();
+	state.setCover(state.lists[0]);
+	await nav('Home').click();
+	await expect(art).toHaveCount(0);
+});
+
+test('shared editors and listeners see playlist artwork without owner controls', async ({
+	page
+}) => {
+	await connect(page);
+	await page.getByRole('button', { name: 'Library', exact: true }).click();
+	await page.getByRole('button', { name: 'Browse Playlists' }).click();
+	for (const title of ['Shared mix', 'Listening room']) {
+		await page.getByRole('button', { name: 'More options for ' + title }).click();
+		const dialog = page.getByRole('dialog');
+		await expect(dialog.getByRole('button', { name: /artwork/i })).toHaveCount(0);
+		await page.keyboard.press('Escape');
+		await page.getByRole('button', { name: title, exact: true }).click();
+		await expect(page.getByRole('heading', { name: title })).toBeVisible();
+		await expect(page.getByRole('button', { name: 'Change playlist artwork' })).toHaveCount(0);
+		await page.getByRole('button', { name: 'Back to playlists' }).click();
+	}
+});
 
 test('an owner creates, renames, shares and confirms deletion of a playlist', async ({ page }) => {
 	const state = await connect(page);

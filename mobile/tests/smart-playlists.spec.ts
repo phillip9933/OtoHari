@@ -332,3 +332,40 @@ test('in airplane mode an old download needs a confirmed rule match and known me
 	await expect(button(page, 'Play North Wind')).toHaveCount(0);
 	expect(env.queries).toHaveLength(1);
 });
+
+test('smart playlist artwork stays on the device and can be reset from the library menu', async ({
+	page
+}) => {
+	const env = await fixture(page);
+	await localSignIn(page, server);
+	await playlists(page);
+	await create(page);
+	await button(page, 'Night driving').click();
+	await button(page, 'Change playlist artwork').click();
+	const chooser = page.getByRole('dialog', { name: 'Playlist artwork' });
+	await expect(
+		chooser.getByRole('button', { name: 'Choose artwork on this device' })
+	).toBeVisible();
+	const png = await page.evaluate(() => {
+		const canvas = document.createElement('canvas');
+		canvas.width = canvas.height = 8;
+		canvas.getContext('2d')!.fillRect(0, 0, 8, 8);
+		return canvas.toDataURL('image/png').split(',')[1];
+	});
+	await chooser.locator('input[type=file]').setInputFiles({
+		name: 'cover.png',
+		mimeType: 'image/png',
+		buffer: Buffer.from(png, 'base64')
+	});
+	await expect(chooser).toHaveCount(0);
+	await expect(button(page, 'Change playlist artwork').locator('img')).toHaveAttribute(
+		'src',
+		/^data:image\//
+	);
+	await button(page, 'Back to Playlists').click();
+	await button(page, 'More options for Night driving').click();
+	await button(page, 'Use automatic artwork').click();
+	await button(page, 'Night driving').click();
+	await expect(button(page, 'Change playlist artwork').locator('img')).toHaveCount(0);
+	expect(env.playlistWrites).toEqual([]);
+});

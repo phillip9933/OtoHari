@@ -38,6 +38,10 @@ export function onPlaylistMembership(session: Session, changed: () => void) {
 	window.addEventListener('dn-playlist-membership', handle);
 	return () => window.removeEventListener('dn-playlist-membership', handle);
 }
+export function rememberedPlaylistCovers(session: Session) {
+	const k = key(session);
+	return new Map(k ? read(k).map(({ id, covers }) => [id, covers] as const) : []);
+}
 export function rememberedPlaylistNames(session: Session) {
 	const k = key(session);
 	return k ? read(k).map(({ id, name }) => ({ id, name })) : [];

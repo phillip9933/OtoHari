@@ -47,6 +47,8 @@ Open **Discover → Mix Builder** to build a mix from up to eight artists or up 
 
 Open **Library** for Playlists, Artists, Albums, Tracks and Genres. Albums and playlists start as two-column grids, artists as three-column portraits, and tracks and genres as lists. Use the toolbar to sort, filter, search, select items, or switch views. **Collection options** controls the number of columns and spacing for that category. More items load as you scroll. Opening a detail and going back keeps your place. **Library sections** opens your custom shelves.
 
+Tap the artwork on a DN playlist you own and choose **Choose artwork**. The cover is saved to DroppedNeedle and appears in its web player and in OtoHari for anyone who can view the playlist. **Use automatic artwork** restores DN’s album covers. Device smart playlists keep their artwork on that device.
+
 Search results can use a list or artwork grid. Use the display control beside the results to set the layout, grid columns and row spacing for each search category. The same choices apply to music saved on your device.
 
 Album artwork fills the top of the album page. Shuffle or play from the action row, or tap a numbered track to start there. The **⋮** to the left of Shuffle opens album actions. On an artist page, **⋮** also holds the Home shortcuts for opening the artist and starting their radio station.

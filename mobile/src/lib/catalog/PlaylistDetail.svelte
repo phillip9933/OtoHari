@@ -8,6 +8,7 @@
 	import { errorMessage, type OnPlay } from './catalog';
 	import {
 		readPlaylist,
+		playlistArtwork,
 		renamePlaylist,
 		movePlaylistEntry,
 		removePlaylistEntry,
@@ -23,6 +24,7 @@
 	import DetailAvailability from './DetailAvailability.svelte';
 	import { matchesAvailability, type Availability } from '../offline/library';
 	import { offlineSupported } from '../offline/media';
+	import PlaylistHeading from './PlaylistHeading.svelte';
 	import PlaylistDialog from './PlaylistDialog.svelte';
 	import PlaylistExport from './PlaylistExport.svelte';
 	import { Download } from '@lucide/svelte';
@@ -155,7 +157,14 @@
 </script>
 
 <button class="text-button" onclick={onback}><ArrowLeft size={16} /> {uiText(backLabel)}</button>
-<h1>{current.name}</h1>
+<PlaylistHeading
+	{session}
+	id={'playlist:' + current.id}
+	title={current.name}
+	covers={playlistArtwork(current)}
+	playlist={detail?.playlist}
+	onchanged={load}
+/>
 {#if busy}<p role="status">{uiText('Loading tracks…')}</p>
 {:else if error}<p role="alert">{error}</p>
 	<button class="secondary" onclick={load}>{uiText('Try again')}</button>
@@ -373,9 +382,6 @@
 	/>{/if}
 
 <style>
-	h1 {
-		overflow-wrap: anywhere;
-	}
 	.actions,
 	.tools {
 		display: flex;

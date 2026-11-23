@@ -11,6 +11,7 @@
 	import { detailInventory, type DetailInventory } from './detailInventory.svelte';
 	import DetailAvailability from './DetailAvailability.svelte';
 	import { albumTrackCount, type AlbumCount } from './albumTrackCounts';
+	import PlaylistHeading from './PlaylistHeading.svelte';
 	import { offlinePlaylists } from './playlistOffline';
 	import { smartPlaylistTracks } from './smartPlaylists';
 	import { deviceTrackOrder, matchesDeviceTrack } from './trackFilters';
@@ -318,9 +319,17 @@
 		{onplay}
 		{active}
 		localOnly={offline}
-		heading={albumHeader || deviceArtist ? undefined : item.title}
+		heading={albumHeader || deviceArtist || isPlaylist ? undefined : item.title}
 		scope={JSON.stringify([item.id, filter])}
 	>
+		{#if isPlaylist}<PlaylistHeading
+				{session}
+				id={item.id}
+				title={item.title}
+				covers={item.covers}
+				cacheOnly={deviceOnly}
+				playlist={deviceOnly ? undefined : item.playlist}
+			/>{/if}
 		{#if item.smart}<small>{uiText('Smart playlist · on this device')}</small>{/if}
 		{#if showAvailability}<DetailAvailability
 				source={device}

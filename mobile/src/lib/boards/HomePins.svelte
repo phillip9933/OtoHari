@@ -20,7 +20,8 @@
 	import { availableTracks } from '../offline/library';
 	import { type Album, type OnPlay, errorMessage } from '../catalog/catalog';
 	import { libraryRadio, type DiscoverArtistRef } from '../catalog/discovery';
-	import { playlists, type Playlist } from '../catalog/playlists';
+	import { playlistArtwork, playlists, type Playlist } from '../catalog/playlists';
+	import { rememberedPlaylistCovers } from '../catalog/playlistOffline';
 	import { readSmartPlaylists, smartPlaylistTracks } from '../catalog/smartPlaylists';
 	import { beginPlaybackPreparation } from '../catalog/browseActions';
 	import { playMix } from '../catalog/mixBuilder';
@@ -38,6 +39,7 @@
 		type HomePin,
 		type HomeCollection
 	} from '../catalog/homePins';
+	import PlaylistCover from '../catalog/PlaylistCover.svelte';
 	import Cover from '../catalog/Cover.svelte';
 	let {
 		session,
@@ -93,6 +95,35 @@
 		void offline;
 		if (!active) job?.abort();
 		return () => job?.abort();
+	});
+	const hasPlaylistPins = $derived(store?.pins.some((pin) => pin.kind === 'playlist'));
+	let playlistCovers = $state.raw(new Map<string, string[]>());
+	$effect(() => {
+		if (!active || !hasPlaylistPins) return;
+		const account = session;
+		playlistCovers = rememberedPlaylistCovers(account);
+		if (offline) return;
+		let request: AbortController;
+		function refresh() {
+			request?.abort();
+			const job = new AbortController();
+			request = job;
+			void playlists(account, job.signal).then(
+				(items) => {
+					if (!job.signal.aborted)
+						playlistCovers = new Map(items.map((p) => [p.id, playlistArtwork(p)]));
+				},
+				() => {
+					/* Keep the last artwork when DN is unavailable. */
+				}
+			);
+		}
+		refresh();
+		window.addEventListener('dn-playlists-updated', refresh);
+		return () => {
+			request.abort();
+			window.removeEventListener('dn-playlists-updated', refresh);
+		};
 	});
 	onDestroy(() => job?.abort());
 	function rearrange(run: () => void) {
@@ -213,7 +244,12 @@
 						onclick={() => open(pin)}
 					>
 						<span class="art"
-							>{#if pin.art}<Cover
+							>{#if pin.kind === 'playlist' || pin.kind === 'smart'}<PlaylistCover
+									{session}
+									id={pin.kind + ':' + pin.id}
+									covers={pin.kind === 'playlist' ? (playlistCovers.get(pin.id) ?? []) : []}
+									cacheOnly={offline}
+								/>{:else if pin.art}<Cover
 									{session}
 									path={pin.art}
 									seed={pin.id}

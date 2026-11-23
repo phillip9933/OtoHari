@@ -1,3 +1,4 @@
+import { forgetPlaylistCover } from './playlistCoverOverrides';
 import { accountId } from '../boards/layout';
 import { libraryFilter, type LibraryFilter } from '../boards/filteredSections';
 import type { Session } from '../connection';
@@ -105,7 +106,10 @@ export async function writeSmartPlaylist(
 	)
 		throw new Error('This playlist changed. Reopen it before saving your edits.');
 	if (stored) localStorage.setItem(key, JSON.stringify(stored));
-	else localStorage.removeItem(key);
+	else {
+		localStorage.removeItem(key);
+		await forgetPlaylistCover(session, 'smart:' + id);
+	}
 	localStorage.removeItem(key + '.matches');
 }
 

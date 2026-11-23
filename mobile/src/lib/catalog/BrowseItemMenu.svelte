@@ -10,6 +10,7 @@
 	import type { SmartPlaylist } from './smartPlaylists';
 	import { offlineSupported } from '../offline/media';
 	import PlaylistDialog from './PlaylistDialog.svelte';
+	import PlaylistCoverPicker from './PlaylistCoverPicker.svelte';
 	import type { Session } from '../connection';
 	import HomePinButton from './HomePinButton.svelte';
 	import { browsePin } from './homePins';
@@ -82,6 +83,9 @@
 		{#if row.smart && edit}<button onclick={() => edit?.(row.smart!)}
 				>{uiText('Edit smart playlist')}</button
 			>{/if}
+		{#if category === 'Playlists' && (row.smart || (!offline && row.playlist?.is_owner))}
+			<PlaylistCoverPicker {session} id={row.id} playlist={row.playlist} ondone={onclose} />
+		{/if}
 		<HomePinButton {session} compact pin={browsePin(row, category)} ondone={onclose} />
 		{#if category === 'Playlists' && onpin}<button
 				disabled={pinned === undefined}

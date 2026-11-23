@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
 	import { useLibrarySelection, type LibraryChoice } from '../catalog/librarySelection.svelte';
+	import PlaylistCover from '../catalog/PlaylistCover.svelte';
 	import Cover from '../catalog/Cover.svelte';
 	import type { Session } from '../connection';
 
@@ -14,6 +15,7 @@
 		artwork,
 		fallbackArt,
 		coverSeed,
+		playlistId,
 		cacheOnly = false,
 		onclick,
 		label,
@@ -30,6 +32,7 @@
 		artwork?: string;
 		fallbackArt?: string;
 		coverSeed?: string;
+		playlistId?: string;
 		cacheOnly?: boolean;
 		onclick?: () => void;
 		label?: string;
@@ -42,7 +45,18 @@
 
 {#snippet content()}
 	{#if coverSeed}<span class="art"
-			><Cover {session} {cacheOnly} path={artwork} fallback={fallbackArt} seed={coverSeed} /></span
+			>{#if playlistId}<PlaylistCover
+					{session}
+					id={playlistId}
+					{cacheOnly}
+					covers={artwork ? [artwork] : []}
+				/>{:else}<Cover
+					{session}
+					{cacheOnly}
+					path={artwork}
+					fallback={fallbackArt}
+					seed={coverSeed}
+				/>{/if}</span
 		>{/if}
 	<span class="text"
 		><strong>{title}</strong>{#if subtitle}<small>{subtitle}</small>{/if}{#if time}<small

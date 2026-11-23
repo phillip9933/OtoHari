@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { tr, uiText } from '../i18n';
-	import { ListMusic, Tags, EllipsisVertical } from '@lucide/svelte';
+	import { Tags, EllipsisVertical } from '@lucide/svelte';
 	import type { Session } from '../connection';
 	import type { OfflineInventory } from '../offline/library';
 	import type { BrowseItem, Category } from './libraryBrowse';
@@ -8,6 +8,7 @@
 	import { tick, type Snippet } from 'svelte';
 	import { browseViewport, initialWindow } from './browseViewport';
 	import { useLibrarySelection } from './librarySelection.svelte';
+	import PlaylistCover from './PlaylistCover.svelte';
 	import Cover from './Cover.svelte';
 	import { originIndex, itemOrigins } from './libraryOrigins';
 	import { trackStatusLabels, trackStatusIcons, type TrackStatus } from './trackStatus';
@@ -236,16 +237,14 @@
 							>{item.track.trackNumber || index + 1}</span
 						>
 					{:else}<span class="visual">
-							<span
-								class="art"
-								class:round={category === 'Artists'}
-								class:collage={(item.covers?.length ?? 0) > 1}
-							>
+							<span class="art" class:round={category === 'Artists'}>
 								{#if category === 'Genres'}<Tags size={23} />
-								{:else if item.covers?.length}{#each item.covers.length === 1 ? item.covers : Array.from({ length: 4 }, (_, i) => item.covers![i % item.covers!.length]) as art, i (i)}
-										<Cover {session} {cacheOnly} path={art} seed={art} />
-									{/each}
-								{:else if category === 'Playlists'}<ListMusic strokeWidth={1.3} size="48%" />
+								{:else if category === 'Playlists'}<PlaylistCover
+										{session}
+										id={item.id}
+										covers={item.covers}
+										{cacheOnly}
+									/>
 								{:else}<Cover
 										{session}
 										{cacheOnly}
@@ -396,11 +395,6 @@
 	}
 	.art.round {
 		border-radius: 50%;
-	}
-	.collage {
-		grid-template-columns: 1fr 1fr;
-		grid-template-rows: 1fr 1fr;
-		gap: 1px;
 	}
 	.playlist .art {
 		background: var(--surface);

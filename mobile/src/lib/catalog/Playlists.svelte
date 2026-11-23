@@ -92,6 +92,7 @@
 				subtitle={item.track_count + (item.track_count === 1 ? ' track' : ' tracks')}
 				artwork={playlistCover(item)}
 				coverSeed={item.id}
+				playlistId={'playlist:' + item.id}
 				onclick={() => onopen(item)}
 			/>
 		{/each}

@@ -34,7 +34,9 @@ function localCover(raw?: string | null) {
 
 export function playlistArtwork(p: Playlist): string[] {
 	if (p.custom_cover_url)
-		return [path('/api/v3/playlists/{playlist_id}/cover', { playlist_id: p.id })];
+		return [
+			path('/api/v3/playlists/{playlist_id}/cover', { playlist_id: p.id }, { v: p.updated_at })
+		];
 	return [
 		...new Set((p.cover_urls ?? []).map((url) => localCover(url)).filter((s): s is string => !!s))
 	].slice(0, 4);
