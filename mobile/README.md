@@ -207,7 +207,7 @@ Use **Import colors from a web style** to preview compatible colors and corner r
 
 ## Build and test
 
-On a fresh checkout, install the dependencies in `frontend/` first. Its prepare script generates the TypeScript configuration for the shared sign-in code. From `mobile/`, use the Node.js and pnpm versions in `package.json`.
+From `mobile/`, use the Node.js and pnpm versions in `package.json`. Install the mobile dependencies once for both the app and its shared DroppedNeedle sources.
 
 ```sh
 pnpm install --frozen-lockfile
@@ -223,7 +223,7 @@ For Android, install JDK 21 and Android SDK Platform 36. Run `./gradlew assemble
 
 ### Build and test the iPhone app
 
-The app targets iOS 16.4 or later for the WebKit features used by the shared player and themes. Use the frontend’s pinned pnpm version for `frontend/` and the mobile package’s pinned version for `mobile/`. From `mobile/` run `pnpm build && pnpm exec cap sync ios`, then open `ios/App/App.xcodeproj` in Xcode 26 or later. Choose an iPhone simulator and run **App**. For installation on a real iPhone, select your Apple development team in **Signing & Capabilities**. [Capacitor iOS setup](https://capacitorjs.com/docs/ios)
+The app targets iOS 16.4 or later for the WebKit features used by the shared player and themes. From `mobile/` run `pnpm build && pnpm exec cap sync ios`, then open `ios/App/App.xcodeproj` in Xcode 26 or later. Choose an iPhone simulator and run **App**. For installation on a real iPhone, select your Apple development team in **Signing & Capabilities**. [Capacitor iOS setup](https://capacitorjs.com/docs/ios)
 
 The **iPhone simulator** GitHub workflow uses the committed Swift package versions, launches the unsigned simulator app, checks the DN sign-in form and verifies the app privacy manifest in an unsigned Release archive. Run `scripts/test-iphone.sh` from `mobile/` on a Mac or Linux with Swift and a C compiler to exercise the queue archive, library paging, radio selection, audio processing, downloads, artwork, listening history and file export. Use an iPhone for audio-route changes, background playback, the lock screen and AirPlay.
 

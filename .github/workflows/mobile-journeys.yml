@@ -1,0 +1,30 @@
+name: Mobile journeys
+on:
+  push:
+    branches: [main, ios]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  journeys:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+        with:
+          package_json_file: mobile/package.json
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .github/node-version
+          cache: pnpm
+          cache-dependency-path: mobile/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm check && pnpm lint
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm test:journey browser-pairing.spec.ts offline.spec.ts queue-continuity.spec.ts request-actions.spec.ts
