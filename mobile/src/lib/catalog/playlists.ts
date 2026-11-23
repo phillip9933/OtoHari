@@ -11,7 +11,15 @@ import {
 } from './playlistOffline';
 
 type Schema = components['schemas'];
-export type Playlist = Schema['PlaylistSummary'];
+export type Playlist = Schema['PlaylistSummary'] & { coverObservation?: string };
+
+function observePlaylist<P extends Playlist>(p: P): P {
+	// DN exposes whole seconds. Two covers can share a revision while that second is current.
+	// Give each fresh response in that window its own URL, including its offline snapshot.
+	return p.custom_cover_url && p.updated_at >= Math.floor(Date.now() / 1000) - 1
+		? { ...p, coverObservation: crypto.randomUUID() }
+		: p;
+}
 
 export async function playlists(session: Session, signal?: AbortSignal) {
 	const list = await getJson<Schema['PlaylistListResponse']>(
@@ -19,7 +27,9 @@ export async function playlists(session: Session, signal?: AbortSignal) {
 		path('/api/v3/playlists'),
 		signal
 	);
-	const visible = list.playlists.filter((p): p is Playlist => !p.is_redacted && 'name' in p);
+	const visible = list.playlists
+		.filter((p): p is Playlist => !p.is_redacted && 'name' in p)
+		.map(observePlaylist);
 	rememberPlaylistList(session, visible, playlistArtwork);
 	return visible;
 }
@@ -35,7 +45,11 @@ function localCover(raw?: string | null) {
 export function playlistArtwork(p: Playlist): string[] {
 	if (p.custom_cover_url)
 		return [
-			path('/api/v3/playlists/{playlist_id}/cover', { playlist_id: p.id }, { v: p.updated_at })
+			path(
+				'/api/v3/playlists/{playlist_id}/cover',
+				{ playlist_id: p.id },
+				{ v: p.updated_at, observation: p.coverObservation }
+			)
 		];
 	return [
 		...new Set((p.cover_urls ?? []).map((url) => localCover(url)).filter((s): s is string => !!s))
@@ -183,9 +197,10 @@ export async function readPlaylist(
 		return { entry, index };
 	});
 	signal?.throwIfAborted();
+	const observed = observePlaylist(detail);
 	if (!resolutionFailed && !(requireComplete && keepExisting))
-		rememberPlaylistTracks(session, detail, tracks, playlistArtwork(detail));
-	return { playlist: detail as Playlist, rows, tracks, resolutionFailed, keepExisting };
+		rememberPlaylistTracks(session, observed, tracks, playlistArtwork(observed));
+	return { playlist: observed as Playlist, rows, tracks, resolutionFailed, keepExisting };
 }
 
 export function createPlaylist(session: Session, name: string) {

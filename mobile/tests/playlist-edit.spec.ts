@@ -243,6 +243,8 @@ test('owned playlist artwork syncs in both directions and can be restored from t
 	await page.getByRole('button', { name: 'Library', exact: true }).click();
 	await page.getByRole('button', { name: 'Browse Playlists' }).click();
 	const playlist = page.getByRole('button', { name: 'My mix', exact: true });
+	await page.clock.setFixedTime(new Date('2026-01-01T12:00:00.000Z'));
+	state.lists[0].updated_at = Date.UTC(2026, 0, 1, 12) / 1000 - 1;
 	await playlist.click();
 	const artwork = page.getByRole('button', { name: 'Change playlist artwork' });
 	await artwork.click();
@@ -271,7 +273,9 @@ test('owned playlist artwork syncs in both directions and can be restored from t
 	expect(state.covers.get('mine')?.content_type).toBe('image/webp');
 	await page.getByRole('button', { name: 'Back to playlists' }).click();
 	await expect(playlist.locator('img')).toHaveJSProperty('naturalWidth', 512);
+	const revision = state.lists[0].updated_at;
 	state.setCover(state.lists[0], { content_type: 'image/png', image_base64: png });
+	state.lists[0].updated_at = revision;
 	await playlist.click();
 	await expect(artwork.locator('img')).toHaveJSProperty('naturalWidth', 920);
 	await page.getByRole('button', { name: 'Back to playlists' }).click();
