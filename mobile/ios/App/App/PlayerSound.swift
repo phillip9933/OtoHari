@@ -133,7 +133,8 @@ final class PlayerSound {
 
     func apply(to item: AVPlayerItem, metadata: [String: Any]) {
         let eq = equalizer(route), mode = replayGain
-        let lookup = mode != "off" && (metadata[mode == "album" ? "replayGainAlbumDb" : "replayGainTrackDb"] as? Double) == nil
+        let prefix = mode == "album" ? "replayGainAlbum" : "replayGainTrack"
+        let lookup = mode != "off" && (metadata[prefix + "Db"] as? Double == nil || metadata[prefix + "Peak"] as? Double == nil)
         guard !external && (eq.enabled || lookup || gain(metadata) != 1) else { item.audioMix = nil; return }
         let levels = (eq.enabled ? eq.levels : Self.flat).map { NSNumber(value: $0) }
         let revision = self.revision
@@ -141,10 +142,15 @@ final class PlayerSound {
             guard let asset = item?.asset,
                   let tracks = try? await asset.loadTracks(withMediaType: .audio),
                   let track = tracks.first, let item, let self, self.revision == revision else { return }
-            let tags = lookup ? await Self.embeddedGain(asset, missingFrom: metadata) : metadata
+            let initial = self.gain(metadata)
+            item.audioMix = (eq.enabled || initial != 1) ? DNProcessingMix(track, levels, initial) : nil
+            guard lookup else { return }
+            let tags = await Self.embeddedGain(asset, missingFrom: metadata)
             guard self.revision == revision else { return }
             let amplitude = self.gain(tags)
-            item.audioMix = (eq.enabled || amplitude != 1) ? DNProcessingMix(track, levels, amplitude) : nil
+            if amplitude != initial {
+                item.audioMix = (eq.enabled || amplitude != 1) ? DNProcessingMix(track, levels, amplitude) : nil
+            }
         }
     }
     var eqEnabled: Bool { equalizer(route).enabled }

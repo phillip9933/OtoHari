@@ -1,12 +1,12 @@
 {
   "sourceLanguage": "en",
   "strings": {
-    "DroppedNeedle": {
+    "OtoHari": {
       "localizations": {
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "DroppedNeedle"
+            "value": "OtoHari"
           }
         }
       }
@@ -71,12 +71,12 @@
         }
       }
     },
-    "See what’s playing in DroppedNeedle and control your queue.": {
+    "See what’s playing in OtoHari and control your queue.": {
       "localizations": {
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "DroppedNeedle で再生中の曲を確認し、キューを操作できます。"
+            "value": "OtoHari で再生中の曲を確認し、キューを操作できます。"
           }
         }
       }

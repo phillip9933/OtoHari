@@ -101,12 +101,14 @@ final class LibraryPageLoad: PlayerJSONLoad, @unchecked Sendable {
 }
 
 class PlayerJSONLoad: NSObject, URLSessionDataDelegate, @unchecked Sendable {
-    private static let limit = 2 * 1024 * 1024
+    private let limit: Int
     private let done: (Result<Data, Error>) -> Void
     private var body = Data(), failure: Error?
     private var session: URLSession?
     private let lock = NSLock()
-    init(_ done: @escaping (Result<Data, Error>) -> Void) { self.done = done }
+    init(limit: Int = 2 * 1024 * 1024, _ done: @escaping (Result<Data, Error>) -> Void) {
+        self.limit = limit; self.done = done
+    }
     func start(_ request: URLRequest, configuration: URLSessionConfiguration = .ephemeral) {
         configuration.urlCache = nil; configuration.httpCookieStorage = nil; configuration.urlCredentialStorage = nil
         configuration.timeoutIntervalForRequest = 15; configuration.timeoutIntervalForResource = 30
@@ -120,13 +122,13 @@ class PlayerJSONLoad: NSObject, URLSessionDataDelegate, @unchecked Sendable {
     func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive response: URLResponse,
                     completionHandler: @escaping (URLSession.ResponseDisposition) -> Void) {
         guard let http = response as? HTTPURLResponse, http.statusCode == 200, http.mimeType?.lowercased() == "application/json",
-              http.expectedContentLength <= Int64(Self.limit) else {
+              http.expectedContentLength <= Int64(limit) else {
             failure = OfflineFiles.Failure("DN could not return the requested music."); completionHandler(.cancel); return
         }
         completionHandler(.allow)
     }
     func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive data: Data) {
-        guard data.count <= Self.limit - body.count else { failure = OfflineFiles.Failure("The DN response was too large."); dataTask.cancel(); return }
+        guard data.count <= limit - body.count else { failure = OfflineFiles.Failure("The DN response was too large."); dataTask.cancel(); return }
         body.append(data)
     }
     func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {

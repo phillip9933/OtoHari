@@ -26,6 +26,7 @@
 		BC40000B00000000000000F1 /* PlaybackWaveform.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC40000A00000000000000F1 /* PlaybackWaveform.swift */; };
 		BC40000B00000000000000F2 /* TrackFades.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC40000A00000000000000F2 /* TrackFades.swift */; };
 		BC40000B00000000000000AA /* LibraryContinuation.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC40000A00000000000000AA /* LibraryContinuation.swift */; };
+		BC40000B000000000000005E /* PlayerLoudness.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC40000A000000000000005E /* PlayerLoudness.swift */; };
 		BC40000B00000000000000A8 /* PlaybackHistory.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC40000A00000000000000A8 /* PlaybackHistory.swift */; };
 		BC40000B00000000000000A9 /* PlaybackReportSender.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC40000A00000000000000A9 /* PlaybackReportSender.swift */; };
 		BC40000B00000000000000AE /* OfflineListenJournal.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC40000A00000000000000AE /* OfflineListenJournal.swift */; };
@@ -70,6 +71,7 @@
 		BC40000A00000000000000F1 /* PlaybackWaveform.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackWaveform.swift; sourceTree = "<group>"; };
 		BC40000A00000000000000F2 /* TrackFades.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrackFades.swift; sourceTree = "<group>"; };
 		BC40000A00000000000000AA /* LibraryContinuation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryContinuation.swift; sourceTree = "<group>"; };
+		BC40000A000000000000005E /* PlayerLoudness.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerLoudness.swift; sourceTree = "<group>"; };
 		BC40000A00000000000000A8 /* PlaybackHistory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackHistory.swift; sourceTree = "<group>"; };
 		BC40000A00000000000000A9 /* PlaybackReportSender.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackReportSender.swift; sourceTree = "<group>"; };
 		BC40000A00000000000000AE /* OfflineListenJournal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OfflineListenJournal.swift; sourceTree = "<group>"; };
@@ -141,6 +143,7 @@
 				BC40000A00000000000000F1 /* PlaybackWaveform.swift */,
 				BC40000A00000000000000F2 /* TrackFades.swift */,
 				BC40000A00000000000000AA /* LibraryContinuation.swift */,
+				BC40000A000000000000005E /* PlayerLoudness.swift */,
 				BC40000A00000000000000A8 /* PlaybackHistory.swift */,
 				BC40000A00000000000000A9 /* PlaybackReportSender.swift */,
 				BC40000A00000000000000AE /* OfflineListenJournal.swift */,
@@ -275,6 +278,7 @@
 				BC40000B00000000000000F1 /* PlaybackWaveform.swift in Sources */,
 				BC40000B00000000000000F2 /* TrackFades.swift in Sources */,
 				BC40000B00000000000000AA /* LibraryContinuation.swift in Sources */,
+				BC40000B000000000000005E /* PlayerLoudness.swift in Sources */,
 				BC40000B00000000000000A8 /* PlaybackHistory.swift in Sources */,
 				BC40000B00000000000000A9 /* PlaybackReportSender.swift in Sources */,
 				BC40000B00000000000000AE /* OfflineListenJournal.swift in Sources */,
@@ -422,14 +426,14 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 30;
+				CURRENT_PROJECT_VERSION = 31;
 				INFOPLIST_FILE = App/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 16.4;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 0.23.1;
+				MARKETING_VERSION = 0.9.0;
 				OTHER_SWIFT_FLAGS = "$(inherited) \"-D\" \"COCOAPODS\" \"-DDEBUG\"";
 				PRODUCT_BUNDLE_IDENTIFIER = app.dnmusic.mobile;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -445,14 +449,14 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 30;
+				CURRENT_PROJECT_VERSION = 31;
 				INFOPLIST_FILE = App/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 16.4;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 0.23.1;
+				MARKETING_VERSION = 0.9.0;
 				PRODUCT_BUNDLE_IDENTIFIER = app.dnmusic.mobile;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "";

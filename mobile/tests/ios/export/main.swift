@@ -179,7 +179,7 @@ let layoutFolder = layoutFile.deletingLastPathComponent()
 let layoutBytes = try Data(contentsOf: layoutFile)
 let fileMode = try FileManager.default.attributesOfItem(atPath: layoutFile.path)[.posixPermissions] as? NSNumber
 let folderMode = try FileManager.default.attributesOfItem(atPath: layoutFolder.path)[.posixPermissions] as? NSNumber
-precondition(layoutFile.lastPathComponent == "droppedneedle-player-layout.json")
+precondition(layoutFile.lastPathComponent == "otohari-player-layout.json")
 precondition(layoutFolder.lastPathComponent == layoutID.uuidString && layoutBytes == Data(layout.utf8))
 precondition(fileMode?.intValue == 0o600 && folderMode?.intValue == 0o700)
 expectFailure(stageLayout(layoutID, "replacement"), "INVALID_EXPORT")

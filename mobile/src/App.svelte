@@ -65,7 +65,7 @@
 	import { artworkColorScope, showArtworkPalette } from './lib/appearance/theme';
 	import { watchArtworkPalette, type ArtworkPalette } from './lib/player/artworkPalette';
 	import Appearance from './lib/appearance/Appearance.svelte';
-	import brand from '../../frontend/static/logo_icon.png';
+	import brand from './assets/otohari-symbol.svg';
 	let session = $state<Session | null>(null);
 	let loading = $state(true);
 	let tab = $state<BrowseDestination>('home');
@@ -626,7 +626,7 @@
 				<span
 					class="brand-mark"
 					role="img"
-					aria-label="DroppedNeedle"
+					aria-label="OtoHari"
 					style:--brand-mark={'url("' + brand + '")'}
 				></span>
 			{/if}
@@ -647,7 +647,7 @@
 			<button class="text-button" onclick={() => (issue = '')}>{uiText('Dismiss')}</button>
 		</div>{/if}
 	<main bind:this={main} tabindex="-1">
-		{#if loading}<p role="status" class="pad">{uiText('Opening DroppedNeedle…')}</p>
+		{#if loading}<p role="status" class="pad">{uiText('Opening OtoHari…')}</p>
 		{:else}
 			{#if session}
 				<div
@@ -831,8 +831,8 @@
 	}
 	.brand-mark {
 		width: 3.35rem;
-		aspect-ratio: 641 / 334;
-		background: linear-gradient(110deg, #76ab40 0%, #b8dc61 58%, #f3d66a 100%);
+		aspect-ratio: 930 / 585;
+		background: var(--brand-ink, #c8fb6c);
 		mask: var(--brand-mark) left center / contain no-repeat;
 		-webkit-mask: var(--brand-mark) left center / contain no-repeat;
 	}

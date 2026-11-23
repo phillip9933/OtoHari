@@ -446,7 +446,7 @@ test('the Home header opens Settings at the right and direct dock shortcuts open
 	const b = (name: string) => page.getByRole('button', { name, exact: true });
 	const nav = page.getByRole('navigation', { name: 'Music' }),
 		header = page.getByRole('banner');
-	const logo = header.getByRole('img', { name: 'DroppedNeedle' });
+	const logo = header.getByRole('img', { name: 'OtoHari' });
 	await expect(logo).toBeVisible();
 	expect((await logo.boundingBox())!.width).toBeGreaterThan(44);
 	expect((await b('Settings').boundingBox())!.x).toBeGreaterThan(page.viewportSize()!.width / 2);

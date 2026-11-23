@@ -92,7 +92,7 @@
 					{:else}
 						<p>
 							{uiText(
-								'Allow DroppedNeedle to install apps in Android settings, then return here to install this update.'
+								'Allow OtoHari to install apps in Android settings, then return here to install this update.'
 							)}
 						</p>
 						<button

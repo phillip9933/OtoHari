@@ -66,7 +66,7 @@
 			>
 			<p>
 				{uiText(
-					'Track gain evens out individual songs. Album gain preserves the volume differences within an album. Both use the ReplayGain tags in your DN library.'
+					'Track gain evens out individual songs. Album gain preserves their relative volume. OtoHari uses loudness values from DN when available and falls back to ReplayGain tags.'
 				)}
 			</p>
 		{/if}

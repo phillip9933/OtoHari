@@ -434,9 +434,11 @@
 						{session}
 						editions={page === 'editions'}
 					/>
-				{:else if page === 'about'}<dl class="settings-facts" data-surface="panel">
+				{:else if page === 'about'}
+					<p>{uiText('OtoHari is an unofficial music player for DroppedNeedle.')}</p>
+					<dl class="settings-facts" data-surface="panel">
 						<div>
-							<dt>{uiText('Mobile app')}</dt>
+							<dt>{uiText('OtoHari version')}</dt>
 							<dd>{pkg.version}</dd>
 						</div>
 						{#if session}<div>

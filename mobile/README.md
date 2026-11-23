@@ -1,6 +1,11 @@
-# DroppedNeedle Mobile
+# OtoHari
 
-The Android and iOS apps connect to your DroppedNeedle v3 server. Play music from your DN library, manage your queue and playlists, and request albums or songs from the same server. Both apps bundle the same Svelte interface, including the player layout editor, themes and library screens. Android has been tested on a Pixel.
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="brand/otohari-horizontal-lime.svg">
+  <img src="brand/otohari-horizontal-black.svg" alt="OtoHari" width="260">
+</picture>
+
+OtoHari is an independent, unofficial music player for Android and iPhone. It connects to your own DroppedNeedle v3 server. The DroppedNeedle project does not develop or endorse OtoHari. Play music from your DN library, manage your queue and playlists, and request albums or songs from the same server. Both apps bundle the same Svelte interface, including the player layout editor, themes and library screens. Android has been tested on a Pixel.
 
 ## Connect your phone
 
@@ -16,7 +21,7 @@ Server administrators can add browser sign-in by building the DN web frontend wi
 
 On Android 8 or later, open **Settings → App → App updates**. You can also open Settings from the sign-in screen. Choose **Check for updates** to check the Android releases on GitHub. This works independently of your DroppedNeedle account.
 
-The app checks the stable channel about once a day by default. Choose **Beta** to include prereleases, or enable **Download automatically on Wi-Fi** to have the APK ready for later. Open **App updates** to read the release notes, download the APK and install it. If Android asks for permission, allow installs from DroppedNeedle, return to the app and tap **Install update**. Android asks you to confirm the installation.
+The app checks the stable channel about once a day by default. Choose **Beta** to include prereleases, or enable **Download automatically on Wi-Fi** to have the APK ready for later. Open **App updates** to read the release notes, download the APK and install it. If Android asks for permission, allow installs from OtoHari, return to the app and tap **Install update**. Android asks you to confirm the installation.
 
 ## Find a setting or change language
 
@@ -74,18 +79,18 @@ Layouts are stored on the phone for each DN server and account. **Settings → A
 
 ### iPhone Home Screen and Lock Screen widget
 
-In the widget-enabled iPhone build, add **DroppedNeedle → Now Playing** from the widget gallery. The small Home Screen widget and rectangular Lock Screen widget show the current track and open the player. The medium Home Screen widget adds previous, play or pause, and next. Tapping a control opens the app and acts on the displayed queue entry. The widget uses the current album thumbnail and clears its display when you sign out. iOS controls when the widget redraws.
+In the widget-enabled iPhone build, add **OtoHari → Now Playing** from the widget gallery. The small Home Screen widget and rectangular Lock Screen widget show the current track and open the player. The medium Home Screen widget adds previous, play or pause, and next. Tapping a control opens the app and acts on the displayed queue entry. The widget uses the current album thumbnail and clears its display when you sign out. iOS controls when the widget redraws.
 
 To build this version on a Mac with Xcode, run the following from `mobile/` after installing dependencies. Supply your iPhone app’s bundle identifier as the final argument.
 
 ```sh
 pnpm build
 pnpm exec cap sync ios
-node scripts/prepare-iphone-widget.mjs com.example.droppedneedle
+node scripts/prepare-iphone-widget.mjs com.example.otohari
 open ios/App/AppWidgets.xcodeproj
 ```
 
-Choose the **App** scheme. For device installation, use the same Apple development team for the app and its **NowPlayingWidget** extension. Register and enable the shared App Group for both identifiers. In this example the app group is `group.com.example.droppedneedle` and the extension identifier is `com.example.droppedneedle.NowPlayingWidget`. The extension supports iOS 16.4 and later. Run the generator again after changes to the base Xcode project. The standard iPhone build uses `App.xcodeproj` and can be signed independently of the widget.
+Choose the **App** scheme. For device installation, use the same Apple development team for the app and its **NowPlayingWidget** extension. Register and enable the shared App Group for both identifiers. In this example the app group is `group.com.example.otohari` and the extension identifier is `com.example.otohari.NowPlayingWidget`. The extension supports iOS 16.4 and later. Run the generator again after changes to the base Xcode project. The standard iPhone build uses `App.xcodeproj` and can be signed independently of the widget.
 
 ## Listening and library coverage
 
@@ -127,7 +132,7 @@ In **Play queue**, shuffle the upcoming songs and tap the shuffle control again 
 
 **Play next** inserts a song immediately after the playing one. **Add to Up Next** puts it after your other picks, and **Add to queue** appends it to the end. The queue shows your picks under **Up Next** and the original album, playlist or library order below. You can choose a song twice, shuffle the underlying queue, or reopen the app and keep your picks in order. Choose **Similar tracks** in the queue to pick individual suggestions from DN.
 
-**Playback speed** is available in **Playback → Sound** and in **More actions** on the player. On Android, **Volume normalization** applies track or album ReplayGain to local audio. Album mode uses track gain when the album tag is missing. Untagged songs keep their original level. Under **Settings → Playback → Sound → Equalizer**, enable a separate preset for the connected output to recall its curve when you reconnect.
+**Playback speed** is available in **Playback → Sound** and in **More actions** on the player. **Volume normalization** uses DN’s track or album loudness values for local playback. If the server lacks the loudness endpoint or a value is missing, OtoHari can use ReplayGain metadata from the queue or the audio file. Album mode uses track gain when album gain is missing. Songs with no available gain play at their original level. Under **Settings → Playback → Sound → Equalizer**, enable a separate preset for the connected output to recall its curve when you reconnect.
 
 To move music between Android and the web, enable **Player handoff** in mobile Settings and in the web player's Profile on the same DN account. **Move queue there** and **Continue here** preserve the song, position, order and paused state for fully loaded queues of up to 2,000 local tracks. You can also pause, play or skip on the other device. Keep both players open and connected. This requires the matching DN server and web build.
 
@@ -171,7 +176,7 @@ Use the cast icon in Now Playing or **Settings → Playback → Cast and audio o
 
 ## Android Auto, speakers and library shortcuts
 
-Android Auto can browse your DN library, playlists, favorites and saved music, and find songs by voice. Add the DroppedNeedle widget from the Android launcher for playback controls. On Android, tapping the system media card or the widget title opens Now Playing and keeps the current playback state. Open a DN playlist in the app to pin a shortcut that returns to it under your account.
+Android Auto can browse your DN library, playlists, favorites and saved music, and find songs by voice. Add the OtoHari widget from the Android launcher for playback controls. On Android, tapping the system media card or the widget title opens Now Playing and keeps the current playback state. Open a DN playlist in the app to pin a shortcut that returns to it under your account.
 
 In **Cast and audio output → Find network speakers**, Sonos rooms show their groups. Select a room to adjust its volume, join another group or leave a group. Playback goes through the group coordinator.
 
@@ -225,7 +230,7 @@ For Android, install JDK 21 and Android SDK Platform 36. Run `./gradlew assemble
 
 The app targets iOS 16.4 or later for the WebKit features used by the shared player and themes. From `mobile/` run `pnpm build && pnpm exec cap sync ios`, then open `ios/App/App.xcodeproj` in Xcode 26 or later. Choose an iPhone simulator and run **App**. For installation on a real iPhone, select your Apple development team in **Signing & Capabilities**. [Capacitor iOS setup](https://capacitorjs.com/docs/ios)
 
-The **iPhone simulator** GitHub workflow uses the committed Swift package versions, launches the unsigned simulator app, checks the DN sign-in form and verifies the app privacy manifest in an unsigned Release archive. Run `scripts/test-iphone.sh` from `mobile/` on a Mac or Linux with Swift and a C compiler to exercise the queue archive, library paging, radio selection, audio processing, downloads, artwork, listening history and file export. Use an iPhone for audio-route changes, background playback, the lock screen and AirPlay.
+The **OtoHari iPhone simulator** GitHub workflow uses the committed Swift package versions, launches the unsigned simulator app, checks the DN sign-in form and verifies the app privacy manifest in an unsigned Release archive. Run `scripts/test-iphone.sh` from `mobile/` on a Mac or Linux with Swift and a C compiler to exercise the queue archive, library paging, radio selection, audio processing, downloads, artwork, listening history and file export. Use an iPhone for audio-route changes, background playback, the lock screen and AirPlay.
 
 The iPhone uses the same OIDC pairing page as Android. Now Playing supports Up Next, playback handoff, output-specific equalizer settings, ReplayGain, speed, separate fades and smart fades. Open **Cast and audio output** for AirPlay. To pin a playlist, open its menu and choose the shortcut option, then press and hold the app icon on the Home Screen. iPhone updates use Apple distribution channels. The current queue takes priority when its saved data and the previous queue would exceed the 3 MiB restore limit. The app reports queue edits that exceed the limit before applying them. Playlist exports support up to 64 MiB per file and reserve 32 MiB of free space on the device.
 
@@ -235,10 +240,10 @@ The development branch runs the simulator checks on GitHub’s macOS runners. Th
 
 **One-time setup**
 
-1. In your paid Apple Developer account, use the explicit iPhone bundle ID `app.dnmusic.mobile`. In **App Store Connect → Apps → + → New App**, select iOS and that bundle ID, enter a unique SKU of your choice, and choose an available name that identifies this as an unofficial client. Forks distributing under another identifier must update both configurations of the Xcode App target and the simulator launch check. [Create an app record](https://developer.apple.com/help/app-store-connect/create-an-app-record/add-a-new-app/)
+1. Use the existing App Store Connect record for `app.dnmusic.mobile`. Update the localized display name to **OtoHari** when the record is editable. This retains the tester groups and build history. Forks creating their own app record must use their own bundle identifier in the App target and the simulator launch check. [App information](https://developer.apple.com/help/app-store-connect/reference/app-information/app-and-compliance-information/)
 2. Create an **Apple Distribution** certificate and an **App Store Connect** provisioning profile for the app and certificate. Keep the certificate’s private key safe. Export the certificate and private key together as a password-protected PKCS#12 file. These steps can be done from Linux using an OpenSSL certificate signing request and Apple’s developer portal. [App Store Connect provisioning profile](https://developer.apple.com/help/account/provisioning-profiles/create-an-app-store-provisioning-profile/)
 3. In **App Store Connect → Users and Access → Integrations**, create a team API key with permission to upload builds (Developer or App Manager). Keep the downloaded `.p8` private. Record the key ID and issuer ID. [App Store Connect API keys](https://developer.apple.com/help/app-store-connect/get-started/app-store-connect-api/)
-4. In your fork’s **Settings → Environments**, create `testflight`. Restrict deployment to your release tags and configure reviewer approval if appropriate for your team. Add the following **environment** settings. Keep private credentials out of the repository and release notes.
+4. In the OtoHari repository’s **Settings → Environments**, create `testflight`. Restrict deployment to your release tags and configure reviewer approval if appropriate for your team. Add the following **environment** settings. Keep private credentials out of the repository and release notes.
 
 | Type | Name | Value |
 | --- | --- | --- |
@@ -251,25 +256,15 @@ The development branch runs the simulator checks on GitHub’s macOS runners. Th
 
 **Each beta**
 
-Choose the iOS version and a fresh build number in the **App** target (`MARKETING_VERSION` and `CURRENT_PROJECT_VERSION`). Commit them on `feat/mobile-iphone`, push that commit, then push its matching tag. For example, version `0.7.0`, build `31`, uses tag `ios-v0.7.0-build.31`. The workflow tests the commit, checks the version inside the archive, signs it, and uploads it to App Store Connect. A subsequent build for the same version needs a higher build number.
+Set the marketing version and build number in the **App** target and keep the mobile package version in sync. Pushing the `ios` branch runs the checks and produces an unsigned device archive. Download the `iphone-archive` artifact from the successful run. A release tag is only needed when you are ready to upload: pushing `ios-v<version>-build.<build>` at the tested commit starts the separate signing and TestFlight upload job.
 
 After Apple processes the upload, open **App Store Connect → your app → TestFlight** and complete any compliance prompts. Add the build to an external testing group, fill in beta review information (including a working reviewer login for this server-based app), and submit it for beta review. Once approved, invite testers by email; they install it through TestFlight on their iPhone. [Invite external testers](https://developer.apple.com/help/app-store-connect/test-a-beta-version/invite-external-testers/)
 
-### Prepare an Android GitHub release
-
-Set the mobile package version and Android `versionName` to the same version, and increase the Android `versionCode` for every release, including betas. After `pnpm sync`, generate a signed, standalone **release APK** in Android Studio using the same signing identity as the builds distributed to users. Android requires that identity for an in-place upgrade. Ordinary `assembleDebug` builds are for USB testing.
-
-From `mobile/`, set `ANDROID_HOME` to your SDK directory. Set `DN_ANDROID_RELEASE_CERT_SHA256` to the trusted public distribution certificate’s SHA-256 fingerprint from your release configuration. The stable and beta channels use the same signing identity. Then run the following with the signed APK and an output directory of your choice.
-
-```sh
-pnpm android:prepare-update /path/to/signed.apk /path/to/release-assets
-```
-
-The command verifies the signing fingerprint, package, version and release build type. It reads the mobile fork’s public release history and downloads the most recently published Android APK, including betas, to check its actual version code. The new code must match the Gradle build and exceed that published code. After these checks it copies the APK under the filename the app expects. Create a release on the mobile fork using the tag it prints and attach that file. For example, version `0.23.0` uses tag `android-v0.23.0` and asset `droppedneedle-android-0.23.0.apk`. For `0.23.0-beta.1`, use `android-v0.23.0-beta.1` and mark the GitHub release as a prerelease. The Android app only reads published releases. [Mobile fork releases](https://github.com/phillip9933/DroppedNeedle/releases)
+For the Android release process, see the [Android branch guide](https://github.com/phillip9933/OtoHari/blob/main/mobile/README.md#android-release-overlap).
 
 ## How the clients fit together
 
-The mobile app is a separate Svelte entry point. It shares the v3 contract, browser pairing format, theme colors, EQ preset curves, artwork and player handoff controls with the web frontend. The mobile build bundles its UI on the device. Browser pairing uses the DN web sign-in page. Handoff uses two account-scoped v3 routes on the matching Rust server. Recent-play smart rules and server-provided ReplayGain tags use new optional catalog fields. An existing server can still provide library browsing and streaming.
+The mobile app is a separate Svelte entry point. It shares the v3 contract, browser pairing format, theme colors, EQ preset curves and player handoff controls with the web frontend. The mobile build bundles its UI on the device. Browser pairing uses the DN web sign-in page. Handoff uses two account-scoped v3 routes on the matching Rust server. Recent-play smart rules use optional listening-history fields. For ReplayGain, OtoHari reads the upstream `GET /api/v3/library/tracks/{id}/loudness` endpoint and supports older servers that include ReplayGain fields in track, playlist or radio responses. An existing server can still provide library browsing and streaming.
 
 Android uses a Media3 playback service. iOS uses AVQueuePlayer and a resource loader for authenticated byte-range requests. The native player owns the track queue. The Svelte view reads its current state when the user reopens the app. Native API and audio requests authenticate to the selected server. Native session credentials use Keychain or Android Keystore-backed storage. The web preview holds credentials in memory and fetches each track before play.
 

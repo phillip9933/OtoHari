@@ -40,8 +40,8 @@ export function playlistShortcutReceipt(removed: boolean) {
 		);
 	return platform === 'ios'
 		? tr(
-				'Touch and hold DroppedNeedle on the Home Screen to open this playlist.',
-				'ホーム画面でDroppedNeedleを長押しすると、このプレイリストを開けます。'
+				'Touch and hold OtoHari on the Home Screen to open this playlist.',
+				'ホーム画面で OtoHari を長押しすると、このプレイリストを開けます。'
 			)
 		: tr(
 				'Confirm the playlist shortcut in your launcher.',

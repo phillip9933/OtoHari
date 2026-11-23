@@ -14,6 +14,7 @@ run() {
 }
 run offline OfflineFiles
 run library OfflineFiles LibraryContinuation PlayerQueueOrder PlaybackArchive
+run loudness OfflineFiles LibraryContinuation PlayerLoudness
 run playback OfflineFiles LibraryContinuation PlayerQueueOrder PlaybackArchive
 run history PlaybackHistory PlaybackReportSender OfflineListenJournal OfflineListenReplay
 run artwork OfflineFiles PlaybackArtwork

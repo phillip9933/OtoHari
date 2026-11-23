@@ -196,7 +196,7 @@ export function importPlayerStyle(text: string): Section[] {
 		(value.version !== 1 && value.version !== 2 && value.version !== PLAYER_GRID_VERSION) ||
 		!Array.isArray(value.sections)
 	)
-		throw Error('Use a DroppedNeedle player layout in version 1, 2 or 3 format.');
+		throw Error('Use an OtoHari player layout in version 1, 2 or 3 format.');
 	if (Object.keys(value).some((key) => !['format', 'version', 'sections'].includes(key)))
 		throw Error('The layout includes an unknown field.');
 	const version = value.version;

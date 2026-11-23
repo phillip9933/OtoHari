@@ -8,8 +8,8 @@
 	const iphone = Capacitor.getPlatform() === 'ios';
 	const statuses = {
 		undecided: 'Notification permission has not been requested.',
-		appOff: 'Off for DroppedNeedle.',
-		appOn: 'On for DroppedNeedle. The download channel appears after your first download starts.',
+		appOff: 'Off for OtoHari.',
+		appOn: 'On for OtoHari. The download channel appears after your first download starts.',
 		channelOff: 'Off for offline downloads.',
 		on: 'On for offline downloads.'
 	};

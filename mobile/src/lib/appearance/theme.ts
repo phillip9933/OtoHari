@@ -289,6 +289,7 @@ function paint(selection: Selection) {
 		}[theme.typeface]
 	);
 	root.style.colorScheme = cover ? mode : isLight(displayed.bg) ? 'light' : 'dark';
+	root.style.setProperty('--brand-ink', root.style.colorScheme === 'light' ? '#050705' : '#c8fb6c');
 	if (Capacitor.isNativePlatform()) {
 		const style = root.style.colorScheme === 'light' ? SystemBarsStyle.Light : SystemBarsStyle.Dark;
 		// Capacitor sets the Android decor background while applying the icon style.

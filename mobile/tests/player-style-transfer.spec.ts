@@ -288,7 +288,7 @@ test('layout files round trip offline through review, cancellation and an explic
 	const downloading = page.waitForEvent('download');
 	await button('Save layout file').click();
 	const download = await downloading;
-	expect(download.suggestedFilename()).toBe('droppedneedle-player-layout.json');
+	expect(download.suggestedFilename()).toBe('otohari-player-layout.json');
 	const bytes = await readFile((await download.path())!);
 	expect(bytes.toString('utf8')).toEqual(exported);
 	expect(importPlayerStyle(exported)).toEqual(toPlayerGrid(layout));

@@ -21,7 +21,8 @@ private struct Provider: TimelineProvider {
 private struct PlayerTile: View {
     @Environment(\.widgetFamily) private var family
     let entry: Entry
-    let accent = Color(red: 0.75, green: 0.91, blue: 0.37)
+    private let accent = Color(red: 200/255, green: 251/255, blue: 108/255)
+    private let background = Color(red: 5/255, green: 7/255, blue: 5/255)
     @ViewBuilder private var art: some View {
         if let data = entry.record?.artwork, let image = UIImage(data: data) {
             Image(uiImage: image).resizable().scaledToFill()
@@ -37,7 +38,7 @@ private struct PlayerTile: View {
     @ViewBuilder private var content: some View {
         if family == .accessoryRectangular {
             VStack(alignment: .leading) {
-                Label("DroppedNeedle", systemImage: "waveform")
+                Label("OtoHari", systemImage: "waveform")
                 if let record = entry.record {
                     Text(record.title).fontWeight(.semibold).lineLimit(1).privacySensitive()
                     Text(record.artist).lineLimit(1).privacySensitive()
@@ -73,11 +74,11 @@ private struct PlayerTile: View {
     }
     var body: some View {
         if #available(iOSApplicationExtension 17.0, *) {
-            content.containerBackground(for: .widget) { Color(red: 0.06, green: 0.09, blue: 0.07) }
+            content.containerBackground(for: .widget) { background }
                 .environment(\.colorScheme, .dark).widgetURL(PlayerWidgetSnapshot.link())
         } else {
             content.frame(maxWidth: .infinity, maxHeight: .infinity).foregroundStyle(.white)
-                .background(Color(red: 0.06, green: 0.09, blue: 0.07)).widgetURL(PlayerWidgetSnapshot.link())
+                .background(background).widgetURL(PlayerWidgetSnapshot.link())
         }
     }
 }
@@ -86,7 +87,7 @@ struct NowPlayingWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: PlayerWidgetSnapshot.kind, provider: Provider()) { PlayerTile(entry: $0) }
             .configurationDisplayName("Now Playing")
-            .description("See what’s playing in DroppedNeedle and control your queue.")
+            .description("See what’s playing in OtoHari and control your queue.")
             .supportedFamilies([.systemSmall, .systemMedium, .accessoryRectangular])
     }
 }

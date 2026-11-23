@@ -138,9 +138,7 @@
 	{#each pendingServers as server (server)}
 		<div role="status">
 			<p>
-				{uiText(
-					'Signed out on this device. DroppedNeedle will retry server sign-out when connected.'
-				)}
+				{uiText('Signed out on this device. OtoHari will retry server sign-out when connected.')}
 				{server}
 			</p>
 			<button
@@ -172,6 +170,7 @@
 					: uiText('Your browser sign-in is ready. Reconnect to your server to finish.')}
 			</p>
 		{:else if !methods}
+			<p>{uiText('OtoHari is an unofficial music player for DroppedNeedle.')}</p>
 			<label
 				>{uiText('Server address')}<input
 					required

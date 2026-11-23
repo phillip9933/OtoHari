@@ -1586,7 +1586,7 @@ test('Home scrolling, dragging up to Now Playing and reversing a mini-player pul
 			});
 		const catalogAtRest = await catalogGeometry();
 		const homeFrame = await page.screenshot();
-		const brand = (await page.getByRole('img', { name: 'DroppedNeedle' }).boundingBox())!;
+		const brand = (await page.getByRole('img', { name: 'OtoHari' }).boundingBox())!;
 		const brandPatch = { x: brand.x + brand.width * 0.2, y: brand.y + brand.height * 0.3 };
 
 		await touch.holdAt(x, y);

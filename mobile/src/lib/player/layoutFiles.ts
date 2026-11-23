@@ -5,7 +5,7 @@ import { maxPlayerStyleBytes } from './playerStyle';
 export async function saveLayoutFile(text: string): Promise<'saved' | 'download' | 'cancelled'> {
 	if (Capacitor.isNativePlatform())
 		return (await nativeDocuments.saveLayout({ text })).saved ? 'saved' : 'cancelled';
-	downloadFile(new Blob([text], { type: 'application/json' }), 'droppedneedle-player-layout.json');
+	downloadFile(new Blob([text], { type: 'application/json' }), 'otohari-player-layout.json');
 	return 'download';
 }
 

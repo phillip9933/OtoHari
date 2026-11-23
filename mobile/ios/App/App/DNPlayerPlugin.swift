@@ -17,6 +17,7 @@ public final class DNPlayerPlugin: CAPPlugin, CAPBridgedPlugin {
 
     private var player = AVQueuePlayer()
     private let sound = PlayerSound()
+    private let loudness = PlayerLoudness()
     private let widget = WidgetPublishing()
     private let waveforms = PlaybackWaveform()
     private struct Track {
@@ -158,7 +159,7 @@ public final class DNPlayerPlugin: CAPPlugin, CAPBridgedPlugin {
                     if seconds != nil { self.keepIntro = transition.queued }
                     if let seconds, seconds > 0 {
                         let incomingItem = AVPlayerItem(asset: transition.queued.asset)
-                        self.sound.apply(to: incomingItem, metadata: nextTrack.data)
+                        self.applySound(to: incomingItem, track: nextTrack)
                         let incoming = AVQueuePlayer(items: [incomingItem])
                         incoming.allowsExternalPlayback = false
                         incoming.volume = 0
@@ -519,15 +520,34 @@ public final class DNPlayerPlugin: CAPPlugin, CAPBridgedPlugin {
             }
         }
     }
-    private func refreshSound() {
+    private func applySound(to item: AVPlayerItem, track: Track) {
+        sound.apply(to: item, metadata: loudness.metadata(id: track.saved.id, inline: track.data))
+    }
+
+    private func updateLoudness() {
+        guard sound.replayGain != "off", !sound.external else { loudness.clear(); return }
+        let ids = Set(player.items().compactMap { item in
+            streams[ObjectIdentifier(item)].flatMap { entry in queue.first(where: { $0.key == entry.key })?.saved.id }
+        })
+        let store = (try? DeviceOffline.shared.account(serverAddress, userID))?.1
+        let online = network != .offline && (store.map { !$0.options().offlineOnly } ?? (userID == nil))
+        loudness.update(ids: ids, server: serverAddress, token: token, online: online) { [weak self] in self?.refreshItemMixes() }
+    }
+
+    private func refreshItemMixes() {
         sound.invalidate()
         for item in player.items() {
             if let entry = streams[ObjectIdentifier(item)], let track = queue.first(where: { $0.key == entry.key }) {
-                sound.apply(to: item, metadata: track.data)
+                applySound(to: item, track: track)
             }
         }
         if let mix, let item = mix.incoming?.currentItem, let next = streams[ObjectIdentifier(mix.queued)],
-           let track = queue.first(where: { $0.key == next.key }) { sound.apply(to: item, metadata: track.data) }
+           let track = queue.first(where: { $0.key == next.key }) { applySound(to: item, track: track) }
+    }
+
+    private func refreshSound() {
+        updateLoudness()
+        refreshItemMixes()
         if player.rate != 0 && intent.canPlay { player.rate = sound.speed }
         if let incoming = mix?.incoming, incoming.rate != 0 && intent.canPlay { incoming.rate = sound.speed }
     }
@@ -784,6 +804,7 @@ public final class DNPlayerPlugin: CAPPlugin, CAPBridgedPlugin {
         archive = try? PlaybackArchive(folder: folder)
     }
     private func clearItems(keepingHistory: Bool = false) {
+        loudness.clear(); sound.invalidate()
         cancelMix(); protectedIntro = nil; keepIntro = nil
         waveforms.stop()
         if keepingHistory { sampleHistory(pausedForReplacement: true); historyItem = nil }
@@ -871,7 +892,7 @@ public final class DNPlayerPlugin: CAPPlugin, CAPBridgedPlugin {
             stream = remote
             item = AVPlayerItem(asset: remote.asset)
         }
-        sound.apply(to: item, metadata: track.data)
+        applySound(to: item, track: track)
         streams[ObjectIdentifier(item)] = (queue[index].key, occurrence, profile, source, network, stream)
         player.insert(item, after: player.items().last)
     }
@@ -883,6 +904,7 @@ public final class DNPlayerPlugin: CAPPlugin, CAPBridgedPlugin {
         }
         guard let item = player.currentItem, let entry = streams[ObjectIdentifier(item)],
               let activeIndex = queue.firstIndex(where: { $0.key == entry.key }) else {
+            loudness.clear()
             loadArtwork()
             if deferredPosition == nil && retained.isEmpty {
                 if !atLibraryBoundary && !(allowsSuggestions && index == queue.count - 1 && intent.requested && suggestionProblem == nil) { intent.pause() }
@@ -931,6 +953,7 @@ public final class DNPlayerPlugin: CAPPlugin, CAPBridgedPlugin {
             }
         }
         if player.items().count == 1, let following { append(following) }
+        updateLoudness()
         loadWindow(); loadSuggestions(); updateReadAhead()
         publishNowPlaying()
     }
@@ -1452,6 +1475,7 @@ public final class DNPlayerPlugin: CAPPlugin, CAPBridgedPlugin {
     }
 
     deinit {
+        loudness.clear()
         cancelMix(); stopTransportObservers(); waveforms.stop()
         pathMonitor.cancel(); sleepWake?.cancel(); pageLoad?.cancel(); offlineHistory.authorize(nil); reports.close()
         player.pause()

@@ -26,7 +26,7 @@ enum PlaylistExportError: LocalizedError {
         case .invalid: return "Check the playlist address and export filename."
         case .invalidLayout: return "Use player layout text no larger than 64 KiB."
         case .unavailable: return "Prepare the playlist again before saving."
-        case .picker: return "Return to DroppedNeedle and close any open sheet before saving the file."
+        case .picker: return "Return to OtoHari and close any open sheet before saving the file."
         case .cancelled: return "Playlist export cancelled."
         case .response: return "DN returned an incomplete or unexpected file. Check the server address and sign-in proxy."
         case .network: return "The connection to DN stopped before the export finished."
@@ -173,7 +173,7 @@ final class PlaylistExports: @unchecked Sendable {
             guard bytes.count <= Self.maxLayoutBytes else { done(.failure(.invalidLayout)); return }
             do {
                 let folder = try self.createFolder(id)
-                let file = folder.appendingPathComponent(diagnostics ? "droppedneedle-diagnostics.json" : "droppedneedle-player-layout.json", isDirectory: false)
+                let file = folder.appendingPathComponent(diagnostics ? "otohari-diagnostics.json" : "otohari-player-layout.json", isDirectory: false)
                 guard FileManager.default.createFile(atPath: file.path, contents: bytes, attributes: privateAttributes(directory: false)) else {
                     try? FileManager.default.removeItem(at: folder)
                     throw PlaylistExportError.file

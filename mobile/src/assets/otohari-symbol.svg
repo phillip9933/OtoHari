@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="930" height="585" viewBox="160 220 930 585" role="img" aria-labelledby="logo-title logo-description">
+<title id="logo-title">OtoHari symbol</title>
+<desc id="logo-description">Rounded OH monogram with a needle-shaped cutout and two record groove arcs.</desc>
+
+<g fill="#c8fb6c">
+  <path fill-rule="evenodd" d="M201.79043 478.5
+A253.5 253.5 0 1 1 199.65981 521.5
+H340.5 V560 H437 L447 616 H472 L487 560 H545 L565 442.5 H340.5 V478.5 Z
+M469.5 311.8 C518.5 319.8 572.7 357.2 592.7 387.2
+Q594.5 389.8 591.8 391.7 Q589 393.5 587.3 390.8
+C567.3 360.8 518.5 326.2 470.5 318.2
+Q467 317.7 466.8 314.5 Q467 311.2 469.5 311.8 Z
+M285.1 610.45 C308.1 656.45 355.35 693.18 409.35 704.18
+Q412.5 704.83 413.18 701.65 Q413.83 698.5 410.65 697.82
+C356.65 686.82 313.9 653.55 290.9 607.55
+Q289.45 604.65 286.55 606.1 Q283.65 607.55 285.1 610.45 Z"/>
+  <path d="M647 263 H789 V440 H911 V263 H1051 V759 H911 V572 H789 V759 H647 Z"/>
+</g>
+</svg>
