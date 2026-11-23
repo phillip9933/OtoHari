@@ -25,6 +25,7 @@ async function fixture(page: Page) {
 			});
 		if (path === '/library/artists')
 			return json({ items: [{ id: 'artist', name: 'Southerly', album_count: 1 }], next: null });
+		if (path === '/discover/feedback' || path === '/discover/tunings') return json({ items: [] });
 		if (path === '/home' || path === '/discover') return json({ sections: [], refreshing: false });
 		if (path === '/me/section-prefs') return json({ pages: { home: [], discover: [] } });
 		if (path === '/auth/logout') return route.fulfill({ status: 204 });
@@ -62,6 +63,56 @@ async function addToHome(page: Page, label: string) {
 	await button(page, 'Add ' + label).click();
 	await save(page);
 }
+test('web visibility hides a placed Home shelf and re-enabling it preserves other DN preferences', async ({
+	page
+}) => {
+	await fixture(page);
+	let enabled = false;
+	let newSection = false;
+	const requests: unknown[] = [];
+	const row = (key: string, visible: boolean) => ({
+		key,
+		enabled: visible,
+		available: true,
+		title: key,
+		turned_off: false
+	});
+	await page.route(server + '/api/v3/me/section-prefs', async (route) => {
+		if (route.request().method() === 'PUT') {
+			const body = route.request().postDataJSON();
+			requests.push(body);
+			enabled = body.sections.find((r: { key: string }) => r.key === 'recently_added').enabled;
+		}
+		await route.fulfill({
+			json: {
+				pages: {
+					home: [row('recently_added', enabled), ...(newSection ? [row('web_only', false)] : [])]
+				}
+			}
+		});
+	});
+	await page.goto('/');
+	await login(page);
+	await expect(button(page, 'Browse Recently added')).toHaveCount(0);
+	await edit(page, 'Home');
+	await page.getByLabel('Show on mobile and web · Recently added').check();
+	newSection = true;
+	await save(page);
+	await expect(button(page, 'Browse Recently added')).toBeVisible();
+	expect(requests).toEqual([
+		{
+			page: 'home',
+			sections: [
+				{ key: 'recently_added', enabled: true },
+				{ key: 'web_only', enabled: false }
+			]
+		}
+	]);
+	enabled = false;
+	await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+	await expect(button(page, 'Browse Recently added')).toHaveCount(0);
+	await expect(button(page, 'Browse Top picks for you')).toBeVisible();
+});
 test('a listener arranges sections independently and keeps the layout after signing in again', async ({
 	page
 }) => {
@@ -233,7 +284,10 @@ test('Top picks and library entries honor the chosen columns and density on a 32
 	const expanded = page.locator('[data-collection="expanded"]:visible');
 	await expect(expanded).toHaveAttribute('data-preview', 'grid');
 	await expect(expanded.locator('[data-preview-item]')).toHaveCount(12);
-	await expect(expanded.getByRole('button', { name: 'Hidden albums' })).toBeVisible();
+	await expanded.getByRole('button', { name: 'Discover feedback' }).click();
+	await expect(expanded.getByText('No Discover feedback yet.')).toBeVisible();
+	await expanded.getByRole('button', { name: 'Show recommendations' }).click();
+	await expect(expanded.locator('[data-preview-item]')).toHaveCount(12);
 	await button(page, 'Back to Home').click();
 	await tiles.first().getByRole('button').click();
 	await expect(page.getByRole('heading', { name: 'Album 1', exact: true })).toBeVisible();

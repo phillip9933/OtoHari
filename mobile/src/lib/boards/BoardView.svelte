@@ -1,6 +1,12 @@
 <script lang="ts">
 	import { uiText, tr } from '../i18n';
 	import { onMount } from 'svelte';
+	import {
+		getVisibility,
+		sharedSection,
+		visibilityEvent,
+		type SectionPrefs
+	} from './sectionVisibility';
 	import { revealScreen } from '../appearance/interface';
 	import { ArrowLeft, ChevronRight, PanelsTopLeft, Download, ListFilterPlus } from '@lucide/svelte';
 	import type { Session } from '../connection';
@@ -61,6 +67,49 @@
 	let owner = $state(''),
 		sections = $state<Section[]>([]),
 		error = $state('');
+	let visibility = $state.raw<SectionPrefs>();
+	const visibleSections = $derived(
+		sections.filter(
+			(item) =>
+				board === 'library' || sharedSection(visibility?.pages[board], item.id)?.enabled !== false
+		)
+	);
+	$effect(() => {
+		const account = session;
+		visibility = undefined;
+		if (!active || board === 'library' || !source.ready || source.useDevice) return;
+		let request: AbortController | undefined;
+		function refresh() {
+			if (document.visibilityState === 'hidden' || !navigator.onLine) return;
+			request?.abort();
+			const job = new AbortController();
+			request = job;
+			void getVisibility(account, job.signal)
+				.then((prefs) => {
+					if (!job.signal.aborted) visibility = prefs;
+				})
+				.catch(() => {
+					/* Older servers and offline devices use their saved layout. */
+				});
+		}
+		function saved(event: Event) {
+			const d = (event as CustomEvent<{ session: Session; prefs: SectionPrefs }>).detail;
+			if (account.serverUrl === d.session.serverUrl && account.token === d.session.token) {
+				request?.abort();
+				visibility = d.prefs;
+			}
+		}
+		refresh();
+		window.addEventListener(visibilityEvent, saved);
+		window.addEventListener('online', refresh);
+		document.addEventListener('visibilitychange', refresh);
+		return () => {
+			request?.abort();
+			window.removeEventListener(visibilityEvent, saved);
+			window.removeEventListener('online', refresh);
+			document.removeEventListener('visibilitychange', refresh);
+		};
+	});
 	let newFilter = $state<Partial<LibraryFilter> | null>(null);
 	function createFilter(value: FilterSection) {
 		const current = loadLayout(session.serverUrl, owner, board);
@@ -362,7 +411,7 @@
 					{#if error}<p role="alert">{error}</p>
 						<button class="text-button" onclick={load}>{uiText('Try again')}</button>
 					{:else if !owner}<p role="status">{uiText('Loading layout…')}</p>
-					{:else if !sections.length}<div class="empty">
+					{:else if !visibleSections.length}<div class="empty">
 							<PanelsTopLeft size={28} />
 							<p>
 								{uiText('Choose sections for')}
@@ -371,7 +420,7 @@
 							</p>
 						</div>
 					{:else}
-						{#each sections as item (item.id)}
+						{#each visibleSections as item (item.id)}
 							<section
 								class:shortcut={!item.preview}
 								class="shelf"

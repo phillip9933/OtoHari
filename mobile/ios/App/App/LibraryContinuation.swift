@@ -75,8 +75,8 @@ struct LibraryTrackPage: Decodable {
             let path = "/api/v3/stream/local/" + (try segment(id))
             var art: String?
             if art_missing != true {
-                if let group = release_group_mbid, !group.isEmpty { art = "/api/v3/covers/release-group/" + (try segment(group)) + "?size=500" }
-                else if cover_available == true, let album = album_id, !album.isEmpty { art = "/api/v3/library/albums/" + (try segment(album)) + "/artwork?size=500" }
+                if cover_available == true, let album = album_id, !album.isEmpty { art = "/api/v3/library/albums/" + (try segment(album)) + "/artwork?size=500" }
+                else if let group = release_group_mbid, !group.isEmpty { art = "/api/v3/covers/release-group/" + (try segment(group)) + "?size=500" }
             }
             return OfflineFiles.Track(id: id, title: title, album: album_title ?? "", artist: artist_name ?? "", streamUrl: path,
                 artworkUrl: art, duration: duration_seconds, albumId: album_id, artistId: artist_id, albumArtist: album_artist_name,

@@ -40,6 +40,7 @@ async function fixture(page: Page, gate?: Promise<void>) {
 							id: 'night',
 							title: 'Night train',
 							artist_name: 'Harbour',
+							release_group_mbid: '11111111-1111-4111-8111-111111111111',
 							cover_available: true
 						}
 					],
@@ -136,6 +137,7 @@ test('album artwork colors can follow the player or entire app and revert for mi
 				].map((track, index) => ({
 					...track,
 					album_id: 'night',
+					release_group_mbid: '11111111-1111-4111-8111-111111111111',
 					album_title: 'Night train',
 					artist_name: 'Harbour',
 					disc_number: 1,

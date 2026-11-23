@@ -1,4 +1,5 @@
 <script lang="ts">
+	import ProfilePhoto from './ProfilePhoto.svelte';
 	import { uiText } from '../i18n';
 	import InlineChoice from '../controls/InlineChoice.svelte';
 	import { Browser } from '@capacitor/browser';
@@ -193,6 +194,13 @@
 </div>
 {#if busy}<p role="status">{uiText('Loading…')}</p>
 {:else if view === 'Profile' && profile}
+	{#key session}<ProfilePhoto
+			{session}
+			{profile}
+			onupdate={(avatar_url) => {
+				if (profile) profile = { ...profile, avatar_url };
+			}}
+		/>{/key}
 	<form
 		class="settings-panel"
 		data-surface="panel"

@@ -139,6 +139,9 @@ export function savedCustom(): Theme | null {
 		return null;
 	}
 }
+export function hasDeviceTheme() {
+	return !!localStorage.getItem(modeKey) || !!savedCustom();
+}
 export function restoreTheme(): Selection {
 	try {
 		const mode = localStorage.getItem(modeKey);

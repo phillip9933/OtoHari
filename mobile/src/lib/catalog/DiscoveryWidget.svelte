@@ -12,6 +12,7 @@
 		type ShelfSong,
 		type WidgetResult
 	} from './discoveryWidgets';
+	import FollowingUpdates from './FollowingUpdates.svelte';
 	import DiscoveryPreview from './DiscoveryPreview.svelte';
 	import RadioGuide from './RadioGuide.svelte';
 	import DiscoverDeck from './DiscoverDeck.svelte';
@@ -156,6 +157,13 @@
 	{#if busy}<p role="status">{uiText('Loading…')}</p>{:else if error}<p role="alert">{error}</p>
 		<button class="text-button" onclick={() => retry++}>{uiText('Try again')}</button>
 	{:else if data}
+		{#if expanded && active && (id === 'discover-concerts' || id === 'discover-releases')}
+			{#key session.serverUrl + ':' + session.userId + ':' + id}<FollowingUpdates
+					{session}
+					concerts={id === 'discover-concerts'}
+					onchanged={() => retry++}
+				/>{/key}
+		{/if}
 		{#if data.notice}<p>{data.notice}</p>{/if}
 		{#if data.playlists}
 			{#if options.length}
@@ -169,13 +177,14 @@
 				>
 			{:else}<p>{uiText('Create a playlist in your library to get suggestions for it.')}</p>{/if}
 		{/if}
-		{#if expanded && data.cards}<DiscoverDeck
-				{session}
-				cards={data.cards}
-				queue={id === 'discover-discover_queue'}
-				{onopen}
-				onrefresh={() => retry++}
-			/>{:else if genreWidget && expanded && !data.notice}<DiscoverGenres
+		{#if expanded && data.cards}{#key [session.serverUrl, session.userId, id].join('|')}<DiscoverDeck
+					{session}
+					{active}
+					cards={data.cards}
+					queue={id === 'discover-discover_queue'}
+					{onopen}
+					onrefresh={() => retry++}
+				/>{/key}{:else if genreWidget && expanded && !data.notice}<DiscoverGenres
 				{session}
 				{onopen}
 				{onartist}

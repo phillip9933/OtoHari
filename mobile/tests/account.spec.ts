@@ -6,6 +6,11 @@ test('a listener can edit their DN profile, save visibility and revoke a differe
 	page
 }) => {
 	const server = 'https://library.example/dn';
+	let avatar = '';
+	const avatarBytes = Buffer.from(
+		'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=',
+		'base64'
+	);
 	let display = 'Listener',
 		visibility = 'offline',
 		removed = false;
@@ -19,9 +24,22 @@ test('a listener can edit their DN profile, save visibility and revoke a differe
 		if (p === '/auth/login') return json({ token: 'fixture' });
 		expect(req.headers().authorization).toBe('Bearer fixture');
 		if (p === '/library/albums') return json({ items: [], next: null });
+		if (p === '/me/avatar') {
+			expect(req.method()).toBe('POST');
+			expect(req.postDataJSON()).toEqual({
+				content_type: 'image/png',
+				image_base64: avatarBytes.toString('base64')
+			});
+			avatar = '/api/v3/users/demo/avatar?v=new';
+			return json({ id: 'demo', role: 'user', display_name: display, avatar_url: avatar });
+		}
+		if (p === '/users/demo/avatar') {
+			expect(new URL(req.url()).searchParams.get('v')).toBe('new');
+			return route.fulfill({ contentType: 'image/png', body: avatarBytes });
+		}
 		if (p === '/me') {
 			if (req.method() === 'PATCH') display = req.postDataJSON().display_name;
-			return json({ id: 'demo', role: 'user', display_name: display });
+			return json({ id: 'demo', role: 'user', display_name: display, avatar_url: avatar || null });
 		}
 		if (p === '/me/scrobble-preferences') {
 			if (req.method() === 'PUT') {
@@ -51,6 +69,15 @@ test('a listener can edit their DN profile, save visibility and revoke a differe
 		throw Error('Unexpected account operation ' + p);
 	});
 	await openAccount(page, server);
+	await page
+		.locator('input[type=file][accept*="image/gif"]')
+		.setInputFiles({ name: 'photo.png', mimeType: 'image/png', buffer: avatarBytes });
+	await expect(page.getByRole('img', { name: 'Profile photo' })).toBeVisible();
+	await expect(page.getByText('Profile photo saved.')).toBeVisible();
+	await page.getByRole('button', { name: 'Listening', exact: true }).click();
+	await page.getByRole('button', { name: 'Profile', exact: true }).click();
+	await expect(page.getByRole('img', { name: 'Profile photo' })).toBeVisible();
+
 	await expect(page.getByText('Library health and scans')).toHaveCount(0);
 	const newName = '🎵'.repeat(40);
 	await page.getByLabel('Display name').fill('a'.repeat(65));

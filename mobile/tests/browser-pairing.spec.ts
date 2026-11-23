@@ -354,7 +354,9 @@ test.beforeEach(async ({ page, nativePlatform }) => {
 							if (sessionStorage.getItem('logout-unconfirmed')) throw Error('Connection lost.');
 							sessionStorage.setItem('revoked-device', '1');
 							return { status: 204, headers: {}, data: null };
-						} else if (opts.url.endsWith('/me/section-prefs'))
+						} else if (opts.method === 'GET' && opts.url.endsWith('/me/appearance'))
+							data = { theme: null, custom_css: null };
+						else if (opts.url.endsWith('/me/section-prefs'))
 							data = { pages: { home: [], discover: [] } };
 						else if (
 							opts.method === 'GET' &&

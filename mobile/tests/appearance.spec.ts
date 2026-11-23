@@ -140,7 +140,9 @@ test('an existing custom theme survives upgrade, switching presets, invalid impo
 	await expect(root).toHaveCSS('--dn-action', updated.colors.accent);
 });
 
-test('account theme changes are explicit and send only the DN theme enum', async ({ page }) => {
+test('follows the DN theme, writes only a chosen mode and preserves a device override', async ({
+	page
+}) => {
 	const server = 'https://themes.example/music';
 	let mode = 'midnight',
 		fail = false;
@@ -207,13 +209,21 @@ test('account theme changes are explicit and send only the DN theme enum', async
 	await settings(page);
 	const root = page.locator('html');
 	await expect(page.getByText('Account theme: Midnight.')).toBeVisible();
-	await expect(root).toHaveAttribute('data-theme', 'dark');
-	await page.getByRole('button', { name: 'Use account theme on this device' }).click();
 	await expect(root).toHaveAttribute('data-theme', 'midnight');
-	await page.getByRole('button', { name: 'Light', exact: true }).click();
+	await expect(page.getByLabel('Follow account theme')).toBeChecked();
 	expect(writes).toEqual([]);
-	await page.getByRole('button', { name: 'Save device theme to account' }).click();
-	await expect(page.getByText('Account theme saved.')).toBeVisible();
+	await page.getByRole('button', { name: 'Light', exact: true }).click();
+	await expect(page.getByText('Account theme: Light.')).toBeVisible();
+	await expect.poll(() => writes).toEqual([{ theme: 'light' }]);
+	mode = 'dark';
+	await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+	await expect(root).toHaveAttribute('data-theme', 'dark');
+	await page.getByLabel('Follow account theme').uncheck();
+	await page.getByRole('button', { name: 'Midnight', exact: true }).click();
+	mode = 'light';
+	await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+	await expect(root).toHaveAttribute('data-theme', 'midnight');
+	await expect(page.getByText('Account theme: Light.')).toBeVisible();
 	expect(writes).toEqual([{ theme: 'light' }]);
 	fail = true;
 	await page.getByRole('button', { name: 'Dark', exact: true }).click();
@@ -303,7 +313,7 @@ test('preview and import only supported account CSS colors from a current or his
 		panel.getByText('Rules for other themes were excluded from this palette.')
 	).toBeVisible();
 	const root = page.locator('html');
-	await expect(root).toHaveCSS('--accent', '#b8ef64');
+	await expect(root).toHaveCSS('--accent', '#1e6a38');
 	await panel.getByRole('button', { name: 'Apply palette to this device' }).click();
 	await expect(root).toHaveCSS('--accent', '#0c2238');
 	await expect(root).toHaveCSS('--dn-action', '#78288c');
@@ -321,6 +331,11 @@ test('preview and import only supported account CSS colors from a current or his
 	expect(requests).toEqual(['/me/appearance', '/me/appearance/css-saves']);
 	expect(foreign).toEqual([]);
 	await page.reload();
+	await page.getByLabel('Server address').fill(server);
+	await page.getByRole('button', { name: 'Continue', exact: true }).click();
+	await page.getByLabel('Username', { exact: true }).fill('listener');
+	await page.getByLabel('Password', { exact: true }).fill('fixture');
+	await page.getByRole('button', { name: 'Sign in', exact: true }).click();
 	await expect(root).toHaveCSS('--color-success', '#116644');
 	await expect(root).toHaveCSS('--heading', '#44aa77');
 });

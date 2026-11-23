@@ -5,25 +5,27 @@
 	import InlineChoice from '../controls/InlineChoice.svelte';
 	import WebPaletteImport from './WebPaletteImport.svelte';
 	import { Check } from '@lucide/svelte';
-	import { getJson, putJson, type Session } from '../connection';
-	import type { components } from '../../../../frontend/src/lib/api/v3/openapi';
+	import type { Session } from '../connection';
+	import {
+		accountTheme,
+		chooseAccountTheme,
+		refreshAccountTheme,
+		setAccountThemeFollow
+	} from './accountTheme';
 	import {
 		asTheme,
 		albumSheetColor,
 		artworkColorScope,
 		saveArtworkScope,
-		isMode,
 		labels,
 		presets,
 		readTheme,
 		restoreTheme,
 		savedCustom,
 		saveTheme,
-		type Mode,
 		type Selection,
 		type Theme
 	} from './theme';
-	type Appearance = components['schemas']['MyAppearance'];
 	let { session = null }: { session?: Session | null } = $props();
 	const modes = ['dark', 'light', 'midnight', 'system'] as const;
 	const initial = restoreTheme();
@@ -33,13 +35,23 @@
 	let feedback = $state(''),
 		error = $state(''),
 		matchesLight = $state(false);
-	let currentCss = $state('');
-	let account = $state<Mode | null | undefined>(undefined),
-		accountError = $state(''),
-		accountMessage = $state(''),
-		saving = $state(false),
-		retry = $state(0);
-	let version = 0;
+	const active = $derived(session ? $accountTheme : null);
+	const account = $derived(active?.appearance?.theme);
+	const currentCss = $derived(active?.appearance?.custom_css?.text ?? '');
+	const saving = $derived(active?.saving ?? false);
+	let accountMessage = $state('');
+	let appliedChoice = '';
+	$effect(() => {
+		const choice = active?.selection;
+		if (!active || !choice) return;
+		lastCustom = active.custom ?? null;
+		const serialized = JSON.stringify(choice);
+		if (serialized !== appliedChoice) {
+			appliedChoice = serialized;
+			selected = choice;
+			draft = JSON.stringify(asTheme(choice), null, 2);
+		}
+	});
 	onMount(() => {
 		const media = matchMedia('(prefers-color-scheme: light)');
 		matchesLight = media.matches;
@@ -50,8 +62,15 @@
 		media.addEventListener('change', update);
 		return () => media.removeEventListener('change', update);
 	});
-	function choose(value: Selection) {
+	async function choose(value: Selection) {
 		try {
+			if (active) {
+				await chooseAccountTheme(value);
+				accountMessage = '';
+				feedback = '';
+				error = '';
+				return;
+			}
 			saveTheme(value);
 			selected = value;
 			draft = JSON.stringify(asTheme(value), null, 2);
@@ -80,58 +99,39 @@
 		}
 		choose({ mode: 'custom', theme });
 	}
-	$effect(() => {
-		const active = session;
-		void retry;
-		const request = ++version;
-		account = undefined;
-		currentCss = '';
-		accountError = accountMessage = '';
-		saving = false;
-		if (active)
-			void getJson<Appearance>(active, '/api/v3/me/appearance')
-				.then((result) => {
-					if (version !== request) return;
-					if (result.theme != null && !isMode(result.theme))
-						throw Error('This account uses a theme this version cannot display.');
-					account = result.theme ?? null;
-					currentCss = result.custom_css?.text ?? '';
-				})
-				.catch((cause) => {
-					if (version === request)
-						accountError =
-							cause instanceof Error ? cause.message : 'Could not load the account theme.';
-				});
-		return () => {
-			version++;
-		};
-	});
 	async function saveAccount() {
-		if (!session || saving || selected.mode === 'custom') return;
-		const owner = version,
-			mode = selected.mode;
-		saving = true;
-		accountError = accountMessage = '';
+		await chooseAccountTheme(selected, true);
+		if (!$accountTheme?.error) accountMessage = 'Account theme saved.';
+	}
+	function follow(value: boolean) {
 		try {
-			const updated = await putJson<Appearance>(session, '/api/v3/me/appearance', {
-				theme: mode
-			} satisfies components['schemas']['AppearanceUpdate']);
-			if (version === owner) {
-				account = updated.theme ?? null;
-				currentCss = updated.custom_css?.text ?? '';
-				accountMessage = 'Account theme saved.';
-			}
+			setAccountThemeFollow(value);
+			error = accountMessage = '';
 		} catch (cause) {
-			if (version === owner)
-				accountError = cause instanceof Error ? cause.message : 'Could not save the account theme.';
-		} finally {
-			if (version === owner) saving = false;
+			error = cause instanceof Error ? cause.message : 'Could not save this theme.';
 		}
 	}
 </script>
 
 <section class="settings-stack" data-part="theme-settings" aria-label={uiText('Theme settings')}>
 	<h2>{uiText('Device theme')}</h2>
+	{#if active}
+		<label class="artwork-setting">
+			<span>{tr('Follow account theme', 'アカウントテーマに合わせる')}</span>
+			<input
+				type="checkbox"
+				disabled={saving}
+				checked={active.follow}
+				onchange={(event) => follow(event.currentTarget.checked)}
+			/>
+		</label>
+		{#if active.follow}<p>
+				{tr(
+					'Choosing a built-in theme here also updates DroppedNeedle on the web.',
+					'ここで標準テーマを選ぶとウェブ版のテーマも更新されます。'
+				)}
+			</p>{/if}
+	{/if}
 	<div class="modes" role="group" aria-label={uiText('Device theme')}>
 		{#each modes as mode (mode)}{@const resolved =
 				mode === 'system' ? (matchesLight ? 'light' : 'dark') : mode}
@@ -139,6 +139,7 @@
 			<button
 				class="choice"
 				aria-label={uiText(labels[mode])}
+				disabled={saving}
 				aria-pressed={selected.mode === mode}
 				onclick={() => choose({ mode })}
 				><span
@@ -215,17 +216,11 @@
 					: uiText('Your account uses the default Dark theme.')}
 			</p>
 			<div class="account-tools">
-				<button
-					class="secondary"
-					disabled={saving || selected.mode === (account || 'dark')}
-					onclick={() => choose({ mode: account ?? 'dark' })}
-					>{uiText('Use account theme on this device')}</button
-				>
-				{#if selected.mode !== 'custom'}<button
+				{#if !active?.follow && selected.mode !== 'custom'}<button
 						class="secondary"
 						disabled={saving || selected.mode === account}
 						onclick={saveAccount}>{uiText('Save device theme to account')}</button
-					>{:else}<p>
+					>{:else if selected.mode === 'custom'}<p>
 						{uiText(
 							'Custom theme JSON is stored on this device. Choose a built-in theme to save it to your account.'
 						)}
@@ -236,9 +231,9 @@
 				css={currentCss}
 				mode={account ?? 'dark'}
 				onapply={(theme) => choose({ mode: 'custom', theme })}
-			/>{:else if !accountError}<p role="status">{uiText('Loading account theme…')}</p>{/if}
-		{#if accountError}<p role="alert">{accountError}</p>
-			<button class="text-button" disabled={saving} onclick={() => retry++}
+			/>{:else if !active?.error}<p role="status">{uiText('Loading account theme…')}</p>{/if}
+		{#if active?.error}<p role="alert">{active.error}</p>
+			<button class="text-button" disabled={saving} onclick={refreshAccountTheme}
 				>{uiText('Reload account theme')}</button
 			>{/if}
 		{#if accountMessage}<p role="status">{accountMessage}</p>{/if}

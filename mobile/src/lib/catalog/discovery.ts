@@ -1,6 +1,6 @@
 import type { components } from '../../../../frontend/src/lib/api/v3/openapi';
 import { getJson, putJson, postJson, type Session } from '../connection';
-import { radioSong, cover, path, playerTrack, type Album } from './catalog';
+import { radioSong, cover, localAlbum, path, playerTrack, type Album } from './catalog';
 import { validLocalFileId } from '../offline/tracks';
 
 import { artistArtwork } from './artistArtwork';
@@ -148,14 +148,7 @@ export async function artistReleases(
 			path('/api/v3/library/albums', {}, { artist_id: artist.id, limit: 24, after: cursor }),
 			signal
 		);
-		const albums: Album[] = result.items.map((a) => ({
-			title: a.title,
-			artist: a.artist_name,
-			group: a.release_group_mbid,
-			localId: a.id,
-			year: a.year,
-			art: cover(a.release_group_mbid, a.id, a.art_missing)
-		}));
+		const albums = result.items.map(localAlbum);
 		return { albums, next: undefined, cursor: result.next, warming: false };
 	}
 	const list = createShelf('');

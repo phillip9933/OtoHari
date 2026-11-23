@@ -1,5 +1,15 @@
 import type { Route } from '@playwright/test';
 
+export async function emptyAccountTheme(route: Route) {
+	if (
+		route.request().method() !== 'GET' ||
+		!new URL(route.request().url()).pathname.endsWith('/api/v3/me/appearance')
+	)
+		return false;
+	await route.fulfill({ json: { theme: null, custom_css: null } });
+	return true;
+}
+
 export async function emptyTrackRating(route: Route) {
 	const req = route.request();
 	if (req.method() !== 'POST' || !new URL(req.url()).pathname.endsWith('/api/v3/ratings/lookup'))
@@ -18,7 +28,7 @@ export async function emptyTrackRating(route: Route) {
 
 // Strict feature fixtures serve other visible shelves and player feedback after their own routes.
 export async function emptyBoardRead(route: Route) {
-	if (await emptyTrackRating(route)) return true;
+	if ((await emptyTrackRating(route)) || (await emptyAccountTheme(route))) return true;
 	const req = route.request();
 	const path = new URL(req.url()).pathname.split('/api/v3/')[1];
 	if (!path) return false;

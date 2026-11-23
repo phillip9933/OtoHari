@@ -62,6 +62,7 @@
 		takePlayerNotification
 	} from './lib/catalog/launcherShortcuts';
 	import type { Category } from './lib/catalog/libraryBrowse';
+	import { watchAccountTheme } from './lib/appearance/accountTheme';
 	import { artworkColorScope, showArtworkPalette } from './lib/appearance/theme';
 	import { watchArtworkPalette, type ArtworkPalette } from './lib/player/artworkPalette';
 	import Appearance from './lib/appearance/Appearance.svelte';
@@ -98,6 +99,7 @@
 	const surface = $derived<PlayerSurface>(
 		!related && (panel === 'player' || panel === 'queue') ? panel : 'base'
 	);
+	$effect(() => watchAccountTheme(session));
 	const followArtwork = $derived($artworkColorScope !== 'off');
 	let coverColors = $state.raw<ArtworkPalette>();
 	$effect(() => {

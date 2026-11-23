@@ -7,6 +7,12 @@
 	import { readBrowsePreferences, type CollectionEdits } from '../catalog/browsePreferences';
 	import type { Session } from '../connection';
 	import { tick, untrack } from 'svelte';
+	import {
+		getVisibility,
+		saveVisibility,
+		sharedSection,
+		type SectionPrefs
+	} from './sectionVisibility';
 	import { boardDisplay } from './display';
 	import FilterSectionDialog from './FilterSectionDialog.svelte';
 	import { filterSummary, type FilterSection } from './filteredSections';
@@ -41,6 +47,39 @@
 	let filter = $state('');
 	let error = $state('');
 	let list: HTMLOListElement;
+	let prefs = $state.raw<SectionPrefs>();
+	let toggles = $state<Record<string, boolean>>({});
+	let loadingError = $state('');
+	let saving = $state(false);
+	let retry = $state(0);
+	$effect(() => {
+		const account = session;
+		void retry;
+		prefs = undefined;
+		toggles = {};
+		loadingError = '';
+		if (board === 'library') return;
+		const job = new AbortController();
+		void getVisibility(account, job.signal)
+			.then((result) => {
+				if (!job.signal.aborted) prefs = result;
+			})
+			.catch(() => {
+				if (!job.signal.aborted)
+					loadingError = tr(
+						'Account visibility is unavailable. You can still edit the layout on this device.',
+						'アカウントの表示設定を取得できません。この端末のレイアウトは編集できます。'
+					);
+			});
+		return () => job.abort();
+	});
+	function setVisibility(key: string, enabled: boolean, original: boolean) {
+		const next = { ...toggles };
+		if (enabled === original) delete next[key];
+		else next[key] = enabled;
+		toggles = next;
+	}
+
 	const choices = $derived(
 		[
 			...available(board).map((w) => ({ ...w, label: uiText(w.label) })),
@@ -69,7 +108,26 @@
 		row?.querySelector<HTMLButtonElement>('[aria-expanded]')?.focus({ preventScroll: true });
 		row?.scrollIntoView({ block: 'center' });
 	}
-	function save() {
+	async function save() {
+		if (saving) return;
+		saving = true;
+		error = '';
+		try {
+			if (board !== 'library' && Object.keys(toggles).length) {
+				prefs = await saveVisibility(session, board, toggles);
+				toggles = {};
+			}
+		} catch (reason) {
+			error =
+				reason instanceof Error
+					? reason.message
+					: tr(
+							'Could not save account visibility.',
+							'アカウントの表示設定を保存できませんでした。'
+						);
+			saving = false;
+			return;
+		}
 		try {
 			onsave(
 				draft,
@@ -78,17 +136,29 @@
 			);
 		} catch {
 			error = 'Could not save this layout on the device. Your edits are still here.';
+		} finally {
+			saving = false;
 		}
 	}
 </script>
 
-<div class="editor" data-part="layout-editor">
+<div class="editor" data-part="layout-editor" inert={saving}>
 	<div class="bar">
-		<button class="text-button" onclick={onback}>{uiText('Cancel')}</button>
-		<button class="primary" onclick={save}>{uiText('Save layout')}</button>
+		<button class="text-button" disabled={saving} onclick={onback}>{uiText('Cancel')}</button>
+		<button class="primary" disabled={saving} onclick={save}>{uiText('Save layout')}</button>
 	</div>
 	<h1>{uiText(pageTitles[board])}</h1>
 	<p>{uiText('Layout on this device')}</p>
+	{#if board !== 'library' && prefs?.pages[board]?.length}<p>
+			{tr(
+				'Shared sections have a visibility switch for this page on mobile and web. Placement and display are saved on this device.',
+				'共有セクションの表示切替はモバイル版とウェブ版に反映されます。配置と表示形式はこの端末に保存されます。'
+			)}
+		</p>{/if}
+	{#if loadingError}<p role="status">
+			{loadingError}
+			<button class="text-button" onclick={() => retry++}>{uiText('Try again')}</button>
+		</p>{/if}
 	{#if error}<p role="alert">{error}</p>{/if}
 	{#if board === 'library'}
 		<details
@@ -130,6 +200,7 @@
 	>
 		{#each draft as item, i (item.id)}
 			{@const name = sectionTitle(item)}
+			{@const shared = sharedSection(prefs?.pages[board], item.id)}
 			<li data-section-id={item.id}>
 				<div class="row">
 					<strong>{name}</strong>
@@ -163,6 +234,16 @@
 						}}><Minus size={18} /></button
 					>
 				</div>
+				{#if shared}<label class="check">
+						<input
+							type="checkbox"
+							disabled={saving || !shared.available}
+							checked={toggles[shared.key] ?? shared.enabled}
+							onchange={(event) =>
+								setVisibility(shared.key, event.currentTarget.checked, shared.enabled)}
+						/>
+						{tr('Show on mobile and web', 'モバイルとウェブに表示')} · {name}
+					</label>{/if}
 				{#if options === item.id}<div class="fields">
 						{#if item.filter}<p>{filterSummary(item.filter)}</p>
 							<button class="secondary" onclick={() => (editing = item.filter!)}

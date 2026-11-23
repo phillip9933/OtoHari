@@ -1,4 +1,4 @@
-import { emptyTrackRating } from './fixtures/emptyBoardRead';
+import { emptyAccountTheme, emptyTrackRating } from './fixtures/emptyBoardRead';
 import { minimizePlayer } from './fixtures/minimizePlayer';
 import { chooseOption } from './fixtures/inlineChoice';
 import { fileURLToPath } from 'node:url';
@@ -15,6 +15,7 @@ test('a listener explores DN charts and genres, follows an artist and plays libr
 }) => {
 	let following = false,
 		hidden = false;
+	let concertCities: Schema['EventCity'][] = [];
 	const reads: string[] = [];
 	await page.addInitScript(
 		({ server }) => {
@@ -131,6 +132,8 @@ test('a listener explores DN charts and genres, follows an artist and plays libr
 					}
 				]
 			} satisfies Schema['DiscoverQueueResponse']);
+		if (path === '/discover/feedback' && req.method() === 'GET')
+			return route.fulfill({ status: 404 });
 		if (path === '/discover/queue/ignore') {
 			expect(req.postDataJSON().release_group_mbid).toBe(group);
 			hidden = true;
@@ -483,6 +486,22 @@ test('a listener explores DN charts and genres, follows an artist and plays libr
 						]
 					: []
 			} satisfies Schema['FollowedArtistListResponse']);
+		if (path === '/following/new-releases/seen' || path === '/following/concerts/seen') {
+			expect(req.method()).toBe('POST');
+			return json({ count: 0 });
+		}
+		if (path === '/following/concerts/cities') {
+			if (req.method() === 'PUT') concertCities = req.postDataJSON().items;
+			return json({ items: concertCities });
+		}
+		if (path === '/following/concerts/city-search') {
+			expect(url.searchParams.get('q')).toBe('Osaka');
+			return json({
+				items: [
+					{ name: 'Osaka', latitude: 34.69, longitude: 135.5, country_code: 'JP', country: 'Japan' }
+				]
+			});
+		}
 		if (path === '/following/new-releases/recent')
 			return json({
 				items: [
@@ -520,7 +539,7 @@ test('a listener explores DN charts and genres, follows an artist and plays libr
 				json: { error: { code: 'NOT_FOUND', message: 'Missing' } }
 			});
 		if (path === '/albums/' + group + '/editions') return json({ items: [] });
-		if (await emptyTrackRating(route)) return;
+		if ((await emptyTrackRating(route)) || (await emptyAccountTheme(route))) return;
 		throw new Error('Unexpected DroppedNeedle request ' + path);
 	});
 	await page.goto('/');
@@ -545,9 +564,7 @@ test('a listener explores DN charts and genres, follows an artist and plays libr
 	await expect(page.getByRole('button', { name: 'Moonrise ' + artistName })).toBeVisible();
 	await page.getByRole('button', { name: 'Play Golden Hour' }).click();
 	await expect(page.getByText('Golden Hour is unavailable in your library.')).toBeVisible();
-	await expect(
-		page.getByText('This section is disabled in DroppedNeedle.', { exact: false })
-	).toBeVisible();
+	await expect(page.locator('[data-widget="discover-missing_essentials"]')).toHaveCount(0);
 	expect(reads.filter((p) => p === '/discover')).toHaveLength(1);
 	await page.getByRole('button', { name: 'Play Silver Moon', exact: true }).click();
 	await expect(page.getByRole('heading', { name: 'Silver Moon', exact: true })).toBeVisible();
@@ -559,10 +576,12 @@ test('a listener explores DN charts and genres, follows an artist and plays libr
 	}
 	await view('Discover queue');
 	await expect(page.getByText('From your recent listening')).toBeVisible();
-	await page.getByRole('button', { name: 'Hide Nightfall' }).click();
-	await page.getByRole('button', { name: 'Hidden albums' }).click();
-	await page.getByRole('button', { name: 'Restore Nightfall' }).click();
-	await expect(page.getByText('No hidden albums.')).toBeVisible();
+	await page.getByRole('button', { name: 'Feedback for Nightfall' }).click();
+	await expect(page.getByRole('button', { name: 'Not now', exact: true })).toHaveCount(0);
+	await page.getByRole('button', { name: 'Hide album' }).click();
+	await page.getByRole('button', { name: 'Discover feedback' }).click();
+	await page.getByRole('button', { name: 'Undo Nightfall' }).click();
+	await expect(page.getByText('No Discover feedback yet.')).toBeVisible();
 	await view('Discover for a playlist');
 	await chooseOption(page.getByLabel('Choose a playlist'), 'one');
 	await expect(page.getByRole('button', { name: 'Late moon ' + artistName })).toBeVisible();
@@ -582,9 +601,30 @@ test('a listener explores DN charts and genres, follows an artist and plays libr
 	await expect(page.getByRole('heading', { name: 'Trending artists', exact: true })).toBeVisible();
 	await view('Followed artists');
 	await expect(page.getByRole('button', { name: artistName, exact: true })).toBeVisible();
+	expect(reads).not.toContain('/following/new-releases/seen');
 	await view('New releases from followed artists');
+	await expect.poll(() => reads.includes('/following/new-releases/seen')).toBe(true);
 	await expect(page.getByRole('button', { name: 'Moonrise ' + artistName })).toBeVisible();
 	await view('Upcoming concerts');
+	await expect.poll(() => reads.includes('/following/concerts/seen')).toBe(true);
+	await page.getByText('Concert cities', { exact: true }).click();
+	await page.getByRole('searchbox', { name: 'Find a city' }).fill('Osaka');
+	// Preserve an unrelated city added on the web since this screen opened.
+	concertCities.push({
+		city_name: 'Tokyo',
+		latitude: 35.7,
+		longitude: 139.7,
+		country_code: 'JP',
+		radius_km: 32
+	});
+	await page.getByRole('button', { name: 'Osaka, Japan' }).click();
+	await expect(page.getByRole('button', { name: 'Remove city Osaka' })).toBeVisible();
+	expect(concertCities.map((c) => c.city_name)).toEqual(['Tokyo', 'Osaka']);
+	await chooseOption(page.getByRole('combobox', { name: 'Concert radius for Osaka' }), '80');
+	await expect.poll(() => concertCities[1]?.radius_km).toBe(80);
+	await page.getByRole('button', { name: 'Remove city Osaka' }).click();
+	await expect.poll(() => concertCities.map((c) => c.city_name)).toEqual(['Tokyo']);
+
 	await expect(page.getByText('Civic Hall', { exact: false })).toBeVisible();
 	await page.getByRole('button', { name: artistName, exact: true }).click();
 	await page.getByRole('button', { name: 'Unfollow artist' }).click();

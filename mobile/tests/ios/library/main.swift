@@ -6,7 +6,8 @@ import FoundationNetworking
 
 func page(_ ids: [Int], total: Int, next: String?) throws -> LibraryTrackPage {
     let rows: [[String: Any]] = ids.map { ["id": "song-" + String($0), "title": "Song " + String($0),
-        "album_title": "Fixture", "artist_name": "Player", "album_id": "a", "cover_available": true,
+        "album_title": "Fixture", "artist_name": "Player", "album_id": "a", "release_group_mbid": "group",
+        "cover_available": $0 == 0, "art_missing": $0 == 2,
         "album_artist_id": "artist-a", "disc_number": 1, "track_number": $0, "format": "flac", "genre": "Folk", "year": 2020] }
     let json = try JSONSerialization.data(withJSONObject: ["items": rows, "total": total, "next": next as Any? ?? NSNull()])
     return try JSONDecoder().decode(LibraryTrackPage.self, from: json)
@@ -14,6 +15,9 @@ func page(_ ids: [Int], total: Int, next: String?) throws -> LibraryTrackPage {
 let total = 2301, cursor = "random+seed/200=α"
 let first = try page(Array(0..<200), total: total, next: cursor)
 var window = try first.items.map { try $0.track() }, seen = Set(window.map(\.id)), cursors: Set = [cursor]
+precondition(window[0].artworkUrl == "/api/v3/library/albums/a/artwork?size=500")
+precondition(window[1].artworkUrl == "/api/v3/covers/release-group/group?size=500")
+precondition(window[2].artworkUrl == nil)
 var state = LibraryContinuation(filters:["sort":"random","order":"asc","q":"a+b","favorites":"true"], after: cursor, loaded: 200, total: total)
 try state.validate(window: window.map(\.id))
 let deep = LibraryContinuation(filters: ["sort": "title", "order": "asc"], after: "cursor-860", loaded: 860, total: 1200)

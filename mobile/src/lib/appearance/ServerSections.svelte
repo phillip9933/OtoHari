@@ -3,9 +3,9 @@
 	import InlineChoice from '../controls/InlineChoice.svelte';
 	import { onMount } from 'svelte';
 	import type { components } from '../../../../frontend/src/lib/api/v3/openapi';
-	import { getJson, putJson, type Session } from '../connection';
-	import { forgetDiscoveryPage } from '../catalog/discoveryWidgets';
-	import { errorMessage, path } from '../catalog/catalog';
+	import type { Session } from '../connection';
+	import { getVisibility, saveVisibility } from '../boards/sectionVisibility';
+	import { errorMessage } from '../catalog/catalog';
 	type S = components['schemas'];
 	let { session, admin }: { session: Session; admin: boolean } = $props();
 	let page = $state<S['SectionPage']>('home'),
@@ -18,12 +18,11 @@
 		admin ? (['home', 'discover', 'sidebar'] as const) : (['home', 'discover'] as const)
 	);
 	const rows = $derived(data?.pages[page] ?? []);
-	const endpoint = path('/api/v3/me/section-prefs');
 	async function load() {
 		busy = true;
 		error = '';
 		try {
-			data = await getJson(session, endpoint);
+			data = await getVisibility(session);
 		} catch (e) {
 			error = errorMessage(e);
 		} finally {
@@ -45,22 +44,9 @@
 		busy = true;
 		error = message = '';
 		try {
-			// DN replaces the whole page. Merge this device's edits with the current
-			// account settings, including unavailable and newly registered sections.
-			const latest = await getJson<S['SectionPrefsResponse']>(session, endpoint);
-			const current = latest.pages[page];
-			if (!current) throw Error('This page is unavailable.');
-			const saved = await putJson<S['SectionPrefsResponse']>(session, endpoint, {
-				page,
-				sections: current.map((s) => ({
-					key: s.key,
-					enabled: s.available ? (changes[s.key] ?? s.enabled) : s.enabled
-				}))
-			} satisfies S['SectionPrefsUpdate']);
-			data = { pages: { ...latest.pages, ...saved.pages } };
+			data = await saveVisibility(session, page, changes);
 			changes = {};
 			message = 'Section preferences saved.';
-			if (page === 'discover') forgetDiscoveryPage(session);
 		} catch (e) {
 			error = errorMessage(e);
 		} finally {

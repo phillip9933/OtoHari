@@ -53,6 +53,10 @@ Search results can use a list or artwork grid. Use the display control beside th
 
 Album artwork fills the top of the album page. Shuffle or play from the action row, or tap a numbered track to start there. The **⋮** to the left of Shuffle opens album actions. On an artist page, **⋮** also holds the Home shortcuts for opening the artist and starting their radio station.
 
+For library albums, OtoHari uses the edition’s own artwork when DN reports it is available, then falls back to the release-group cover. Discover feedback and undo use the same account history as DN web. Older DN servers can still hide and restore albums.
+
+On Home and Discover, the layout editor includes an account visibility switch for sections shared with the web. Grid settings, placement and mobile-only sections stay on the device. Opening the full new releases or concerts list marks it as seen for the account. Open **Concert cities** in the concerts list to manage cities and search radii for both clients. Change your account photo under **Settings → Account → Profile**.
+
 Under an artist’s **Songs**, the popularity sort orders matching recordings by ListenBrainz listens from DN. Unranked songs follow in title order. Open an artist in Library or Discover to filter their discography to albums, EPs or singles. In Library, the artist’s releases use the same list or grid, columns and row density as Albums. You can also change how each of the five Library categories looks from **Settings → Appearance & layout → Library layout**. The Library view lets you find other release types and records for which DN has no release type.
 
 Use **Library → Library sections → New filtered section**, or set filters while browsing and choose **Save filters as section**. For a five-star songs shelf, choose Songs, set the minimum rating to five and give it a name. Add the saved section to Home or Library in either screen’s layout editor. The two placements share the saved criteria and can use different row counts and display styles.
@@ -186,7 +190,7 @@ Search remembers queries on this device for each DN account and offers suggestio
 
 ## Change the appearance
 
-Open **Settings → Appearance & layout → Themes** to choose DN’s **Dark**, **Light**, **Midnight** or **System**. The mobile build reads the web theme definitions. Dark and Midnight share a near-black background and lime accent. Dark uses a cream track list on album pages. Midnight uses a deep green track list with light lettering. The strip at the foot of each palette sample shows its album track-list color. System follows the phone’s appearance. Use **Use account theme on this device** or **Save device theme to account** to copy a built-in theme in either direction.
+Open **Settings → Appearance & layout → Themes** to choose DN’s **Dark**, **Light**, **Midnight** or **System**. The mobile build reads the web theme definitions. Dark and Midnight share a near-black background and lime accent. Dark uses a cream track list on album pages. Midnight uses a deep green track list with light lettering. The strip at the foot of each palette sample shows its album track-list color. System follows the phone’s appearance. With **Follow account theme** enabled, choosing a built-in theme saves it to DN. Opening the app or returning to it picks up changes from the web. Existing device theme choices are preserved until you enable following. Turn it off to keep a separate phone theme.
 
 **Album artwork colors** follows the current cover in Now Playing and the queue, or across the entire app. It starts off. If a cover is missing or unreadable, the device theme supplies the colors.
 

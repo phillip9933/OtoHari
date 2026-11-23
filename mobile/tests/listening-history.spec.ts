@@ -170,10 +170,14 @@ for (const scenario of ['disabled', 'enabled', 'unsupported'] as const) {
 		await page.getByLabel('Username').fill('owner');
 		await page.getByLabel('Password', { exact: true }).fill('fixture');
 		await page.getByRole('button', { name: 'Sign in', exact: true }).click();
-		const message =
-			scenario === 'disabled'
-				? 'To see your recent plays, enable Recently Played under Settings → Account-wide content visibility → Home.'
-				: 'No recent plays available from DroppedNeedle.';
-		await expect(page.getByText(message, { exact: true })).toBeVisible();
+		await expect(page.getByRole('heading', { name: 'Home', exact: true })).toBeVisible();
+		if (scenario === 'disabled')
+			await expect(
+				page.locator('[data-board="home"] [data-widget="library-recently-played"]')
+			).toHaveCount(0);
+		else
+			await expect(
+				page.getByText('No recent plays available from DroppedNeedle.', { exact: true })
+			).toBeVisible();
 	});
 }

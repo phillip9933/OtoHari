@@ -42,15 +42,22 @@ export function path<T extends keyof paths>(
 	return search.size ? route + '?' + search : route;
 }
 
-export function cover(group?: string | null, localId?: string | null, missing = false) {
+// Some chart and search rows carry IDs without saying whether the album has its own art.
+export function cover(
+	group?: string | null,
+	localId?: string | null,
+	missing = false,
+	localAvailable = !group
+) {
 	if (missing) return undefined;
+	if (localId && localAvailable)
+		return path('/api/v3/library/albums/{id}/artwork', { id: localId }, { size: 500 });
 	if (group)
 		return path(
 			'/api/v3/covers/release-group/{release_group_id}',
 			{ release_group_id: group },
 			{ size: 500 }
 		);
-	if (localId) return path('/api/v3/library/albums/{id}/artwork', { id: localId }, { size: 500 });
 }
 
 export function playerTrack(
@@ -115,11 +122,7 @@ export function localAlbum(a: Schema['AlbumView']): Album {
 		localId: a.id,
 		group: a.release_group_mbid,
 		favorite: a.favorite,
-		art: cover(
-			a.release_group_mbid,
-			a.id,
-			a.art_missing || (!a.release_group_mbid && !a.cover_available)
-		)
+		art: cover(a.release_group_mbid, a.id, a.art_missing, a.cover_available === true)
 	};
 }
 
@@ -130,11 +133,7 @@ export function localSong(t: Schema['TrackView'], artist = '') {
 			t.title,
 			t.artist_name || artist,
 			t.album_title,
-			cover(
-				t.release_group_mbid,
-				t.album_id,
-				t.art_missing || (!t.release_group_mbid && !t.cover_available)
-			),
+			cover(t.release_group_mbid, t.album_id, t.art_missing, t.cover_available === true),
 			t.duration_seconds
 		),
 		albumId: t.album_id || undefined,
@@ -216,11 +215,7 @@ export async function search(
 	const tracks = result.tracks.flatMap((t) => {
 		if (!t.track || !t.id) return [];
 		const d = t.track;
-		const art = cover(
-			d.release_group_mbid,
-			d.album_id,
-			t.art_missing || (!d.release_group_mbid && !d.cover_available)
-		);
+		const art = cover(d.release_group_mbid, d.album_id, t.art_missing, d.cover_available === true);
 		return [
 			{
 				...playerTrack(t.id, t.title, t.artist ?? '', d.album_title, art, d.duration_seconds),
