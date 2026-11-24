@@ -137,6 +137,37 @@ struct PlaybackSleep {
     }
 }
 
+/// Limit retries across replacement AVPlayerItems for the same play of a track.
+struct PlaybackReconnect {
+    private var occurrence: UUID?, attempts = 0
+    func delay(for id: UUID) -> TimeInterval? {
+        let delays: [TimeInterval] = [1, 2, 4]
+        let used = occurrence == id ? attempts : 0
+        return used < delays.count ? delays[used] : nil
+    }
+
+    mutating func started(_ id: UUID) {
+        attempts = occurrence == id ? attempts + 1 : 1
+        occurrence = id
+    }
+
+    static func recoverable(_ error: Error?) -> Bool {
+        var cause = error as NSError?
+        for _ in 0..<5 {
+            guard let current = cause else { return false }
+            if current.domain == NSURLErrorDomain {
+                switch URLError.Code(rawValue: current.code) {
+                case .networkConnectionLost, .notConnectedToInternet, .timedOut, .cannotFindHost,
+                     .cannotConnectToHost, .dnsLookupFailed: return true
+                default: return false
+                }
+            }
+            cause = current.userInfo[NSUnderlyingErrorKey] as? NSError
+        }
+        return false
+    }
+}
+
 /// Tracks the listener's request across audio session interruptions and asynchronous item changes.
 struct PlaybackIntent {
     enum Permission { case play, hold, timerExpired }

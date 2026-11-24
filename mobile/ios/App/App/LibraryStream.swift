@@ -17,7 +17,7 @@ final class LibraryStream: NSObject, AVAssetResourceLoaderDelegate, URLSessionDa
     }
     private var ranges: [Int: ReadRange] = [:]
     private(set) var openedMIME: String?, deliveryKind: String?
-    private(set) var errorMessage: String?
+    private(set) var errorMessage: String?, failure: Error?
     var completeFile: URL? { conversion?.completeFile ?? capture?.installedFile }
     let asset: AVURLAsset
 
@@ -42,7 +42,7 @@ final class LibraryStream: NSObject, AVAssetResourceLoaderDelegate, URLSessionDa
                 DispatchQueue.main.async { self?.openedMIME = mime; self?.deliveryKind = kind }
             }, direct: { [weak self] url, loading in
                 _ = self?.loadDirect(loading, from: url)
-            }, error: { [weak self] message in self?.errorMessage = message })
+            }, error: { [weak self] message, cause in self?.errorMessage = message; self?.failure = cause })
         }
     }
 
@@ -174,7 +174,7 @@ final class LibraryStream: NSObject, AVAssetResourceLoaderDelegate, URLSessionDa
         ranges.removeValue(forKey: task.taskIdentifier)
         pending.removeValue(forKey: task.taskIdentifier)
         tasks.removeValue(forKey: ObjectIdentifier(loading))
-        if let error { loading.finishLoading(with: error) } else { loading.finishLoading() }
+        if let error { failure = error; loading.finishLoading(with: error) } else { loading.finishLoading() }
         task.cancel()
     }
 
@@ -182,9 +182,10 @@ final class LibraryStream: NSObject, AVAssetResourceLoaderDelegate, URLSessionDa
         let range = ranges.removeValue(forKey: task.taskIdentifier)
         guard let loading = pending.removeValue(forKey: task.taskIdentifier) else { return }
         tasks.removeValue(forKey: ObjectIdentifier(loading))
-        if let error { loading.finishLoading(with: error) }
+        if let error { failure = error; loading.finishLoading(with: error) }
         else if let range, let end = range.response.end, range.current != end {
-            loading.finishLoading(with: URLError(.networkConnectionLost))
+            let lost = URLError(.networkConnectionLost)
+            failure = lost; loading.finishLoading(with: lost)
         } else { loading.finishLoading() }
     }
 }

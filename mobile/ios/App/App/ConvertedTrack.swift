@@ -25,7 +25,7 @@ final class ConvertedTrack: NSObject, URLSessionDataDelegate {
     private let received: (String?, String) -> Void
     private let onDirect: (URL, AVAssetResourceLoadingRequest) -> Void
     private let capture: OfflinePlaybackCapture?
-    private let onError: (String) -> Void
+    private let onError: (String, Error) -> Void
     private var session: URLSession!
     private var mode = Mode.waiting
     private var file: URL?
@@ -37,7 +37,7 @@ final class ConvertedTrack: NSObject, URLSessionDataDelegate {
     private var pending: [ObjectIdentifier: AVAssetResourceLoadingRequest] = [:]
 
     init(original: URL, converted: URL, token: String, capture: OfflinePlaybackCapture?, received: @escaping (String?, String) -> Void, direct: @escaping (URL, AVAssetResourceLoadingRequest) -> Void,
-         error: @escaping (String) -> Void) {
+         error: @escaping (String, Error) -> Void) {
         self.capture = capture
         self.received = received
         self.original = original
@@ -96,12 +96,12 @@ final class ConvertedTrack: NSObject, URLSessionDataDelegate {
         pending.removeAll()
         for loading in all where !loading.isCancelled { action(loading) }
     }
-    private func fail(_ message: String) {
+    private func fail(_ message: String, cause: Error = URLError(.cannotDecodeContentData)) {
         mode = .failed
         session.invalidateAndCancel()
         removeFile()
-        DispatchQueue.main.async { self.onError(message) }
-        drain { $0.finishLoading(with: URLError(.cannotDecodeContentData)) }
+        DispatchQueue.main.async { self.onError(message, cause) }
+        drain { $0.finishLoading(with: cause) }
     }
     private func redirect(_ loading: AVAssetResourceLoadingRequest, to url: URL) {
         DispatchQueue.main.async { if !loading.isCancelled { self.onDirect(url, loading) } }
@@ -154,11 +154,14 @@ final class ConvertedTrack: NSObject, URLSessionDataDelegate {
     }
     func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
         guard case .downloading = mode else { return }
-        guard error == nil, let file, size > 0, let http = task.response as? HTTPURLResponse,
+        if let error { fail("The converted track could not be downloaded in full.", cause: error); return }
+        guard let file, size > 0, let http = task.response as? HTTPURLResponse,
               let range = PlaybackByteRange(status: http.statusCode, header: nil, bytes: http.expectedContentLength,
-                                            coding: http.value(forHTTPHeaderField: "Content-Encoding"), offset: 0),
-              range.end == nil || range.end == size else {
+                                            coding: http.value(forHTTPHeaderField: "Content-Encoding"), offset: 0) else {
             fail("The converted track could not be downloaded in full."); return
+        }
+        if let end = range.end, end != size {
+            fail("The converted track could not be downloaded in full.", cause: URLError(.networkConnectionLost)); return
         }
         do { try handle?.close(); handle = nil }
         catch { fail("The converted track could not be read."); return }

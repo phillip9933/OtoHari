@@ -144,3 +144,25 @@ try alice.save([track, track], cursor: initial, order: nil, previous: savedPrevi
 let withBackup = try alice.load()
 precondition(withBackup?.previous?.tracks.first?.id == track.id && withBackup?.previous?.playing == false)
 print("Up Next, duplicate recordings, reversible shuffle and archived previous queues passed.")
+
+let disconnected = URLError(.networkConnectionLost) as NSError
+let wrapped = NSError(domain: "AVFoundationErrorDomain", code: -11800, userInfo: [NSUnderlyingErrorKey: disconnected])
+precondition(PlaybackReconnect.recoverable(wrapped))
+for code: URLError.Code in [.timedOut, .notConnectedToInternet, .cannotConnectToHost] {
+    precondition(PlaybackReconnect.recoverable(URLError(code)))
+}
+for code: URLError.Code in [.badServerResponse, .cancelled, .userAuthenticationRequired, .serverCertificateUntrusted,
+                             .cannotDecodeContentData, .dataNotAllowed] {
+    precondition(!PlaybackReconnect.recoverable(URLError(code)))
+}
+precondition(!PlaybackReconnect.recoverable(nil))
+var reconnect = PlaybackReconnect()
+let play = UUID(), following = UUID()
+for delay: TimeInterval in [1, 2, 4] {
+    // A healthy buffer or a canceled timer does not consume an attempt.
+    precondition(reconnect.delay(for: play) == delay && reconnect.delay(for: play) == delay)
+    reconnect.started(play)
+}
+precondition(reconnect.delay(for: play) == nil)
+precondition(reconnect.delay(for: following) == 1)
+print("Network playback failure classification and per-occurrence retry budgets passed.")

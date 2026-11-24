@@ -62,6 +62,12 @@ public final class DNPlayerPlugin: CAPPlugin, CAPBridgedPlugin {
     private let pathMonitor = NWPathMonitor()
     private var network = PlaybackNetwork.unknown
     private var gateways = [NWEndpoint]()
+    private var pathAvailable = false
+    private var routeVersion = 0
+    private var reconnect = PlaybackReconnect()
+    private var reconnectWork: DispatchWorkItem?
+    private weak var failedStream: AVPlayerItem?
+    private var lastItemPosition = 0.0, reconnectStart: Double?, stalledAt: Double?
     private weak var observedItem: AVPlayerItem?
     private var token = ""
     private var index = -1 {
@@ -71,7 +77,7 @@ public final class DNPlayerPlugin: CAPPlugin, CAPBridgedPlugin {
         }
     }
     private var streams: [ObjectIdentifier: (key: UUID, occurrence: UUID, profile: StreamProfile,
-                                             source: OfflineFiles.PlaybackSource, network: PlaybackNetwork, stream: LibraryStream?)] = [:]
+                                             source: OfflineFiles.PlaybackSource, network: PlaybackNetwork, route: Int, stream: LibraryStream?)] = [:]
     private var observations: [NSKeyValueObservation] = []
     private var itemStatus: NSKeyValueObservation?
     private var listeners: [NSObjectProtocol] = []
@@ -86,11 +92,15 @@ public final class DNPlayerPlugin: CAPPlugin, CAPBridgedPlugin {
             guard let self else { return }
             let next = PlaybackNetwork(path)
             let changed = self.network != next || self.gateways != path.gateways
-            self.network = next; self.gateways = path.gateways
+            if changed { self.routeVersion += 1 }
+            self.network = next; self.gateways = path.gateways; self.pathAvailable = path.status == .satisfied
             self.offlineHistory.connection(path.status == .requiresConnection ? nil : path.status == .satisfied, pathChanged: changed)
             self.reports.permissionsChanged()
             if next == .offline { self.cancelSuggestions() }
-            if !self.queue.isEmpty { self.updateCurrentItem(); self.sampleHistory(); self.loadWindow() }
+            if !self.queue.isEmpty {
+                self.updateCurrentItem(); self.sampleHistory(); self.loadWindow()
+                self.scheduleReconnectIfNeeded()
+            }
         }
         pathMonitor.start(queue: .main)
         DispatchQueue.main.async { [weak self] in self?.observePlayback() }
@@ -259,7 +269,10 @@ public final class DNPlayerPlugin: CAPPlugin, CAPBridgedPlugin {
             DispatchQueue.main.async {
                 guard let self else { return }
                 if self.player.timeControlStatus != .paused && !self.playbackAllowed() { self.player.pause() }
-                if self.player.timeControlStatus == .waitingToPlayAtSpecifiedRate && self.mix?.start != nil { self.cancelMix() }
+                if self.player.timeControlStatus == .waitingToPlayAtSpecifiedRate {
+                    if self.mix?.start != nil { self.cancelMix() }
+                    self.scheduleReconnectIfNeeded()
+                }
                 self.sampleHistory(); self.publishNowPlaying()
             }
         })
@@ -333,10 +346,15 @@ public final class DNPlayerPlugin: CAPPlugin, CAPBridgedPlugin {
                 self?.pause()
             }
         })
+        listeners.append(center.addObserver(forName: .AVPlayerItemPlaybackStalled, object: nil, queue: .main) { [weak self] note in
+            guard let self, let item = note.object as? AVPlayerItem, item === self.player.currentItem,
+                  self.playbackAllowed(), self.streams[ObjectIdentifier(item)]?.source == .network else { return }
+            self.stalledAt = self.position
+            self.scheduleReconnectIfNeeded()
+        })
         listeners.append(center.addObserver(forName: .AVPlayerItemFailedToPlayToEndTime, object: nil, queue: .main) { [weak self] note in
             guard let self, let item = note.object as? AVPlayerItem, item === self.player.currentItem else { return }
-            self.error = self.streams[ObjectIdentifier(item)]?.stream?.errorMessage ?? (self.streams[ObjectIdentifier(item)]?.stream == nil ? "The offline copy is unavailable or cannot be played by this device." : "This track could not be played.")
-            self.pause()
+            self.itemFailed(item, cause: note.userInfo?[AVPlayerItemFailedToPlayToEndTimeErrorKey] as? Error)
         })
         let remote = MPRemoteCommandCenter.shared()
         bind(remote.playCommand) { p, _ in try p.resume() }
@@ -432,9 +450,18 @@ public final class DNPlayerPlugin: CAPPlugin, CAPBridgedPlugin {
         if let last = historyItem, last !== item { finishHistory() }
         guard let item, let entry = streams[ObjectIdentifier(item)], let track = queue.first(where: { $0.key == entry.key }),
               let id = track.data["id"] as? String else { return }
-        if item.status == .failed { finishHistory(); return }
-        let playing = !pausedForReplacement && intent.canPlay && player.timeControlStatus == .playing && deferredPosition == nil && !seekInFlight
-        let position = Self.milliseconds(item.currentTime().seconds) ?? 0
+        if item.status == .failed && failedStream !== item && !PlaybackReconnect.recoverable(entry.stream?.failure ?? item.error) {
+            finishHistory(); return
+        }
+        let playing = !pausedForReplacement && item.status == .readyToPlay && failedStream !== item && intent.canPlay && player.timeControlStatus == .playing && deferredPosition == nil && !seekInFlight
+        let seconds = item.currentTime().seconds
+        if seconds.isFinite, item.status == .readyToPlay, failedStream !== item, deferredPosition == nil,
+           seconds > 0 || playing { lastItemPosition = max(0, seconds) }
+        if let at = stalledAt, abs(lastItemPosition - at) > 0.25 { stalledAt = nil }
+        if playing, let start = reconnectStart, lastItemPosition >= start + 10 {
+            reconnect = PlaybackReconnect(); reconnectStart = nil
+        }
+        let position = Self.milliseconds(deferredPosition ?? lastItemPosition) ?? 0
         let length = Self.milliseconds(item.duration.seconds) ?? Self.milliseconds(track.data["duration"] as? Double) ?? 0
         let replay = offlineHistory, owner = historyOwner
         let events = history.observe(entry.occurrence, id: id, position: position, length: length, playing: playing,
@@ -456,7 +483,7 @@ public final class DNPlayerPlugin: CAPPlugin, CAPBridgedPlugin {
         return apply(permission)
     }
     private func playWhenReady() {
-        guard playbackAllowed(), deferredPosition == nil, !seekInFlight, player.currentItem != nil,
+        guard playbackAllowed(), deferredPosition == nil, !seekInFlight, let item = player.currentItem, failedStream !== item,
               player.timeControlStatus == .paused else { return }
         player.playImmediately(atRate: sound.speed)
     }
@@ -809,6 +836,7 @@ public final class DNPlayerPlugin: CAPPlugin, CAPBridgedPlugin {
         waveforms.stop()
         if keepingHistory { sampleHistory(pausedForReplacement: true); historyItem = nil }
         else { finishHistory() }
+        cancelReconnect()
         itemStatus = nil; observedItem = nil
         clearArtwork()
         deferredPosition = nil; seekInFlight = false
@@ -823,7 +851,7 @@ public final class DNPlayerPlugin: CAPPlugin, CAPBridgedPlugin {
     private func move(to position: Int, from seconds: Double = 0, keepingHistory: Bool = false) {
         guard queue.indices.contains(position) else { return }
         let stayDeferred = !playbackAllowed() && player.currentItem == nil
-        let occurrence = keepingHistory ? history.occurrence : nil
+        let occurrence = keepingHistory ? player.currentItem.flatMap { streams[ObjectIdentifier($0)]?.occurrence } ?? history.occurrence : nil
         clearItems(keepingHistory: occurrence != nil)
         index = position
         intent.sleep.moved(to: queue[position].key)
@@ -836,6 +864,59 @@ public final class DNPlayerPlugin: CAPPlugin, CAPBridgedPlugin {
         applyFade()
         playWhenReady()
         checkpoint()
+    }
+
+    private func cancelReconnect() {
+        reconnectWork?.cancel(); reconnectWork = nil; failedStream = nil; reconnectStart = nil; stalledAt = nil
+    }
+
+    private func itemFailed(_ item: AVPlayerItem, cause: Error?) {
+        guard item === player.currentItem else { return }
+        let stream = streams[ObjectIdentifier(item)]?.stream
+        if deferredPosition == nil {
+            let current = item.currentTime().seconds
+            deferredPosition = current.isFinite && current > 0 ? current : lastItemPosition
+        }
+        if stream != nil && intent.requested && PlaybackReconnect.recoverable(stream?.failure ?? cause) {
+            failedStream = item
+            sampleHistory(pausedForReplacement: true)
+            scheduleReconnectIfNeeded()
+        } else {
+            error = stream?.errorMessage ?? (stream == nil ? "The offline copy is unavailable or cannot be played by this device." : "This track could not be played.")
+            pause()
+        }
+    }
+
+    private func stalledOnOldRoute(_ route: Int) -> Bool {
+        route != routeVersion && (player.timeControlStatus == .waitingToPlayAtSpecifiedRate ||
+            stalledAt.map { abs(position - $0) <= 0.25 } == true)
+    }
+
+    // AVFoundation usually continues from its own buffer across a path change.
+    // Reopen only a failed stream or one still waiting on its previous network.
+    private func scheduleReconnectIfNeeded() {
+        guard reconnectWork == nil, pathAvailable, playbackAllowed(), let item = player.currentItem,
+              let entry = streams[ObjectIdentifier(item)], entry.source == .network,
+              failedStream === item || stalledOnOldRoute(entry.route) else { return }
+        let stalled = failedStream !== item
+        guard let delay = reconnect.delay(for: entry.occurrence) else {
+            deferredPosition = position
+            error = "Could not reconnect to DroppedNeedle."; pause()
+            return
+        }
+        let work = DispatchWorkItem { [weak self, weak item] in
+            guard let self else { return }
+            self.reconnectWork = nil
+            guard let item, self.player.currentItem === item, self.pathAvailable, self.playbackAllowed(),
+                  self.failedStream === item || self.stalledOnOldRoute(entry.route),
+                  self.queue.indices.contains(self.index), self.queue[self.index].key == entry.key else { return }
+            let at = self.deferredPosition ?? (item.currentTime().seconds.isFinite ? self.position : self.lastItemPosition)
+            self.reconnect.started(entry.occurrence)
+            self.move(to: self.index, from: at, keepingHistory: true)
+            self.reconnectStart = at
+        }
+        reconnectWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + (stalled ? max(3, delay) : delay), execute: work)
     }
 
     private func offlineFilesChanged() {
@@ -893,7 +974,7 @@ public final class DNPlayerPlugin: CAPPlugin, CAPBridgedPlugin {
             item = AVPlayerItem(asset: remote.asset)
         }
         applySound(to: item, track: track)
-        streams[ObjectIdentifier(item)] = (queue[index].key, occurrence, profile, source, network, stream)
+        streams[ObjectIdentifier(item)] = (queue[index].key, occurrence, profile, source, network, routeVersion, stream)
         player.insert(item, after: player.items().last)
     }
 
@@ -925,6 +1006,8 @@ public final class DNPlayerPlugin: CAPPlugin, CAPBridgedPlugin {
             if mix?.outgoing !== item { cancelMix() }
             // An automatic AVQueuePlayer advance must not carry the old item's pending seek into its successor.
             if itemStatus != nil { deferredPosition = nil; seekInFlight = false }
+            cancelReconnect()
+            lastItemPosition = deferredPosition ?? 0
             observedItem = item
             error = nil
             itemStatus = item.observe(\.status, options: [.initial, .new]) { [weak self, weak item] _, _ in
@@ -935,8 +1018,7 @@ public final class DNPlayerPlugin: CAPPlugin, CAPBridgedPlugin {
                         else { self.playWhenReady() }
                     }
                     if item.status == .failed {
-                        self.error = self.streams[ObjectIdentifier(item)]?.stream?.errorMessage ?? (self.streams[ObjectIdentifier(item)]?.stream == nil ? "The offline copy is unavailable or cannot be played by this device." : "This track could not be played.")
-                        self.pause()
+                        self.itemFailed(item, cause: item.error)
                     }
                     self.publishNowPlaying()
                 }
@@ -1055,6 +1137,7 @@ public final class DNPlayerPlugin: CAPPlugin, CAPBridgedPlugin {
         playbackAllowed()
         try activateAudio()
         intent.userActivated()
+        reconnect = PlaybackReconnect()
     }
     private func resume() throws {
         guard queue.indices.contains(index) else { return }
@@ -1069,8 +1152,8 @@ public final class DNPlayerPlugin: CAPPlugin, CAPBridgedPlugin {
             if !afterInterruption || pageProblem == nil { loadWindow(force: true) }
             return
         }
-        if player.currentItem == nil || player.currentItem?.status == .failed || error != nil {
-            move(to: index, from: deferredPosition ?? 0)
+        if player.currentItem == nil || player.currentItem?.status == .failed || failedStream != nil || error != nil {
+            move(to: index, from: deferredPosition ?? position, keepingHistory: true)
         } else if !afterInterruption && duration > 0 && position >= duration - 0.05 {
             move(to: nextIndex(automatic: false) ?? index)
         } else {
@@ -1080,6 +1163,8 @@ public final class DNPlayerPlugin: CAPPlugin, CAPBridgedPlugin {
     }
 
     private func pause() {
+        // Keep the failed item's position for an explicit Play. A delayed retry must never override Pause.
+        reconnectWork?.cancel(); reconnectWork = nil
         cancelSuggestions()
         intent.pause()
         updateReadAhead()
@@ -1211,12 +1296,13 @@ public final class DNPlayerPlugin: CAPPlugin, CAPBridgedPlugin {
         publishNowPlaying()
     }
     private func applyDeferredPosition(_ item: AVPlayerItem) {
-        guard item.status == .readyToPlay, let seconds = deferredPosition, !seekInFlight else { return }
+        guard item.status == .readyToPlay, failedStream !== item, let seconds = deferredPosition, !seekInFlight else { return }
         seekInFlight = true
         item.seek(to: CMTime(seconds: seconds, preferredTimescale: 600), toleranceBefore: .zero, toleranceAfter: .zero) { [weak self, weak item] completed in
             DispatchQueue.main.async {
                 guard let self, let item, self.player.currentItem === item else { return }
                 self.seekInFlight = false
+                guard self.failedStream !== item, item.status != .failed, self.error == nil else { return }
                 if self.deferredPosition != seconds { self.applyDeferredPosition(item); return }
                 self.deferredPosition = nil
                 if completed { self.playWhenReady() }
