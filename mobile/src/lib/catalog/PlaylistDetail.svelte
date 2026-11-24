@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { uiText } from '../i18n';
+	import { tr, uiText } from '../i18n';
 	import WebDetail from './WebDetail.svelte';
 	import { onMount } from 'svelte';
 	import HomePinButton from './HomePinButton.svelte';
@@ -15,6 +15,8 @@
 		deletePlaylist,
 		type Playlist
 	} from './playlists';
+	import { entryStatus, importStatus, playlistRequests } from './playlistRequests.svelte';
+	import { EllipsisVertical } from '@lucide/svelte';
 	import { loadNearEnd } from './browseViewport';
 	import { playlistShuffle } from './browseActions';
 	import SelectionHost from './SelectionHost.svelte';
@@ -57,6 +59,22 @@
 	let dialog = $state<'export' | 'rename' | 'sharing' | 'remove' | 'delete' | null>(null);
 	let remove = $state<{ id: string; title: string } | null>(null);
 	const current = $derived(detail?.playlist ?? playlist);
+	const missingId = $derived(
+		active &&
+			(current.can_edit || current.is_owner) &&
+			detail &&
+			(current.source_ref?.startsWith('spotify:') ||
+				detail.rows.some(({ entry, index }) => index === null && !entry.source_type))
+			? current.id
+			: undefined
+	);
+	const requests = playlistRequests(
+		() => session,
+		() => missingId,
+		() => void load()
+	);
+	let requestEntry = $state<{ id: string; title: string }>();
+	const selectedState = $derived(requestEntry && requests.entries.get(requestEntry.id));
 	const device = detailInventory(
 		() => session,
 		() => active && !!detail
@@ -222,6 +240,34 @@
 		</div>
 	{/if}
 	{#if editError && !dialog}<p role="alert">{editError}</p>{/if}
+	{#if requests.state}
+		{@const info = requests.state}
+		{#if info.requestable_albums || info.no_album_songs || info.finding_albums || info.import}
+			<div class="missing-summary">
+				{#if info.requestable_albums}<button
+						class="secondary"
+						disabled={requests.sending}
+						onclick={() => requests.album()}
+						><Download size={17} />{tr(
+							`Request missing albums (${info.requestable_albums})`,
+							`不足しているアルバムをリクエスト（${info.requestable_albums}）`
+						)}</button
+					>{/if}
+				{#if info.finding_albums}<small>{tr('Finding albums…', 'アルバムを検索中…')}</small>{/if}
+				{#if info.no_album_songs}<small
+						>{tr(
+							`Songs with no album found: ${info.no_album_songs}`,
+							`アルバム未特定の曲：${info.no_album_songs}`
+						)}</small
+					>{/if}
+				{#if info.import}<small>{importStatus(info.import)}</small>{/if}
+			</div>
+		{/if}
+	{/if}
+	{#if requests.readingError}<p role="alert">{requests.readingError}</p>
+		<button class="text-button" onclick={requests.refresh}>{uiText('Try again')}</button>{/if}
+	{#if requests.receipt}<p role="status">{requests.receipt}</p>{/if}
+	{#if requests.actionError}<p role="alert">{requests.actionError}</p>{/if}
 	{#if offlineSupported && session.userId}<DetailAvailability
 			source={device}
 			available={countOnDevice}
@@ -262,6 +308,7 @@
 				{#if detail}
 					<div data-part="track-list">
 						{#each visible.slice(0, count) as { entry, position, track, playIndex } (entry.id)}
+							{@const requestState = !track ? requests.entries.get(entry.id) : undefined}
 							<div class="entry" data-entry={entry.id} data-reorder-row={position}>
 								<TrackRow
 									choice={track ? trackChoice(track, 'entry:' + entry.id) : undefined}
@@ -276,6 +323,17 @@
 									position={position + 1}
 									onplay={playIndex === null ? undefined : () => onplay(shownTracks, playIndex)}
 								/>
+								{#if !editing && (requestState === 'requestable' || requestState === 'album_in_library')}
+									<button
+										class="icon-button"
+										aria-label={tr(
+											`Request options for ${entry.track_name}`,
+											`${entry.track_name} のリクエストオプション`
+										)}
+										onclick={() => (requestEntry = { id: entry.id, title: entry.track_name })}
+										><EllipsisVertical size={18} /></button
+									>
+								{/if}
 								{#if editing && current.can_edit}
 									<div class="tools">
 										{@render grip(position, entry.track_name, saving)}
@@ -291,6 +349,8 @@
 										>
 									</div>
 								{/if}
+								{#if requestState}<small class="request-status">{entryStatus(requestState)}</small
+									>{/if}
 							</div>
 						{/each}
 					</div>
@@ -304,6 +364,33 @@
 				onclick={() => (count += 50)}>{uiText('More tracks')}</button
 			>{/if}</SelectionHost
 	>
+{/if}
+{#if requestEntry}
+	<PlaylistDialog title={requestEntry.title} onclose={() => (requestEntry = undefined)}>
+		<div class="actions">
+			{#if selectedState === 'requestable'}<button
+					class="secondary"
+					disabled={requests.sending}
+					onclick={() => {
+						const id = requestEntry!.id;
+						requestEntry = undefined;
+						void requests.album(id);
+					}}>{tr('Request album', 'アルバムをリクエスト')}</button
+				>{/if}
+			{#if selectedState === 'requestable' || selectedState === 'album_in_library'}<button
+					class="secondary"
+					disabled={requests.sending}
+					onclick={() => {
+						const id = requestEntry!.id;
+						requestEntry = undefined;
+						void requests.song(id);
+					}}>{tr('Request just this song', 'この曲だけをリクエスト')}</button
+				>{/if}
+			<button class="text-button" onclick={() => (requestEntry = undefined)}
+				>{uiText('Close')}</button
+			>
+		</div>
+	</PlaylistDialog>
 {/if}
 {#if dialog === 'rename'}
 	<PlaylistDialog title={uiText('Rename playlist')} onclose={close} busy={saving}>
@@ -397,6 +484,18 @@
 	.tools {
 		flex-wrap: nowrap;
 		gap: 0;
+	}
+	.request-status {
+		grid-column: 1/-1;
+		color: var(--muted);
+		padding: 0.2rem 0 0.4rem 2.4rem;
+	}
+	.missing-summary {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: var(--gap);
+		margin-block: var(--gap);
 	}
 	.more {
 		margin-top: var(--gap);

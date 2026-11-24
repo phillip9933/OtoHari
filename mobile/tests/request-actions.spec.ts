@@ -116,6 +116,8 @@ async function connect(page: Page, role: S['Role']) {
 			const items = filter ? history.filter((r) => r.status === filter) : history;
 			return json({ items, total: items.length, page: 1, total_pages: 1 });
 		}
+		if (path === '/requests/approvals/batches')
+			return route.fulfill({ status: 404, json: { message: 'Route not found' } });
 		if (path === '/requests/approvals') {
 			expect(role).toBe('admin');
 			return json({ items: approvals });
@@ -819,4 +821,62 @@ test('pulling a review sheet returns one step, preserves inner scrolling and nev
 	await verticalSwipe(page, header.x + header.width / 2, header.y + header.height / 2, 75);
 	await expect(modal).toBeHidden();
 	expect(calls.filter((c) => c.endsWith('/pick'))).toHaveLength(0);
+});
+
+test('playlist approval cards count one decision and confirm the exact albums to approve and reject', async ({
+	page
+}) => {
+	await connect(page, 'admin');
+	const items = [
+		{ musicbrainz_id: id, title: 'River', artist_name: 'North' },
+		{ musicbrainz_id: second, title: 'Coast', artist_name: 'East' }
+	];
+	let waiting = true;
+	const submissions: unknown[] = [];
+	await page.route(api + '/requests/approvals/batches**', async (route) => {
+		expect(route.request().headers().authorization).toBe('Bearer fixture');
+		if (route.request().method() === 'GET')
+			return route.fulfill({
+				json: {
+					cards: waiting
+						? [{ id: 'batch', name: 'Open roads', requester_name: 'Listener', items }]
+						: []
+				}
+			});
+		expect(route.request().method()).toBe('POST');
+		expect(new URL(route.request().url()).pathname).toContain('/batches/batch/decide');
+		submissions.push(route.request().postDataJSON());
+		waiting = false;
+		return route.fulfill({ json: { approved: 1, rejected: 1, skipped: 0 } });
+	});
+	await page.getByRole('tab', { name: 'Approvals', exact: true }).click();
+	await expect(page.getByRole('heading', { name: 'Awaiting approval 3' })).toBeVisible();
+	const batch = page.getByRole('region', { name: 'Playlist request · Open roads' });
+	await batch.getByRole('button', { name: /Open roads/ }).click();
+	await batch.getByRole('checkbox', { name: /Coast/ }).uncheck();
+	await batch.getByRole('button', { name: 'Approve 1' }).click();
+	const dialog = page.getByRole('dialog');
+	await expect(dialog).toContainText('Approve 1 and reject 1');
+	await dialog.getByRole('button', { name: 'Go back' }).click();
+	expect(submissions).toEqual([]);
+	await batch.getByRole('button', { name: 'Approve 1' }).click();
+	await dialog.getByRole('button', { name: 'Approve selection' }).click();
+	await expect(
+		page.getByRole('status').filter({ hasText: 'Approved 1, rejected 1.' })
+	).toBeVisible();
+	expect(submissions).toEqual([{ approve: [id] }]);
+	await expect(page.getByRole('heading', { name: 'Awaiting approval 2' })).toBeVisible();
+});
+
+test('a failed grouped approval read leaves individual requests usable and never claims the queue is empty', async ({
+	page
+}) => {
+	await connect(page, 'admin');
+	await page.route(api + '/requests/approvals/batches', (route) =>
+		route.fulfill({ status: 503, json: { message: 'Try later' } })
+	);
+	await page.getByRole('tab', { name: 'Approvals', exact: true }).click();
+	await expect(page.getByRole('alert')).toContainText('Playlist approvals could not be refreshed');
+	await expect(page.getByRole('button', { name: 'Actions for Junction' })).toBeVisible();
+	await expect(page.getByText('No requests awaiting approval.')).toHaveCount(0);
 });

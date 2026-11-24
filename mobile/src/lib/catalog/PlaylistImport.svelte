@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { uiText } from '../i18n';
+	import { tr, uiText } from '../i18n';
 	import { Upload } from '@lucide/svelte';
 	import type { components } from '../../../../frontend/src/lib/api/v3/openapi';
 	import { postJson, type Session } from '../connection';
@@ -16,7 +16,9 @@
 		name = $state(''),
 		busy = $state(false),
 		error = $state('');
-	let report = $state<S['ImportPlaylistResponse']>();
+	type ImportReport = S['ImportPlaylistResponse'] & { kept?: number };
+	let report = $state<ImportReport>();
+	let libraryOnly = $state(false);
 	const reasons: Record<S['ImportUnmatchedReason'], string> = {
 		names_nothing: 'No filename',
 		no_match: 'No matching local file',
@@ -40,16 +42,13 @@
 		busy = true;
 		error = '';
 		try {
-			const body: S['ImportPlaylistBody'] = {
+			const body: S['ImportPlaylistBody'] & { library_only?: boolean } = {
 				name: name.trim(),
 				format: /\.csv$/i.test(file.name) ? 'csv' : 'm3u8',
-				content: await file.text()
+				content: await file.text(),
+				...(libraryOnly ? { library_only: true } : {})
 			};
-			report = await postJson<S['ImportPlaylistResponse']>(
-				session,
-				path('/api/v3/playlists/import'),
-				body
-			);
+			report = await postJson<ImportReport>(session, path('/api/v3/playlists/import'), body);
 			onimport();
 		} catch (cause) {
 			error = errorMessage(cause);
@@ -59,6 +58,7 @@
 	}
 	function start() {
 		file = report = undefined;
+		libraryOnly = false;
 		name = error = '';
 		open = true;
 	}
@@ -83,13 +83,16 @@
 				{report.matched === 1 ? uiText('track') : uiText('tracks')}
 				{uiText('added')}
 			</p>
+			{#if report.kept}<p>
+					{tr(`Songs kept to request: ${report.kept}`, `リクエスト用に保存した曲：${report.kept}`)}
+				</p>{/if}
 			{#if report.unmatched.length}<details>
 					<summary>{uiText('Unmatched entries (')}{report.unmatched.length})</summary>
 					<ul>
 						{#each report.unmatched.slice(0, 200) as row, i (i)}<li>
 								<strong>{row.title || uiText('Untitled')}</strong>{row.artist
 									? ' · ' + row.artist
-									: ''} · {reasons[row.reason]}
+									: ''} · {uiText(reasons[row.reason])}
 							</li>{/each}
 					</ul>
 					{#if report.unmatched.length > 200}<p>{uiText('Showing the first 200 entries.')}</p>{/if}
@@ -117,7 +120,18 @@
 				{#if file}<label
 						>{uiText('Playlist name')}<input required bind:value={name} disabled={busy} /></label
 					>{/if}
-				<p>{uiText('DN matches entries against files in your server’s library.')}</p>
+				<label class="library-only"
+					><input type="checkbox" bind:checked={libraryOnly} disabled={busy} />{tr(
+						'Only songs already in the library',
+						'ライブラリにある曲だけを追加'
+					)}</label
+				>
+				<p>
+					{tr(
+						'On supported servers, missing songs with a title and artist can be kept for later requests.',
+						'対応するサーバーでは、ライブラリにない曲も曲名とアーティストがあれば、後でリクエストできるように保存します。'
+					)}
+				</p>
 				{#if error}<p role="alert">{error}</p>{/if}
 				<div class="actions">
 					<button class="secondary" type="button" disabled={busy} onclick={() => (open = false)}
@@ -130,3 +144,14 @@
 		{/if}
 	</PlaylistDialog>
 {/if}
+
+<style>
+	.library-only {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+	}
+	.library-only input {
+		width: auto;
+	}
+</style>

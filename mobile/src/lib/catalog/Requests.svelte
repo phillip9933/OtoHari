@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { uiText } from '../i18n';
+	import { uiText, tr } from '../i18n';
 	import InlineChoice from '../controls/InlineChoice.svelte';
 	import { onMount } from 'svelte';
 	import { Browser } from '@capacitor/browser';
@@ -7,6 +7,7 @@
 	import WantedWatches from './WantedWatches.svelte';
 	import HeldReview from './HeldReview.svelte';
 	import RequestCandidates from './RequestCandidates.svelte';
+	import PlaylistApprovalCard from './PlaylistApprovalCard.svelte';
 	import RequestRecord from './RequestRecord.svelte';
 	import PlayerSheet from '../player/PlayerSheet.svelte';
 	import {
@@ -31,6 +32,8 @@
 	} from './catalog';
 	import {
 		approvals,
+		approvalBatches,
+		type ApprovalCard,
 		requestViewer,
 		requestActions,
 		taskActions,
@@ -48,6 +51,7 @@
 	let active = $state<RequestItem[]>([]),
 		history = $state<RequestItem[]>([]),
 		pending = $state<RequestItem[]>([]),
+		batches = $state<ApprovalCard[]>([]),
 		tasks = $state<Download[]>([]);
 	let busy = $state(false),
 		error = $state(''),
@@ -183,8 +187,33 @@
 				page = past.page;
 				pages = past.total_pages;
 			} else if (view === 'approvals' && viewer?.role === 'admin') {
-				const reply = await approvals(session);
-				if (sequence === version) pending = reply.items;
+				const [individual, grouped] = await Promise.allSettled([
+					approvals(session, controller.signal),
+					approvalBatches(session, controller.signal)
+				]);
+				if (sequence !== version) return;
+				if (individual.status === 'fulfilled') pending = individual.value.items;
+				if (grouped.status === 'fulfilled') batches = grouped.value;
+				const messages: string[] = [];
+				if (individual.status === 'rejected')
+					messages.push(
+						tr(
+							'Individual approvals could not be refreshed.',
+							'個別の承認待ちリクエストを更新できませんでした。'
+						) +
+							' ' +
+							errorMessage(individual.reason)
+					);
+				if (grouped.status === 'rejected')
+					messages.push(
+						tr(
+							'Playlist approvals could not be refreshed.',
+							'プレイリストの承認待ちリクエストを更新できませんでした。'
+						) +
+							' ' +
+							errorMessage(grouped.reason)
+					);
+				error = messages.join(' ');
 			} else if (view === 'downloads') {
 				const reply = await loadDownloadPage(session, wanted, controller.signal);
 				if (sequence !== version) return;
@@ -448,9 +477,16 @@
 			</p>{/if}
 	{:else if view === 'approvals'}
 		<section aria-label={uiText('Approvals')}>
-			<h2 class="section-title">{uiText('Awaiting approval')} <span>{pending.length}</span></h2>
+			<h2 class="section-title">
+				{uiText('Awaiting approval')} <span>{pending.length + batches.length}</span>
+			</h2>
+			{#each batches as card (card.id)}<PlaylistApprovalCard
+					{session}
+					{card}
+					onreview={(action) => open(card.name, [action])}
+				/>{/each}
 			{#if pending.length}{@render rows(pending, 'approvals')}
-			{:else if !error}<p role="status">
+			{:else if !batches.length && !error}<p role="status">
 					{busy ? uiText('Loading approvals…') : uiText('No requests awaiting approval.')}
 				</p>{/if}
 		</section>

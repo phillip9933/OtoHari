@@ -1,5 +1,5 @@
 import type { components } from '../../../../frontend/src/lib/api/v3/openapi';
-import { getJson, mutateJson, postJson, type Session } from '../connection';
+import { DnError, getJson, mutateJson, postJson, type Session } from '../connection';
 import { path, type RequestItem } from './catalog';
 
 type Schema = components['schemas'];
@@ -11,8 +11,36 @@ export function requestViewer(session: Session) {
 	return getJson<Viewer>(session, path('/api/v3/me'));
 }
 
-export function approvals(session: Session) {
-	return getJson<Schema['ActiveRequestsResponse']>(session, path('/api/v3/requests/approvals'));
+export function approvals(session: Session, signal?: AbortSignal) {
+	return getJson<Schema['ActiveRequestsResponse']>(
+		session,
+		path('/api/v3/requests/approvals'),
+		signal
+	);
+}
+
+// The grouped approvals route is optional on DN 3.1.
+export type ApprovalCard = {
+	id: string;
+	name: string;
+	requester_name: string;
+	items: { musicbrainz_id: string; title: string; artist_name: string }[];
+};
+const batchesPath = '/api/v3/requests/approvals/batches';
+export async function approvalBatches(session: Session, signal: AbortSignal) {
+	try {
+		return (await getJson<{ cards: ApprovalCard[] }>(session, batchesPath, signal)).cards;
+	} catch (error) {
+		if (error instanceof DnError && (error.status === 404 || error.status === 405)) return [];
+		throw error;
+	}
+}
+export function decideBatch(session: Session, id: string, approve: string[]) {
+	return postJson<{ approved: number; rejected: number }>(
+		session,
+		batchesPath + '/' + encodeURIComponent(id) + '/decide',
+		{ approve }
+	);
 }
 
 function taskPage(
