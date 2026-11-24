@@ -122,12 +122,17 @@ public final class PlaybackService extends MediaLibraryService {
     private Runnable stopFadeProfileWatch, stopFadeOfflineWatch;
     private ConnectivityManager connectivity;
     private StreamProfiles.Path playbackNetwork;
+    private final StreamRecovery reconnect = new StreamRecovery();
     private final ConnectivityManager.NetworkCallback playbackConnectivity = new ConnectivityManager.NetworkCallback() {
+        @Override public void onAvailable(Network network) { networkChanged(); }
         @Override public void onCapabilitiesChanged(Network network, NetworkCapabilities capabilities) { networkChanged(); }
         @Override public void onLost(Network network) { networkChanged(); }
         private void networkChanged() {
             main.post(() -> {
+                if (connectivity == null) return;
                 StreamProfiles.Path now = StreamProfiles.active(PlaybackService.this);
+                reconnect.network(connectivity.getActiveNetwork(), now);
+                recoverInterruptedStream();
                 updateReadAhead();
                 if (playbackNetwork != now) {
                     playbackNetwork = now;
@@ -317,7 +322,10 @@ public final class PlaybackService extends MediaLibraryService {
                 () -> player.destination().isEmpty() && !sleep.active(), sound);
         connectivity = getSystemService(ConnectivityManager.class);
         playbackNetwork = StreamProfiles.active(this);
-        if (connectivity != null) connectivity.registerDefaultNetworkCallback(playbackConnectivity);
+        if (connectivity != null) {
+            reconnect.network(connectivity.getActiveNetwork(), playbackNetwork);
+            connectivity.registerDefaultNetworkCallback(playbackConnectivity);
+        }
         local.setPlaybackSpeed(sound.speed());
         int audioSession = local.getAudioSessionId();
         if (audioSession <= 0) {
@@ -336,6 +344,16 @@ public final class PlaybackService extends MediaLibraryService {
         saved = new SavedQueue(this);
         reporter = new PlaybackReporter(this, player);
         local.addListener(new Player.Listener() {
+            @Override public void onEvents(Player source, Player.Events events) {
+                if (!source.getPlayWhenReady()) {
+                    reconnect.follow(null);
+                    return;
+                }
+                reconnect.follow(trackIdentity(source.getCurrentMediaItem()));
+                if (source.getPlaybackState() == Player.STATE_READY) reconnect.ready();
+                if (events.containsAny(Player.EVENT_PLAYER_ERROR, Player.EVENT_PLAYBACK_STATE_CHANGED))
+                    recoverInterruptedStream();
+            }
             @Override public void onPlayWhenReadyChanged(boolean ready, int reason) {
                 if (!ready && radio != null) cancelRadio();
                 if (!ready && reason == Player.PLAY_WHEN_READY_CHANGE_REASON_END_OF_MEDIA_ITEM && sleep.afterTrack()) {
@@ -673,6 +691,19 @@ public final class PlaybackService extends MediaLibraryService {
         }
         fades.sourceChanged();
     }
+    private void recoverInterruptedStream() {
+        if (access == null || !access.allowsOnlineMedia() || !player.destination().isEmpty()
+                || !localPlayback.getPlayWhenReady() || localPlayback.getPlaybackState() != Player.STATE_IDLE
+                || localPlayback.getPlaybackSuppressionReason() != Player.PLAYBACK_SUPPRESSION_REASON_NONE
+                || !StreamRecovery.transportError(localPlayback.getPlayerError())) return;
+        reconnect.follow(trackIdentity(localPlayback.getCurrentMediaItem()));
+        if (reconnect.retry(localPlayback.getCurrentPosition(), SystemClock.elapsedRealtime())) {
+            // A fresh MediaPeriod seeks by playback time using the current stream profile. An old
+            // byte offset can refer to different audio when Wi-Fi and cellular use different formats.
+            localPlayback.prepare();
+        }
+    }
+
     private void updateReadAhead() {
         if (player != null && playbackHttp != null) readAhead.update(this, access, player, playbackHttp);
     }
@@ -1267,6 +1298,7 @@ public final class PlaybackService extends MediaLibraryService {
     @Override public void onDestroy() {
         readAhead.close();
         if (connectivity != null) connectivity.unregisterNetworkCallback(playbackConnectivity);
+        connectivity = null;
         stopFadeWatches();
         waveforms.close();
         cancelRadio();

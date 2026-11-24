@@ -110,7 +110,7 @@ final class StreamProfiles {
             Path path = connection.read();
             network = path;
             requested = address;
-            if (path == Path.OFFLINE) throw new IOException("Reconnect to stream this song, or choose a saved download.");
+            if (path == Path.OFFLINE) throw new java.net.NoRouteToHostException("Reconnect to stream this song, or choose a saved download.");
             String stored = key == null ? null : prefs.getString(key, null);
             if (stored == null) return address; // Older saved queues carry their original quality on the URI.
             try {

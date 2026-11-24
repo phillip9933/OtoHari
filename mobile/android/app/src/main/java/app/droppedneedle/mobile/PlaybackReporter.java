@@ -46,6 +46,8 @@ final class PlaybackReporter implements Player.Listener {
     private final ThreadPoolExecutor sender = new ThreadPoolExecutor(1, 1, 0, TimeUnit.SECONDS,
             new ArrayBlockingQueue<>(64), new ThreadPoolExecutor.DiscardPolicy());
     private final Runnable heartbeat = this::heartbeat;
+    private boolean awaitingNetwork;
+    private final Runnable endInterruptedListen = this::endInterruptedListen;
     private HttpUrl endpoint;
     private OfflinePlayHistory.Session account;
     private Runnable stopWatching;
@@ -121,6 +123,19 @@ final class PlaybackReporter implements Player.Listener {
         if (endpoint == null) return;
         MediaItem item = player.getCurrentMediaItem();
         boolean ended = player.getPlaybackState() == Player.STATE_ENDED;
+        if (active != null && occurrence(active) == occurrence(item) && player.getPlayWhenReady()
+                && StreamRecovery.transportError(player.getPlayerError())) {
+            // A route change can leave the same listen briefly idle. Never count the gap as
+            // listening time or report a second start when the retained track resumes.
+            countTime();
+            main.removeCallbacks(heartbeat);
+            if (!awaitingNetwork) {
+                awaitingNetwork = true;
+                main.postDelayed(endInterruptedListen, StreamRecovery.WAIT_MS);
+            }
+            return;
+        }
+        cancelInterruptedListen();
         if (active != null && (occurrence(active) != occurrence(item) || ended
                 || player.getPlaybackState() == Player.STATE_IDLE || player.getPlayerError() != null)) {
             finish(occurrence(active) == occurrence(item) ? player.getCurrentPosition() : positionMs);
@@ -151,6 +166,17 @@ final class PlaybackReporter implements Player.Listener {
         if (player.isPlaying()) main.postDelayed(heartbeat, HEARTBEAT_MS);
     }
 
+    private void endInterruptedListen() {
+        if (active != null && !player.isPlaying() && StreamRecovery.transportError(player.getPlayerError()))
+            finish(player.getCurrentPosition());
+    }
+
+    private void cancelInterruptedListen() {
+        if (!awaitingNetwork) return;
+        awaitingNetwork = false;
+        main.removeCallbacks(endInterruptedListen);
+    }
+
     private void heartbeat() {
         if (active == null || !player.isPlaying()) return;
         positionMs = player.getCurrentPosition();
@@ -166,6 +192,7 @@ final class PlaybackReporter implements Player.Listener {
     }
 
     private void finish(long position) {
+        cancelInterruptedListen();
         countTime();
         positionMs = position;
         if (offlinePlay) {
