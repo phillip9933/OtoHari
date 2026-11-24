@@ -265,7 +265,7 @@ enum PlaybackArtworkImage {
         guard let source = CGImageSourceCreateWithData(data as CFData, probe),
               let type = CGImageSourceGetType(source) as String?,
               ["public.jpeg","public.png","com.compuserve.gif","org.webmproject.webp","public.heic","public.heif","public.avif"].contains(type),
-              CGImageSourceGetCount(source) > 0,
+              (1...512).contains(CGImageSourceGetCount(source)),
               let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, probe) as? [CFString: Any],
               let width = properties[kCGImagePropertyPixelWidth] as? NSNumber, let height = properties[kCGImagePropertyPixelHeight] as? NSNumber,
               PlaybackArtworkLimits.dimensions(width.intValue, height.intValue), access.active else { return nil }
