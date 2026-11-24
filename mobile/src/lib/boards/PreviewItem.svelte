@@ -1,4 +1,5 @@
 <script lang="ts">
+	import type { Attachment } from 'svelte/attachments';
 	import type { Snippet } from 'svelte';
 	import { useLibrarySelection, type LibraryChoice } from '../catalog/librarySelection.svelte';
 	import PlaylistCover from '../catalog/PlaylistCover.svelte';
@@ -22,6 +23,7 @@
 		part,
 		disabled = false,
 		actions,
+		observe,
 		choice
 	}: {
 		session: Session;
@@ -39,6 +41,7 @@
 		part?: string;
 		disabled?: boolean;
 		actions?: Snippet;
+		observe?: Attachment<HTMLElement>;
 		choice?: LibraryChoice;
 	} = $props();
 </script>
@@ -64,7 +67,7 @@
 			>{/if}{#if detail}<small>{detail}</small>{/if}</span
 	>
 {/snippet}
-<div class="item" class:actions={!!actions} data-preview-item>
+<div {@attach observe} class="item" class:actions={!!actions} data-preview-item>
 	{#if onclick}<button
 			use:selectable={choice}
 			class="body"

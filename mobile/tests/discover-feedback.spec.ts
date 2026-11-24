@@ -3,6 +3,25 @@ import { emptyBoardRead } from './fixtures/emptyBoardRead';
 import { localSignIn } from './fixtures/localSignIn';
 import type { Feedback, Tuning } from '../src/lib/catalog/discoverFeedback';
 
+// One second of silent PCM; the browser can really start this sample without using speakers.
+function sampleAudio() {
+	const wave = Buffer.alloc(44 + 8000);
+	wave.write('RIFF');
+	wave.writeUInt32LE(wave.length - 8, 4);
+	wave.write('WAVEfmt ', 8);
+	wave.writeUInt32LE(16, 16);
+	wave.writeUInt16LE(1, 20);
+	wave.writeUInt16LE(1, 22);
+	wave.writeUInt32LE(8000, 24);
+	wave.writeUInt32LE(8000, 28);
+	wave.writeUInt16LE(1, 32);
+	wave.writeUInt16LE(8, 34);
+	wave.write('data', 36);
+	wave.writeUInt32LE(8000, 40);
+	wave.fill(128, 44);
+	return wave;
+}
+
 test('Discover shares album and artist answers, seed tunings and undo with the server', async ({
 	page
 }) => {
@@ -14,6 +33,7 @@ test('Discover shares album and artist answers, seed tunings and undo with the s
 	let feedback: Feedback[] = [];
 	let tunings: Tuning[] = [];
 	let deny = true;
+	const observed: { release_group_mbid: string; event: string }[] = [];
 	await page.addInitScript((server) => {
 		localStorage.setItem(
 			'dn.mobile.layout.v1.' + JSON.stringify([server, 'user', 'discover']),
@@ -46,6 +66,21 @@ test('Discover shares album and artist answers, seed tunings and undo with the s
 					}))
 				}
 			});
+		if (path === 'discover/picks/events') {
+			expect(req.method()).toBe('POST');
+			observed.push(req.postDataJSON());
+			return route.fulfill({ status: 204 });
+		}
+		if (path === 'library/albums/match/' + first) {
+			return route.fulfill({
+				json: { items: [{ id: 'song-id', title: 'First sample' }], total: 1 }
+			});
+		}
+		if (path === 'stream/local/song-id') {
+			expect(req.headers().range).toBe('bytes=0-2097151');
+			expect(req.headers().authorization).toBe('Bearer token');
+			return route.fulfill({ status: 206, contentType: 'audio/wav', body: sampleAudio() });
+		}
 		if (path === 'discover/feedback') {
 			if (req.method() === 'GET') return route.fulfill({ json: { items: feedback } });
 			const b = req.postDataJSON();
@@ -101,7 +136,21 @@ test('Discover shares album and artist answers, seed tunings and undo with the s
 	await button('Discover').click();
 	await button('Browse Discover queue').click();
 	const menu = button('Feedback for Mountain');
+	await expect
+		.poll(() => observed.filter((r) => r.event === 'shown' && r.release_group_mbid === first))
+		.toHaveLength(1);
 	await menu.click();
+	await button('Preview album').click();
+	const audio = page.getByLabel('Album sample');
+	await expect(audio).toBeVisible();
+	expect(observed.filter((r) => r.event === 'sampled')).toHaveLength(0);
+	await audio.evaluate(async (node: HTMLAudioElement) => {
+		node.muted = true;
+		await node.play();
+	});
+	await expect
+		.poll(() => observed.filter((r) => r.event === 'sampled' && r.release_group_mbid === first))
+		.toHaveLength(1);
 	await button('Not for me').click();
 	await expect(page.getByRole('alert')).toHaveText('Permission denied');
 	expect(feedback).toEqual([]);
@@ -145,4 +194,14 @@ test('Discover shares album and artist answers, seed tunings and undo with the s
 	expect(feedback).toEqual([]);
 	await button('Show recommendations').click();
 	await expect(button('Feedback for Valley')).toBeVisible();
+	await page
+		.locator('[data-collection="expanded"]:visible [data-part="album-card"]')
+		.first()
+		.click();
+	await expect
+		.poll(() => observed.filter((r) => r.event === 'opened' && r.release_group_mbid === first))
+		.toHaveLength(1);
+	expect(
+		observed.filter((r) => r.event === 'shown' && r.release_group_mbid === first)
+	).toHaveLength(1);
 });

@@ -132,6 +132,7 @@ test('a listener explores DN charts and genres, follows an artist and plays libr
 					}
 				]
 			} satisfies Schema['DiscoverQueueResponse']);
+		if (path === '/discover/picks/events') return route.fulfill({ status: 404 });
 		if (path === '/discover/feedback' && req.method() === 'GET')
 			return route.fulfill({ status: 404 });
 		if (path === '/discover/queue/ignore') {

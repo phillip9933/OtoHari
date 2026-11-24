@@ -1,4 +1,5 @@
 <script lang="ts">
+	import DiscoverHistory from './DiscoverHistory.svelte';
 	import ProfilePhoto from './ProfilePhoto.svelte';
 	import { uiText } from '../i18n';
 	import InlineChoice from '../controls/InlineChoice.svelte';
@@ -323,6 +324,7 @@
 	<button class="text-button" disabled={saving} onclick={refreshMix}
 		>{uiText('Refresh personal mix')}</button
 	>
+	{#key session}<DiscoverHistory {session} />{/key}
 {:else if view === 'Services'}
 	<h2>{uiText('Connected services')}</h2>
 	{#if services.length}<div class="settings-list" data-surface="panel">

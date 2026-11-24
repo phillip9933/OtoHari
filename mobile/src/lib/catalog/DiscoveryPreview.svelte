@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { observePick, reportPick } from './discoverInteractions';
 	import PreviewItem from '../boards/PreviewItem.svelte';
 	import type { Preview } from '../boards/display';
 	import type { Session } from '../connection';
@@ -7,6 +8,7 @@
 	import type { ShelfSong, WidgetResult } from './discoveryWidgets';
 	import LibraryRadio from './LibraryRadio.svelte';
 	let {
+		active = false,
 		display,
 		data,
 		session,
@@ -16,6 +18,7 @@
 		onplaysong,
 		ongenre
 	}: {
+		active?: boolean;
 		display: Preview;
 		data: WidgetResult;
 		session: Session;
@@ -36,6 +39,7 @@
 		label?: string;
 		part?: string;
 		action?: () => void;
+		pick?: string;
 		concertArtist?: DiscoverArtistRef;
 		radio?: { kind: 'artist' | 'album' | 'genre'; id: string };
 	};
@@ -59,7 +63,11 @@
 					art: a.art,
 					seed: a.group || a.localId || a.title,
 					part: 'album-card',
-					action: () => onopen(a)
+					pick: data.cards ? (a.group ?? undefined) : undefined,
+					action: () => {
+						if (data.cards) void reportPick(session, a.group, 'opened');
+						onopen(a);
+					}
 				});
 			for (const a of shelf.artists) {
 				const target = a.target;
@@ -118,6 +126,7 @@
 			onclick={item.action}
 			label={item.label}
 			part={item.part}
+			observe={observePick(session, item.pick, active)}
 		>
 			{#snippet actions()}{#if item.concertArtist}{@const artist = item.concertArtist}<button
 						class="text-button"

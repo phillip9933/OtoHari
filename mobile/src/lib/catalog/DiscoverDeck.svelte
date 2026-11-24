@@ -1,6 +1,8 @@
 <script lang="ts">
 	import { tr, uiText } from '../i18n';
 	import { EllipsisVertical } from '@lucide/svelte';
+	import DiscoverSample from './DiscoverSample.svelte';
+	import { observePick, reportPick } from './discoverInteractions';
 	import PlaylistDialog from './PlaylistDialog.svelte';
 	import { onDestroy } from 'svelte';
 	import type { components } from '../../../../frontend/src/lib/api/v3/openapi';
@@ -275,7 +277,11 @@
 				detail={card.reason}
 				artwork={card.album.art}
 				coverSeed={card.album.group || card.album.localId || card.album.title}
-				onclick={() => onopen(card.album)}
+				observe={observePick(session, card.album.group, active)}
+				onclick={() => {
+					void reportPick(session, card.album.group, 'opened');
+					onopen(card.album);
+				}}
 			>
 				{#snippet actions()}{#if card.album.group || card.artistId}<button
 							class="icon-button"
@@ -297,6 +303,7 @@
 		}}
 	>
 		<div class="actions">
+			{#if card.album.group}<DiscoverSample {session} {card} {active} />{/if}
 			{#if legacy}
 				{#if card.album.group && card.artistId}<button
 						disabled={busy}

@@ -238,3 +238,108 @@ test('account identity, linked services and personal mix use the signed-in liste
 	await expect(page.getByRole('status')).toHaveText('A mix refresh is already running.');
 	expect(refreshed).toBe(true);
 });
+
+for (const older of [false, true]) {
+	test(
+		'Discover history controls on ' +
+			(older ? 'an older server' : 'an account with a linked import'),
+		async ({ page }) => {
+			const server = 'https://history.example/dn';
+			let state = 'current',
+				deletes = 0,
+				imports = 0,
+				reads = 0,
+				refuse = true;
+			await page.route(server + '/api/v3/**', async (route) => {
+				const req = route.request(),
+					path = new URL(req.url()).pathname.split('/api/v3/')[1];
+				const json = (data: unknown) => route.fulfill({ json: data });
+				if (path === 'auth/providers') return json({ local: true, oidc: false });
+				if (path === 'auth/login') return json({ token: 'history-token' });
+				expect(req.headers().authorization).toBe('Bearer history-token');
+				if (path === 'me') return json({ id: 'listener', role: 'user', display_name: 'Listener' });
+				if (path === 'me/scrobble-preferences') return json({ now_playing_visibility: 'offline' });
+				if (path === 'me/connections')
+					return json({
+						connections: [{ service: 'listenbrainz', username: 'demo', enabled: true }]
+					});
+				const status = () => ({
+					plays: 24,
+					imported_listens: state === 'current' ? 12 : 0,
+					state,
+					account: 'demo'
+				});
+				if (path === 'me/listening-history') {
+					reads++;
+					return older ? route.fulfill({ status: 404 }) : json(status());
+				}
+				if (path === 'me/listening-history/import') {
+					expect(req.method()).toBe('POST');
+					imports++;
+					state = 'pending';
+					return route.fulfill({ status: 202, json: status() });
+				}
+				if (path === 'discover/history') {
+					expect(req.method()).toBe('DELETE');
+					deletes++;
+					if (refuse)
+						return route.fulfill({ status: 403, json: { error: { message: 'Access denied' } } });
+					state = 'forgotten';
+					return route.fulfill({ status: 204 });
+				}
+				if (await emptyBoardRead(route)) return;
+				return route.fulfill({ status: 404 });
+			});
+			await openAccount(page, server);
+			const button = (name: string) => page.getByRole('button', { name, exact: true });
+			await button('Listening').click();
+			expect(reads).toBe(0);
+			await button('Discover history').click();
+			if (older) {
+				await expect(
+					page.getByText('This DroppedNeedle version does not share Discover history controls.')
+				).toBeVisible();
+				await expect(button('Forget Discover history')).toHaveCount(0);
+				await expect(button('Save preferences')).toBeVisible();
+				return;
+			}
+			await expect(page.getByText('Imported listens from ListenBrainz · 12')).toBeVisible();
+			await expect(button('Upload a ListenBrainz ZIP in DroppedNeedle')).toBeVisible();
+			await button('Forget Discover history').click();
+			await button('Cancel').click();
+			expect(deletes).toBe(0);
+			await button('Forget Discover history').click();
+			await button('Confirm forget history').click();
+			await expect(page.getByRole('dialog').getByRole('alert')).toHaveText('Access denied');
+			refuse = false;
+			await button('Confirm forget history').click();
+			await expect(page.getByText('Discover history forgotten.')).toBeVisible();
+			await expect(page.getByText('Plays in DroppedNeedle · 24')).toBeVisible();
+			await expect(page.getByText('Imported listens from ListenBrainz · 0')).toBeVisible();
+			expect(imports).toBe(0);
+			await button('Import again from ListenBrainz').click();
+			await expect(page.getByText('Import in progress.')).toBeVisible();
+			expect(imports).toBe(1);
+			state = 'current';
+			await button('Refresh history status').click();
+			await expect(page.getByText('Imported listens from ListenBrainz · 12')).toBeVisible();
+			await page.evaluate(() => localStorage.setItem('dn.mobile.language.v1', 'ja'));
+			await page.reload();
+			await page.getByLabel(/^(サーバーアドレス|Server address)$/).fill(server);
+			await page.getByRole('button', { name: /^(続ける|Continue)$/ }).click();
+			await page.getByLabel(/^(ユーザー名|Username)$/).fill('demo');
+			await page.getByLabel(/^(パスワード|Password)$/).fill('fixture');
+			await page.getByRole('button', { name: /^(サインイン|Sign in)$/ }).click();
+			await expect(page.getByRole('heading', { name: 'ホーム', exact: true })).toBeVisible();
+			await button('設定').click();
+			await page.getByText('DroppedNeedle のアカウント', { exact: true }).click();
+			await button('リスニング').click();
+			await button('おすすめ履歴').click();
+			await expect(page.getByText('ListenBrainzから取り込んだ再生履歴 · 12')).toBeVisible();
+			await button('おすすめ履歴を削除').click();
+			await expect(
+				page.getByRole('dialog', { name: 'おすすめ履歴を削除しますか？' })
+			).toBeVisible();
+		}
+	);
+}

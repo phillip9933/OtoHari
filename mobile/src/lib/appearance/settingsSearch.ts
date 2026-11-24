@@ -72,7 +72,7 @@ const keywords: Partial<Record<Page, string>> = {
 	themes: 'colors palette dark light midnight custom CSS テーマ 配色',
 	handoff: 'remote control device transfer 引き継ぎ',
 	account:
-		'profile username sessions devices connected services email scrobble last.fm プロフィール',
+		'profile username sessions devices connected services email scrobble last.fm listenbrainz import discover history privacy forget プロフィール 履歴 プライバシー 取り込み',
 	content: 'home discover web sidebar sections サイドバー',
 	tools: 'browser web tools administration ウェブ',
 	stats: 'statistics totals library 統計',
