@@ -14,6 +14,7 @@ import androidx.media3.session.MediaLibraryService.LibraryParams;
 import androidx.media3.session.MediaLibraryService.MediaLibrarySession;
 import androidx.media3.session.MediaSession;
 import androidx.media3.session.SessionError;
+import androidx.media3.session.SessionCommands;
 import androidx.media3.session.SessionResult;
 import com.getcapacitor.JSArray;
 import com.google.common.collect.ImmutableList;
@@ -39,19 +40,34 @@ class CarSession implements MediaLibrarySession.Callback {
     void close() { closed = true; io.shutdownNow(); }
     boolean isSelecting() { return selecting > 0; }
 
+    static final Player.Commands TRANSPORT_COMMANDS = new Player.Commands.Builder().addAll(
+            Player.COMMAND_PLAY_PAUSE, Player.COMMAND_PREPARE, Player.COMMAND_STOP,
+            Player.COMMAND_SEEK_TO_PREVIOUS, Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM,
+            Player.COMMAND_SEEK_TO_NEXT, Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM).build();
+
     @Override public int onPlayerCommandRequest(MediaSession session, MediaSession.ControllerInfo controller, int command) {
+        if (!TRANSPORT_COMMANDS.contains(command) && !mayBrowse(session, controller))
+            return SessionError.ERROR_PERMISSION_DENIED;
         if (command == Player.COMMAND_PLAY_PAUSE) service.prepareExternalPlay();
         return SessionResult.RESULT_SUCCESS;
     }
 
     @Override public MediaSession.ConnectionResult onConnect(MediaSession session, MediaSession.ControllerInfo controller) {
-        if (!controller.isTrusted() && controller.getUid() != android.os.Process.myUid()
-                && !verifiedCarHost(service, controller.getPackageName(), controller.getUid(),
-                    session.isAutoCompanionController(controller), session.isAutomotiveController(controller)))
-            return MediaSession.ConnectionResult.reject();
-        Player.Commands commands = MediaSession.ConnectionResult.DEFAULT_PLAYER_COMMANDS.buildUpon()
-                .remove(Player.COMMAND_SET_SHUFFLE_MODE).remove(Player.COMMAND_CHANGE_MEDIA_ITEMS).build();
-        return new MediaSession.ConnectionResult.AcceptedResultBuilder(session).setAvailablePlayerCommands(commands).build();
+        boolean catalog = mayBrowse(session, controller);
+        if (!catalog && !controller.isTrusted()) return MediaSession.ConnectionResult.reject();
+        Player.Commands player = catalog ? MediaSession.ConnectionResult.DEFAULT_PLAYER_COMMANDS.buildUpon()
+                .remove(Player.COMMAND_SET_SHUFFLE_MODE).remove(Player.COMMAND_CHANGE_MEDIA_ITEMS).build() : TRANSPORT_COMMANDS;
+        return new MediaSession.ConnectionResult.AcceptedResultBuilder(session)
+                .setAvailablePlayerCommands(player)
+                .setAvailableSessionCommands(catalog ? MediaSession.ConnectionResult.DEFAULT_SESSION_AND_LIBRARY_COMMANDS
+                        : SessionCommands.EMPTY)
+                .build();
+    }
+
+    private boolean mayBrowse(MediaSession session, MediaSession.ControllerInfo controller) {
+        return controller.getUid() == android.os.Process.myUid()
+                || verifiedCarHost(service, controller.getPackageName(), controller.getUid(),
+                        session.isAutoCompanionController(controller), session.isAutomotiveController(controller));
     }
     @SuppressWarnings("deprecation") // Google's verifier reads PackageInfo.signatures.
     static boolean verifiedCarHost(Context context, String name, int uid, boolean companion, boolean automotive) {
@@ -69,10 +85,15 @@ class CarSession implements MediaLibrarySession.Callback {
     }
     @Override public ListenableFuture<LibraryResult<MediaItem>> onGetLibraryRoot(MediaLibrarySession session,
             MediaSession.ControllerInfo controller, @Nullable LibraryParams params) {
-        return Futures.immediateFuture(LibraryResult.ofItem(CarLibrary.root().media(), params));
+        return Futures.immediateFuture(mayBrowse(session, controller)
+                ? LibraryResult.ofItem(CarLibrary.root().media(), params)
+                : LibraryResult.ofError(SessionError.ERROR_PERMISSION_DENIED));
     }
     interface Query<T> { LibraryResult<T> read(CarLibrary catalog) throws Exception; }
-    private <T> ListenableFuture<LibraryResult<T>> query(Query<T> operation) {
+    private <T> ListenableFuture<LibraryResult<T>> query(MediaLibrarySession session, MediaSession.ControllerInfo controller,
+            Query<T> operation) {
+        if (!mayBrowse(session, controller))
+            return Futures.immediateFuture(LibraryResult.ofError(SessionError.ERROR_PERMISSION_DENIED));
         return io.submit(() -> {
             try {
                 HeadsetAccount owner = HeadsetAccount.read(service);
@@ -85,7 +106,7 @@ class CarSession implements MediaLibrarySession.Callback {
     }
     @Override public ListenableFuture<LibraryResult<MediaItem>> onGetItem(MediaLibrarySession session,
             MediaSession.ControllerInfo controller, String id) {
-        return query(c -> LibraryResult.ofItem(c.item(id).media(), null));
+        return query(session, controller, c -> LibraryResult.ofItem(c.item(id).media(), null));
     }
     private static List<MediaItem> media(List<CarLibrary.Entry> entries, int page, int size) {
         List<MediaItem> result = new ArrayList<>();
@@ -94,11 +115,11 @@ class CarSession implements MediaLibrarySession.Callback {
     }
     @Override public ListenableFuture<LibraryResult<ImmutableList<MediaItem>>> onGetChildren(MediaLibrarySession session,
             MediaSession.ControllerInfo controller, String parent, int page, int size, @Nullable LibraryParams params) {
-        return query(c -> LibraryResult.ofItemList(media(c.children(parent), page, size), params));
+        return query(session, controller, c -> LibraryResult.ofItemList(media(c.children(parent), page, size), params));
     }
     @Override public ListenableFuture<LibraryResult<Void>> onSearch(MediaLibrarySession session, MediaSession.ControllerInfo controller,
             String term, @Nullable LibraryParams params) {
-        return query(c -> {
+        return query(session, controller, c -> {
             int count = c.search(term).size();
             main.post(() -> { if (!closed) session.notifySearchResultChanged(controller, term, count, params); });
             return LibraryResult.ofVoid(params);
@@ -106,10 +127,12 @@ class CarSession implements MediaLibrarySession.Callback {
     }
     @Override public ListenableFuture<LibraryResult<ImmutableList<MediaItem>>> onGetSearchResult(MediaLibrarySession session,
             MediaSession.ControllerInfo controller, String term, int page, int size, @Nullable LibraryParams params) {
-        return query(c -> LibraryResult.ofItemList(media(c.search(term), page, size), params));
+        return query(session, controller, c -> LibraryResult.ofItemList(media(c.search(term), page, size), params));
     }
     @Override public ListenableFuture<MediaSession.MediaItemsWithStartPosition> onSetMediaItems(MediaSession session,
             MediaSession.ControllerInfo controller, List<MediaItem> requests, int startIndex, long position) {
+        if (!mayBrowse(session, controller))
+            return Futures.immediateFailedFuture(new SecurityException("Catalog selection is unavailable."));
         if (requests.size() != 1) return Futures.immediateFailedFuture(new IllegalArgumentException("Choose a DN item."));
         MediaItem request = requests.get(0);
         String term = request.requestMetadata.searchQuery;

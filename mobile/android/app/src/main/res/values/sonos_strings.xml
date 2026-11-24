@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="sonos_route_title">Send music to the group coordinator?</string>
+    <string name="sonos_route_message">You selected %1$s (%2$s). This Sonos group plays through %3$s (%4$s). Send your music to that device?</string>
+    <string name="sonos_route_accept">Send music</string>
+</resources>

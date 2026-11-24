@@ -45,9 +45,10 @@ final class SyntheticSpeaker implements Closeable {
         worker.start();
     }
 
+    String location() { return "http://127.0.0.1:" + listener.getLocalPort() + "/renderer/description.xml"; }
+
     DlnaRenderer describe() throws IOException {
-        return DlnaRenderer.describe(loopback, loopback, SocketFactory.getDefault(),
-                "http://127.0.0.1:" + listener.getLocalPort() + "/renderer/description.xml");
+        return DlnaRenderer.describe(loopback, loopback, SocketFactory.getDefault(), location());
     }
     static String element(String xml, String tag) throws Exception {
         return DocumentBuilderFactory.newInstance().newDocumentBuilder().parse(new ByteArrayInputStream(

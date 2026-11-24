@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="sonos_route_title">グループの代表スピーカーに送信しますか？</string>
+    <string name="sonos_route_message">選択した部屋は%1$s（%2$s）です。このSonosグループは%3$s（%4$s）で再生します。この機器に音楽を送信しますか？</string>
+    <string name="sonos_route_accept">音楽を送信</string>
+</resources>

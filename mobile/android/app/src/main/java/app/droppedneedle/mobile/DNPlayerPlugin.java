@@ -32,6 +32,8 @@ public final class DNPlayerPlugin extends Plugin {
     private boolean looking;
     private boolean destroyed;
     private GoogleCastPicker googlePicker;
+    private android.app.AlertDialog castConfirmation;
+    private long castVisit;
 
     private final ServiceConnection connection = new ServiceConnection() {
         @Override public void onServiceConnected(ComponentName name, IBinder binder) {
@@ -210,8 +212,9 @@ public final class DNPlayerPlugin extends Plugin {
                         if (destroyed) return;
                         JSArray devices = new JSArray();
                         java.util.Set<String> sonos = new java.util.HashSet<>();
+                        java.util.Set<String> ambiguous = SonosRooms.ambiguousIds(found);
                         for (DlnaRenderer device : found) {
-                            if (device.hasGroups() && !sonos.add(device.sonosId)) continue;
+                            if (device.hasGroups() && (ambiguous.contains(device.sonosId) || !sonos.add(device.sonosId))) continue;
                             String id = UUID.randomUUID().toString();
                             outputs.put(id, device);
                             JSObject entry = new JSObject();
@@ -287,28 +290,58 @@ public final class DNPlayerPlugin extends Plugin {
     @PluginMethod
     public void castTo(PluginCall call) {
         main.post(() -> {
-            if (destroyed || looking) {
-                call.reject("Wait for speaker discovery to finish.");
+            if (destroyed || looking || castConfirmation != null) {
+                call.reject("Finish the current speaker selection first.");
                 return;
             }
-            HashMap<String, DlnaRenderer> rooms = new HashMap<>(outputs);
-            discovery.execute(() -> {
-                try {
-                    DlnaRenderer device = SonosRooms.route(rooms, speaker(rooms, call.getString("id")));
-                    main.post(() -> {
-                        if (destroyed)
-                            return;
-                        execute(call, p -> p.output().connect(device, error -> {
-                            if (error.isEmpty())
-                                call.resolve(outputState(p.output()));
-                            else
-                                call.reject(error);
-                        }));
-                    });
-                } catch (Exception e) {
-                    call.reject(e.getMessage());
-                }
-            });
+            DlnaRenderer room = outputs.get(call.getString("id"));
+            if (room == null) { call.reject("Find the speaker again before connecting."); return; }
+            resolveCast(call, room, null, ++castVisit);
+        });
+    }
+
+    // Confirmation belongs to this call and the exact discovered renderer.
+    // Re-read membership after the listener accepts a transfer to a coordinator.
+    private void resolveCast(PluginCall call, DlnaRenderer room, DlnaRenderer approved, long visit) {
+        HashMap<String, DlnaRenderer> rooms = new HashMap<>(outputs);
+        discovery.execute(() -> {
+            try {
+                DlnaRenderer target = SonosRooms.route(rooms, room);
+                boolean confirm = SonosRooms.needsConfirmation(room, target, approved);
+                main.post(() -> {
+                    if (visit != castVisit || destroyed || looking || getActivity().isFinishing() || getActivity().isDestroyed()
+                            || !outputs.containsValue(target) || !outputs.containsValue(room)) {
+                        call.reject("Speaker selection changed. Find the speaker and try again.");
+                        return;
+                    }
+                    if (castConfirmation != null) {
+                        call.reject("Finish the current speaker selection first.");
+                        return;
+                    }
+                    if (confirm) {
+                        String message = getContext().getString(R.string.sonos_route_message,
+                                room.name.replaceAll("[\\p{C}\\p{Zl}\\p{Zp}]", " "), room.peer.getHostAddress(),
+                                target.name.replaceAll("[\\p{C}\\p{Zl}\\p{Zp}]", " "), target.peer.getHostAddress());
+                        android.app.AlertDialog dialog = new android.app.AlertDialog.Builder(getActivity())
+                                .setTitle(R.string.sonos_route_title)
+                                .setMessage(message)
+                                .setPositiveButton(R.string.sonos_route_accept, (d, button) -> {
+                                    castConfirmation = null;
+                                    resolveCast(call, room, target, visit);
+                                })
+                                .setNegativeButton(android.R.string.cancel, (d, button) -> call.reject("Cast cancelled."))
+                                .setOnCancelListener(d -> call.reject("Cast cancelled.")).create();
+                        castConfirmation = dialog;
+                        dialog.setOnDismissListener(d -> { if (castConfirmation == dialog) castConfirmation = null; });
+                        dialog.show();
+                        return;
+                    }
+                    execute(call, p -> p.output().connect(target, error -> {
+                        if (error.isEmpty()) call.resolve(outputState(p.output()));
+                        else call.reject(error);
+                    }));
+                });
+            } catch (Exception error) { call.reject(error.getMessage()); }
         });
     }
 
@@ -345,6 +378,7 @@ public final class DNPlayerPlugin extends Plugin {
         main.post(() -> {
             destroyed = true;
             if (googlePicker != null) googlePicker.cancel();
+            if (castConfirmation != null) castConfirmation.cancel();
             outputs.clear();
             discovery.shutdownNow();
             disconnect();

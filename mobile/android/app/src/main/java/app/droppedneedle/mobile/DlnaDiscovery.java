@@ -16,6 +16,7 @@ import java.net.SocketTimeoutException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -75,6 +76,16 @@ final class DlnaDiscovery {
         return true;
     }
 
+    // Renderers can answer both search types and advertise multiple descriptions.
+    // Validate the responding address first and reserve capacity for other peers.
+    static void collect(Map<String, InetAddress> candidates, InetAddress peer, String location) {
+        if (candidates.size() >= 24 || Collections.frequency(candidates.values(), peer) >= 2) return;
+        try {
+            String address = DlnaRenderer.endpoint(peer, null, location).normalize().toASCIIString();
+            candidates.putIfAbsent(address, peer);
+        } catch (IOException invalid) { /* Ignore descriptions outside the responding peer. */ }
+    }
+
     private static List<DlnaRenderer> search(Network network, LinkAddress link) throws Exception {
         Map<String, InetAddress> candidates = new LinkedHashMap<>();
         try (DatagramSocket socket = new DatagramSocket(null)) {
@@ -99,7 +110,7 @@ final class DlnaDiscovery {
                     if (line.regionMatches(true, 0, "ST:", 0, 3)) type = line.substring(3).trim();
                 }
                 if (!location.isEmpty() && (type.startsWith(DlnaRenderer.RENDERER) || type.startsWith(DlnaRenderer.ZONE_PLAYER)))
-                    candidates.putIfAbsent(location, packet.getAddress());
+                    collect(candidates, packet.getAddress(), location);
             }
         }
         List<DlnaRenderer> found = new ArrayList<>();

@@ -30,6 +30,7 @@ final class DlnaRenderer extends NetworkRenderer {
     static final String GROUPS = "urn:schemas-upnp-org:service:ZoneGroupTopology:";
     static final String VOLUME = "urn:schemas-upnp-org:service:RenderingControl:";
     final String sonosId;
+    final URI descriptionAddress;
     private final Endpoint groups, volume;
     private static final class Endpoint {
         final URI uri;
@@ -40,11 +41,12 @@ final class DlnaRenderer extends NetworkRenderer {
     private final String service;
     private final SocketFactory sockets;
 
-    private DlnaRenderer(InetAddress local, InetAddress peer, SocketFactory sockets, URI control,
+    private DlnaRenderer(InetAddress local, InetAddress peer, SocketFactory sockets, URI control, URI descriptionAddress,
                          String service, String name, String sonosId, Endpoint groups, Endpoint volume) {
         super(local, peer, name);
         this.sockets = sockets;
         this.control = control;
+        this.descriptionAddress = descriptionAddress;
         this.service = service;
         this.sonosId = sonosId;
         this.groups = groups;
@@ -53,7 +55,8 @@ final class DlnaRenderer extends NetworkRenderer {
 
     static DlnaRenderer describe(InetAddress local, InetAddress peer, SocketFactory sockets,
                                  String location) throws IOException {
-        URI address = endpoint(peer, null, location);
+        URI descriptionAddress = endpoint(peer, null, location);
+        URI address = descriptionAddress;
         Document description = exchange(local, peer, sockets, address, null, null);
         String base = text(description.getDocumentElement(), "URLBase");
         if (!base.isEmpty()) address = endpoint(peer, address, base);
@@ -84,7 +87,7 @@ final class DlnaRenderer extends NetworkRenderer {
                 if (!type.matches(TRANSPORT + "[1-9][0-9]?")) continue;
                 URI control = endpoint(peer, address, text((Element) n, "controlURL"));
                 String name = room.isEmpty() ? text(device, "friendlyName") : room;
-                return new DlnaRenderer(local, peer, sockets, control, type, name,uuid,topology,
+                return new DlnaRenderer(local, peer, sockets, control, descriptionAddress, type, name,uuid,topology,
                         uuid.isEmpty() ? null : service(device,peer,address,VOLUME));
             }
         }
@@ -142,7 +145,7 @@ final class DlnaRenderer extends NetworkRenderer {
             action("BecomeCoordinatorOfStandaloneGroup", "");
     }
 
-    private static URI endpoint(InetAddress peer, URI base, String value) throws IOException {
+    static URI endpoint(InetAddress peer, URI base, String value) throws IOException {
         try {
             if (value.isEmpty()) throw new IllegalArgumentException();
             URI url = base == null ? URI.create(value.trim()) : base.resolve(value.trim());

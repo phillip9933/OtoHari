@@ -23,6 +23,14 @@ import org.junit.runner.RunWith;
 @RunWith(AndroidJUnit4.class)
 public class CarLauncherTest {
     private final Context app = InstrumentationRegistry.getInstrumentation().getTargetContext();
+    @Test public void playbackOnlyControllersHaveTransportWithoutCatalogOrQueueAccess() {
+        androidx.media3.common.Player.Commands allowed = CarSession.TRANSPORT_COMMANDS;
+        assertTrue(allowed.contains(androidx.media3.common.Player.COMMAND_PLAY_PAUSE));
+        assertTrue(allowed.contains(androidx.media3.common.Player.COMMAND_SEEK_TO_NEXT));
+        assertFalse(allowed.contains(androidx.media3.common.Player.COMMAND_SET_MEDIA_ITEM));
+        assertFalse(allowed.contains(androidx.media3.common.Player.COMMAND_GET_TIMELINE));
+        assertFalse(allowed.contains(androidx.media3.common.Player.COMMAND_GET_MEDIA_ITEMS_METADATA));
+    }
     @Test public void carHostExceptionsRequireTheVerifiedOwnerOfTheControllerUid() throws Exception {
         int platformUid = app.getPackageManager().getPackageUid("android", 0);
         assertTrue(CarSession.verifiedCarHost(app, "android", platformUid, false, true));
