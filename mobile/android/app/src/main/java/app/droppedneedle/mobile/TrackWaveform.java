@@ -25,6 +25,9 @@ import okhttp3.Response;
 final class TrackWaveform {
     static final int BINS = 112;
     private static final long MAX_DOWNLOAD = 128L * 1024 * 1024;
+    static final long MAX_DURATION_US = 3600_000_000L;
+    private static final long WAVE_PCM_BYTES = 256L * 1024 * 1024;
+    static final long EDGE_PCM_BYTES = 48L * 1024 * 1024;
     private final ExecutorService worker = Executors.newSingleThreadExecutor();
     private Job active;
 
@@ -33,7 +36,7 @@ final class TrackWaveform {
         final long deadline;
         volatile boolean cancelled;
         volatile Call network;
-        Job(String request) { this(request, 0); }
+        Job(String request) { this(request, 30_000); }
         Job(String request, long timeoutMs) {
             this.request = request;
             deadline = timeoutMs == 0 ? 0 : System.nanoTime() + timeoutMs * 1_000_000;
@@ -138,6 +141,7 @@ final class TrackWaveform {
     static float[] decode(File file, double seconds) throws IOException { return decode(file, seconds, new Job("local")); }
 
     static float[] decode(File file, double seconds, Job job) throws IOException {
+        if (file.length() <= 0 || file.length() > MAX_DOWNLOAD) return new float[0];
         MediaExtractor source = new MediaExtractor();
         try {
             source.setDataSource(file.getAbsolutePath());
@@ -147,10 +151,10 @@ final class TrackWaveform {
                 if (mime == null || !mime.startsWith("audio/")) continue;
                 long duration = format.containsKey(MediaFormat.KEY_DURATION)
                         ? format.getLong(MediaFormat.KEY_DURATION) : (long) (seconds * 1_000_000);
-                if (duration <= 0) return new float[0];
+                if (duration <= 0 || duration > MAX_DURATION_US) return new float[0];
                 source.selectTrack(i);
                 float[] peaks = new float[BINS];
-                boolean sampled = readPcm(source, format, mime, Long.MAX_VALUE, job,
+                boolean sampled = readPcm(source, format, mime, duration, WAVE_PCM_BYTES, job,
                         (data, decoded, timeUs) -> sample(data, decoded, timeUs, duration, peaks));
                 return sampled ? peaks : new float[0];
             }
@@ -162,8 +166,23 @@ final class TrackWaveform {
         boolean accept(ByteBuffer data, MediaFormat decoded, long timeUs) throws IOException;
     }
 
-    static boolean readPcm(MediaExtractor source, MediaFormat format, String mime, long endUs, Job job,
+    private static long framesIn(int size, MediaFormat format) throws IOException {
+        int channels = format.getInteger(MediaFormat.KEY_CHANNEL_COUNT);
+        int rate = format.getInteger(MediaFormat.KEY_SAMPLE_RATE);
+        if (rate < 1 || rate > 192000 || channels < 1 || channels > 8)
+            throw new IOException("Unsupported decoded audio layout.");
+        int encoding = format.containsKey(MediaFormat.KEY_PCM_ENCODING) ? format.getInteger(MediaFormat.KEY_PCM_ENCODING) : AudioFormat.ENCODING_PCM_16BIT;
+        return size / (channels * sampleBytes(encoding));
+    }
+
+    static boolean readPcm(MediaExtractor source, MediaFormat format, String mime, long endUs, long budget, Job job,
                            PcmSink sink) throws IOException {
+        int rate = format.getInteger(MediaFormat.KEY_SAMPLE_RATE), channels = format.getInteger(MediaFormat.KEY_CHANNEL_COUNT);
+        if (rate <= 0 || rate > 192000 || channels < 1 || channels > 8)
+            throw new IOException("Audio layout exceeds analysis limits.");
+        if (format.containsKey(MediaFormat.KEY_MAX_INPUT_SIZE) && format.getInteger(MediaFormat.KEY_MAX_INPUT_SIZE) > 4 * 1024 * 1024)
+            throw new IOException("Audio packets exceed analysis limits.");
+        long framesLeft = budget == WAVE_PCM_BYTES ? 64_000_000L : 4_000_000L;
         if ("audio/raw".equals(mime)) {
             int max = format.containsKey(MediaFormat.KEY_MAX_INPUT_SIZE) ? format.getInteger(MediaFormat.KEY_MAX_INPUT_SIZE) : 0;
             ByteBuffer buffer = ByteBuffer.allocateDirect(Math.max(65536, Math.min(4 * 1024 * 1024, max)));
@@ -173,6 +192,9 @@ final class TrackWaveform {
                 buffer.clear();
                 int size = source.readSampleData(buffer, 0);
                 if (size < 0) break;
+                framesLeft -= framesIn(size, format);
+                if (framesLeft < 0 || size > budget) throw new IOException("Audio exceeds analysis limits.");
+                budget -= size;
                 buffer.position(0).limit(size);
                 sampled |= sink.accept(buffer, format, source.getSampleTime());
                 source.advance();
@@ -204,8 +226,13 @@ final class TrackWaveform {
                 if (out >= 0) {
                     ByteBuffer pcm = codec.getOutputBuffer(out);
                     if (pcm != null && info.size > 0) {
+                        MediaFormat decoded = codec.getOutputFormat(out);
+                        framesLeft -= framesIn(info.size, decoded);
+                        if (framesLeft < 0 || info.size > budget || info.size > 4 * 1024 * 1024)
+                            throw new IOException("Audio exceeds analysis limits.");
+                        budget -= info.size;
                         pcm.position(info.offset).limit(info.offset + info.size);
-                        sampled |= sink.accept(pcm, codec.getOutputFormat(out), info.presentationTimeUs);
+                        sampled |= sink.accept(pcm, decoded, info.presentationTimeUs);
                     }
                     codec.releaseOutputBuffer(out, false);
                     if ((info.flags & MediaCodec.BUFFER_FLAG_END_OF_STREAM) != 0) return sampled;
@@ -216,6 +243,7 @@ final class TrackWaveform {
 
     private static boolean sample(ByteBuffer data, MediaFormat format, long startUs, long duration,
                                   float[] peaks) throws IOException {
+        if (startUs < 0 || startUs > duration) return false;
         int encoding = format.containsKey(MediaFormat.KEY_PCM_ENCODING) ? format.getInteger(MediaFormat.KEY_PCM_ENCODING) : AudioFormat.ENCODING_PCM_16BIT;
         int channels = format.getInteger(MediaFormat.KEY_CHANNEL_COUNT), rate = format.getInteger(MediaFormat.KEY_SAMPLE_RATE);
         int bytes = sampleBytes(encoding);

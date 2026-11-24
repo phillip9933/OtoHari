@@ -1,3 +1,4 @@
+import { audioLevels } from './audioAnalysis';
 import type { PlayerTrack } from '../player';
 
 export const maxOverlap = 8;
@@ -24,39 +25,22 @@ export function albumSequence(a: PlayerTrack, b: PlayerTrack) {
 	);
 }
 
-type Edges = { duration: number; head: number[]; tail: number[] };
-const measured = new WeakMap<Blob, Edges>();
-async function edges(blob: Blob, duration: number | undefined, signal: AbortSignal) {
-	const previous = measured.get(blob);
-	if (previous) return previous;
-	if (signal.aborted || blob.size > 128 * 1024 * 1024 || (duration ?? 0) > 3600) return null;
-	const context = new OfflineAudioContext(1, 1, 8000);
-	const bytes = await blob.arrayBuffer();
-	if (signal.aborted) return null;
-	const audio = await context.decodeAudioData(bytes);
-	if (signal.aborted || !audio.length || !audio.numberOfChannels) return null;
-	const channels = Array.from({ length: audio.numberOfChannels }, (_, i) =>
-		audio.getChannelData(i)
-	);
-	const frames = Math.round(audio.sampleRate * binSeconds);
-	const limit = Math.min(Math.floor(audio.length / frames), Math.round(maxOverlap / binSeconds));
-	function levels(tail: boolean) {
-		const result: number[] = [];
-		for (let bins = 0; bins < limit; bins++) {
-			const start = tail ? audio.length - (bins + 1) * frames : bins * frames;
-			let sum = 0;
-			for (const channel of channels) {
-				for (let i = start; i < start + frames; i++) sum += channel[i] * channel[i];
-			}
-			result.push(Math.sqrt(sum / (frames * channels.length)));
-		}
-		return result;
-	}
-	const result = { duration: audio.duration, head: levels(false), tail: levels(true) };
-	measured.set(blob, result);
-	return result;
+type Edge = { duration: number; levels: number[] };
+const heads = new WeakMap<Blob, Edge>(),
+	tails = new WeakMap<Blob, Edge>();
+async function edge(
+	blob: Blob,
+	side: 'head' | 'tail',
+	duration: number | undefined,
+	signal: AbortSignal
+) {
+	const cache = side === 'tail' ? tails : heads;
+	const hit = cache.get(blob);
+	if (hit) return hit;
+	const value = await audioLevels(blob, side, duration, signal);
+	if (value && !signal.aborted) cache.set(blob, value);
+	return value;
 }
-
 function quietSeconds(levels: number[]) {
 	const loud = levels.findIndex((v) => v > quietLevel);
 	const bins = loud < 0 ? levels.length : loud;
@@ -108,11 +92,11 @@ export async function smartOverlap(
 	signal: AbortSignal
 ) {
 	if (albumSequence(current, next)) return 0;
-	const tail = await edges(outgoing, current.duration, signal);
+	const tail = await edge(outgoing, 'tail', current.duration, signal);
 	if (!tail || signal.aborted) return null;
-	const head = await edges(incoming, next.duration, signal);
+	const head = await edge(incoming, 'head', next.duration, signal);
 	if (!head || signal.aborted) return null;
 	const cap = Math.min(maxOverlap, tail.duration / 2, head.duration / 2);
-	const quiet = Math.min(cap, quietSeconds(tail.tail) + quietSeconds(head.head));
-	return quiet >= 0.4 ? quiet : rhythmicOverlap(tail.tail, head.head, cap);
+	const quiet = Math.min(cap, quietSeconds(tail.levels) + quietSeconds(head.levels));
+	return quiet >= 0.4 ? quiet : rhythmicOverlap(tail.levels, head.levels, cap);
 }

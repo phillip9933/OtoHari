@@ -21,32 +21,7 @@ import { similarTracks, type HeardTrack } from './autoplay';
 import { albumSequence, maxOverlap, smartOverlap } from './smartFades';
 import { shuffleInPlace, shuffleLocally } from './shuffle';
 
-async function playbackBlob(response: Response, onprogress?: (fraction: number) => void) {
-	const length = Number(response.headers.get('Content-Length'));
-	const encoding = response.headers.get('Content-Encoding');
-	if (
-		!onprogress ||
-		!response.body ||
-		response.status !== 200 ||
-		!Number.isSafeInteger(length) ||
-		length <= 0 ||
-		(encoding && encoding !== 'identity')
-	)
-		return response.blob();
-	let received = 0;
-	const body = response.body.pipeThrough(
-		new TransformStream<Uint8Array, Uint8Array>({
-			transform(chunk, controller) {
-				received += chunk.byteLength;
-				// Transfer percentage is useful before the authenticated Blob can be played.
-				// Leave completion to the resolved Blob, even when the final chunk has arrived.
-				if (received < length) onprogress(received / length);
-				controller.enqueue(chunk);
-			}
-		})
-	);
-	return new Response(body, { headers: response.headers }).blob();
-}
+import { audioBlob } from './audioTransfer';
 
 export function browserPlayer(onbuffer?: (state: PlayerState) => void): PlaybackBridge {
 	let audio = new Audio();
@@ -570,7 +545,7 @@ export function browserPlayer(onbuffer?: (state: PlayerState) => void): Playback
 			if (fallback) delivery.response = 'fallback';
 			else if (profile.format === 'original' || ranges === 'bytes') delivery.response = 'original';
 			else if (ranges === 'none') delivery.response = 'converted';
-			blob = await playbackBlob(response, onprogress);
+			blob = await audioBlob(response, onprogress);
 			if (
 				account &&
 				policy?.options.autoCache &&

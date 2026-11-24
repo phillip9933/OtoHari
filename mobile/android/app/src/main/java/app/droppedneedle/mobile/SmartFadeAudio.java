@@ -50,6 +50,7 @@ final class SmartFadeAudio {
     static Edge online(PlaybackService.Access owner, Uri uri, Uri selected, long duration, boolean tail,
                        OkHttpClient http, TrackWaveform.Job job) throws IOException {
         if (ConversionSource.requested(selected) && duration > 0) {
+            if (duration <= 0 || duration > TrackWaveform.MAX_DURATION_US / 1000) throw new IOException("Track exceeds fade analysis limits.");
             int window = window(duration);
             long start = tail ? duration - window : 0;
             Uri excerpt = start > 0 ? ConversionSource.streamAt(selected, start) : selected;
@@ -111,13 +112,14 @@ final class SmartFadeAudio {
             String mime = format.getString(MediaFormat.KEY_MIME);
             if (mime == null || !mime.startsWith("audio/")) continue;
             if (!excerpt && format.containsKey(MediaFormat.KEY_DURATION)) duration = format.getLong(MediaFormat.KEY_DURATION) / 1000;
+            if (duration <= 0 || duration > TrackWaveform.MAX_DURATION_US / 1000) throw new IOException("Track exceeds fade analysis limits.");
             int window = window(duration);
             if (window < SmartFadePlan.BIN_MS) throw new IOException("Track is too short to measure.");
             long start = tail && !excerpt ? (duration - window) * 1000 : 0;
             source.selectTrack(track);
             if (start > 0) source.seekTo(start, MediaExtractor.SEEK_TO_PREVIOUS_SYNC);
             Edge edge = new Edge(duration, window, start, tail);
-            TrackWaveform.readPcm(source, format, mime, start + window * 1000L, job, edge::sample);
+            TrackWaveform.readPcm(source, format, mime, start + window * 1000L, TrackWaveform.EDGE_PCM_BYTES, job, edge::sample);
             edge.finish();
             return edge;
         }

@@ -11,6 +11,9 @@ final class PlaybackWaveform {
 
         init(_ id: String, timeLimit: TimeInterval? = nil) {
             self.id = id; deadline = timeLimit.map { ProcessInfo.processInfo.systemUptime + $0 }
+            if let timeLimit {
+                DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + timeLimit) { [weak self] in self?.cancel() }
+            }
         }
         func use(_ reader: AVAssetReader) -> Bool {
             lock.lock(); defer { lock.unlock() }
@@ -33,7 +36,7 @@ final class PlaybackWaveform {
     func stop() { active?.cancel(); active = nil }
     func read(_ asset: AVAsset, duration: Double, request: String, complete: @escaping ([Float]) -> Void) {
         stop()
-        let job = Job(request)
+        let job = Job(request, timeLimit: 30)
         active = job
         worker.async {
             let peaks = (try? self.measure(asset, duration: duration, job: job)) ?? []
@@ -56,7 +59,7 @@ final class PlaybackWaveform {
         guard !job.cancelled, let track = asset.tracks(withMediaType: .audio).first else { return [] }
         let seconds = asset.duration.seconds
         let duration = seconds.isFinite && seconds > 0 ? seconds : fallback
-        guard duration.isFinite, duration > 0 else { return [] }
+        guard duration.isFinite, duration > 0, duration <= 3600 else { return [] }
         let reader = try AVAssetReader(asset: asset)
         let output = AVAssetReaderTrackOutput(track: track, outputSettings: [
             AVFormatIDKey: kAudioFormatLinearPCM, AVLinearPCMBitDepthKey: 16,
@@ -68,6 +71,7 @@ final class PlaybackWaveform {
         guard !job.cancelled, reader.startReading() else { return [] }
         defer { if reader.status == .reading { reader.cancelReading() } }
         var peaks = [Float](repeating: 0, count: 112)
+        var remainingBytes = 256 * 1024 * 1024, remainingFrames = 64_000_000
         var measured = false
         while !job.cancelled {
             // Release each decoded buffer before requesting the next one.
@@ -78,7 +82,14 @@ final class PlaybackWaveform {
                       let block = CMSampleBufferGetDataBuffer(sample) else { return true }
                 let offset = CMSampleBufferGetPresentationTimeStamp(sample).seconds, size = CMBlockBufferGetDataLength(block)
                 let rate = stream.mSampleRate, channels = Int(stream.mChannelsPerFrame)
-                guard offset.isFinite, rate > 0, channels > 0, size >= 2 else { return true }
+                guard offset.isFinite, abs(offset) <= 3601, (8000...192000).contains(rate),
+                      (1...8).contains(channels), size >= 2, size <= 4 * 1024 * 1024, size <= remainingBytes else {
+                    reader.cancelReading()
+                    return false
+                }
+                remainingBytes -= size
+                remainingFrames -= size / (2 * channels)
+                guard remainingFrames >= 0 else { reader.cancelReading(); return false }
                 var bytes = [Int16](repeating: 0, count: size / 2)
                 let status = bytes.withUnsafeMutableBytes { p in
                     CMBlockBufferCopyDataBytes(block, atOffset: 0, dataLength: p.count, destination: p.baseAddress!)
@@ -86,7 +97,7 @@ final class PlaybackWaveform {
                 guard status == noErr else { return true }
                 measured = true
                 for frame in 0..<(bytes.count / channels) {
-                    let bin = max(0, min(peaks.count-1, Int((offset + Double(frame)/rate) * Double(peaks.count)/duration)))
+                    let bin = max(0, min(peaks.count-1, Int(min(Double(peaks.count), max(0, (offset + Double(frame)/rate) / duration) * Double(peaks.count)))))
                     for channel in 0..<channels {
                         peaks[bin] = max(peaks[bin], abs(Float(bytes[frame*channels+channel])) / 32768)
                     }
@@ -101,7 +112,7 @@ final class PlaybackWaveform {
     // Analyze only the two edges. Missing or incomplete buffers must not be mistaken for silence.
     func overlap(_ outgoing: AVAsset, _ incoming: AVAsset, complete: @escaping (Double?) -> Void) {
         stop()
-        let job = Job(UUID().uuidString)
+        let job = Job(UUID().uuidString, timeLimit: 30)
         active = job
         worker.async {
             let result: Double?
@@ -109,13 +120,13 @@ final class PlaybackWaveform {
                let head = try? self.rmsEdge(incoming, tail: false, job: job) {
                 result = TrackFades.overlap(tail: tail.levels, head: head.levels, outgoing: tail.duration, incoming: head.duration)
             } else { result = nil }
-            DispatchQueue.main.async { if !job.cancelled { complete(result) } }
+            DispatchQueue.main.async { if self.active === job { complete(job.cancelled ? nil : result) } }
         }
     }
 
     private func rmsEdge(_ asset: AVAsset, tail: Bool, job: Job) throws -> (levels: [Double], duration: Double)? {
         let duration = asset.duration.seconds
-        guard !job.cancelled, duration.isFinite, duration > 0, let track = asset.tracks(withMediaType: .audio).first else { return nil }
+        guard !job.cancelled, duration.isFinite, duration > 0, duration <= 3600, let track = asset.tracks(withMediaType: .audio).first else { return nil }
         let bins = min(80, Int(min(duration, 8) * 10))
         guard bins > 0 else { return nil }
         let span = Double(bins) / 10, start = tail ? max(0, duration - span) : 0
@@ -132,6 +143,7 @@ final class PlaybackWaveform {
         guard !job.cancelled, reader.startReading() else { return nil }
         defer { if reader.status == .reading { reader.cancelReading() } }
         var sums = [Double](repeating: 0, count: bins), counts = [Int](repeating: 0, count: bins)
+        var remainingBytes = 48 * 1024 * 1024, remainingFrames = 4_000_000
         var expected = 0.0
         while !job.cancelled {
             let read: Bool = autoreleasepool {
@@ -142,7 +154,14 @@ final class PlaybackWaveform {
                 let offset = CMSampleBufferGetPresentationTimeStamp(sample).seconds
                 let rate = stream.mSampleRate, channels = Int(stream.mChannelsPerFrame)
                 let size = CMBlockBufferGetDataLength(block)
-                guard offset.isFinite, rate > 0, channels > 0, size >= 2 else { return true }
+                guard offset.isFinite, abs(offset) <= 3601, (8000...192000).contains(rate),
+                      (1...8).contains(channels), size >= 2, size <= 4 * 1024 * 1024, size <= remainingBytes else {
+                    reader.cancelReading()
+                    return false
+                }
+                remainingBytes -= size
+                remainingFrames -= size / (2 * channels)
+                guard remainingFrames >= 0 else { reader.cancelReading(); return false }
                 var bytes = [Int16](repeating: 0, count: size / 2)
                 let status = bytes.withUnsafeMutableBytes {
                     CMBlockBufferCopyDataBytes(block, atOffset: 0, dataLength: $0.count, destination: $0.baseAddress!)

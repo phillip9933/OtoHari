@@ -206,6 +206,9 @@ private final class OfflineTransfer: NSObject, URLSessionDownloadDelegate, @unch
                     totalBytesWritten: Int64, totalBytesExpectedToWrite: Int64) {
         if let http = downloadTask.response as? HTTPURLResponse, http.statusCode != 200 || !DeviceOffline.audio(http.mimeType) {
             failure = OfflineFiles.Failure("DN could not serve this audio file.")
+        } else if totalBytesWritten < 0 || max(totalBytesWritten, totalBytesExpectedToWrite) > OfflineFiles.maxAudioBytes ||
+                    !store.hasDiskRoom(for: max(OfflineFiles.mib, totalBytesExpectedToWrite - totalBytesWritten)) {
+            failure = OfflineFiles.Failure("This audio file exceeds available device storage.")
         } else if !DeviceOffline.shared.permitsTransfer(store, ticket, bytes: max(totalBytesWritten, totalBytesExpectedToWrite)) {
             failure = OfflineFiles.Failure("Download stopped by Offline settings.")
         }
@@ -226,7 +229,7 @@ private final class OfflineTransfer: NSObject, URLSessionDownloadDelegate, @unch
             }
             guard let http = downloadTask.response as? HTTPURLResponse, http.statusCode == 200, DeviceOffline.audio(http.mimeType),
                   http.value(forHTTPHeaderField: "Content-Range") == nil,
-                  let size = try url.resourceValues(forKeys: [.fileSizeKey]).fileSize, size > 0,
+                  let size = try url.resourceValues(forKeys: [.fileSizeKey]).fileSize, size > 0, Int64(size) <= OfflineFiles.maxAudioBytes,
                   let range = PlaybackByteRange(status: http.statusCode, header: nil, bytes: http.expectedContentLength,
                                                 coding: http.value(forHTTPHeaderField: "Content-Encoding"), offset: 0),
                   range.end == nil || range.end == Int64(size) else { throw OfflineFiles.Failure("DN could not serve the complete audio file.") }

@@ -32,7 +32,7 @@ final class OfflinePlaybackCapture {
         queue.async {
             guard !self.done else { return }
             let options = self.store.options()
-            guard length > 0, length <= Int64(options.cacheMiB) * OfflineFiles.mib, self.store.active(self.ticket),
+            guard length > 0, length <= OfflineFiles.maxAudioBytes, length <= Int64(options.cacheMiB) * OfflineFiles.mib, self.store.active(self.ticket),
                   DeviceOffline.shared.permitted(options) else { self.done = true; self.clear(); return }
             do {
                 if let existing = self.coverage, existing.length != length || self.validator != validator { self.clear() }
@@ -44,6 +44,7 @@ final class OfflinePlaybackCapture {
                     self.coverage = OfflineCoverage(length: length); self.validator = validator
                 }
                 guard offset >= 0, offset <= length, Int64(data.count) <= length - offset else { return }
+                guard self.store.hasDiskRoom(for: Int64(data.count)) else { self.done = true; self.clear(); return }
                 try self.output?.seek(toOffset: UInt64(offset))
                 try self.output?.write(contentsOf: data)
                 if self.coverage?.add(offset, count: data.count) == true, let file = self.file {

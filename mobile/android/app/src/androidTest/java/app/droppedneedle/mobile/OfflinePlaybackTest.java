@@ -76,6 +76,10 @@ public final class OfflinePlaybackTest {
         file.put("data".getBytes(StandardCharsets.US_ASCII)).putInt(count * 2);
         return file.array();
     }
+    @Test public void manualDownloadRejectsOversizedLengthBeforeWriting() {
+        assertThrows(IOException.class, () -> store.begin(track(), true, OfflineStore.MAX_AUDIO_BYTES + 1));
+    }
+
     @Test public void waveformMeasuresTheFileInsteadOfInventingPeaks() throws Exception {
         byte[] song = wav();
         ByteBuffer pcm = ByteBuffer.wrap(song).order(ByteOrder.LITTLE_ENDIAN);

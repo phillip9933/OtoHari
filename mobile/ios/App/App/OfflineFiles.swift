@@ -113,6 +113,14 @@ final class OfflineFiles {
     private let files = FileManager.default
     private let changed: () -> Void
     static let mib: Int64 = 1_048_576
+    static let maxAudioBytes = 512 * mib
+    static func hasDiskRoom(at folder: URL, for bytes: Int64) -> Bool {
+        guard bytes >= 0, bytes <= maxAudioBytes,
+              let values = try? FileManager.default.attributesOfFileSystem(forPath: folder.path),
+              let free = values[.systemFreeSize] as? NSNumber else { return false }
+        return free.int64Value - 64 * mib >= bytes
+    }
+    func hasDiskRoom(for bytes: Int64) -> Bool { Self.hasDiskRoom(at: folder, for: bytes) }
     var accountDirectory: String { folder.lastPathComponent }
 
     init(folder: URL, changed: @escaping () -> Void = {}) throws {
@@ -392,7 +400,7 @@ final class OfflineFiles {
     }
     func active(_ ticket: Ticket, bytes: Int64 = 0) -> Bool {
         lock.lock(); defer { lock.unlock() }
-        guard ticket.revision == (index.revisions[ticket.id] ?? 0), permitsTransfer(ticket) else { return false }
+        guard bytes >= 0, bytes <= Self.maxAudioBytes, ticket.revision == (index.revisions[ticket.id] ?? 0), permitsTransfer(ticket) else { return false }
         switch ticket.origin {
         case .cached: return bytes <= Int64(index.options.cacheMiB) * Self.mib
         case .automatic: return bytes <= Int64(index.options.downloadMiB) * Self.mib
@@ -542,8 +550,10 @@ final class OfflineFiles {
         if ticket.origin == .automatic { try room(bytes) }
         guard bytes > 0, let size = try temporary.resourceValues(forKeys: [.fileSizeKey]).fileSize, Int64(size) == bytes else { throw Failure("The audio download was incomplete.") }
         let suffix = !ext.isEmpty && ext.count <= 8 && ext.allSatisfy({ $0.isLetter || $0.isNumber }) ? ext : "audio"
+        guard hasDiskRoom(for: bytes) else { throw Failure("Insufficient space for this audio file.") }
         let dest = folder.appendingPathComponent(UUID().uuidString + "." + suffix)
-        try files.copyItem(at: temporary, to: dest)
+        do { try files.copyItem(at: temporary, to: dest) }
+        catch { try? files.removeItem(at: dest); throw error }
         var next = index
         next.rows[track.id] = Row(track: track, origin: ticket.origin, name: dest.lastPathComponent, bytes: bytes, used: Self.now(), mime: mime)
         if ticket.origin == .downloaded { next.excluded.remove(track.id) }

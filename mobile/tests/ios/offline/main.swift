@@ -29,6 +29,7 @@ let downloadTicket = try raceStore.begin(track, origin: .downloaded)!
 let alternate = root.appendingPathComponent("other.m4a")
 let alternateBytes = Data([1, 2, 3])
 try alternateBytes.write(to: alternate)
+precondition(!raceStore.active(downloadTicket, bytes: OfflineFiles.maxAudioBytes + 1))
 let downloaded = try raceStore.install(alternate, bytes: Int64(alternateBytes.count), ext: "m4a", track: track, ticket: downloadTicket)
 let captured = try raceStore.install(audio, bytes: Int64(bytes.count), ext: "wav", track: track, ticket: playbackTicket)
 precondition(downloaded != nil && raceStore.playable(track.id) == downloaded && captured == nil)

@@ -168,7 +168,7 @@ In **Settings → Downloads & storage → Download preferences**, choose **Keep 
 
 **Download quality** lets you keep originals or request MP3 or Opus at a chosen bitrate for new manual and automatic downloads. You can stream originals on Wi-Fi, stream at a different rate on cellular, and still keep compact downloads for travel. Existing complete downloads keep their format until removed and downloaded again.
 
-Under **Downloads & storage**, choose **Offline mode and playback cache** to play only saved music or set the playback cache limit. **Download preferences** controls download quality and automatic collections. Manual downloads stay until you remove them. Playback cache keeps completed files under its own size limit. The player prefers a complete copy on the device.
+Under **Downloads & storage**, choose **Offline mode and playback cache** to play only saved music or set the playback cache limit. **Download preferences** controls download quality and automatic collections. Manual downloads stay until you remove them. Playback cache keeps completed files under its own size limit. The player prefers a complete copy on the device. Each native offline download can hold up to 512 MiB. The browser preview handles audio files up to 256 MiB.
 
 In **Settings → Downloads & storage → Offline mode and playback cache → Cache upcoming songs**, choose how many upcoming tracks to cache and a transfer speed for Wi-Fi and cellular separately. Both start off. Read-ahead uses the playback cache budget and the streaming quality for the current network. Enabling cellular read-ahead allows it to use mobile data while ordinary downloads remain restricted to unmetered connections.
 
@@ -192,7 +192,7 @@ Use the cast icon in Now Playing or **Settings → Playback → Cast and audio o
 
 Android Auto can browse your DN library, playlists, favorites and saved music, and find songs by voice. Add the OtoHari widget from the Android launcher for playback controls. On Android, tapping the system media card or the widget title opens Now Playing and keeps the current playback state. Open a DN playlist in the app to pin a shortcut that returns to it under your account.
 
-In **Cast and audio output → Find network speakers**, Sonos rooms show their groups. Select a room to adjust its volume, join another group or leave a group. Playback goes through the group coordinator.
+In **Cast and audio output → Find network speakers**, Sonos rooms show their groups. Select a room to adjust its volume, join another group or leave a group. When a different speaker coordinates the group, OtoHari checks the group membership with both speakers and asks you to confirm the destination before sharing audio.
 
 Search remembers queries on this device for each DN account and offers suggestions as you type. The alphabetical rail in Artists and Albums also works with saved music. Smart playlist rules can combine rating, genre, year, number of plays and days since the last play. Listening-history rules require per-account play statistics from the matching DN server.
 

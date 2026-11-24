@@ -1,3 +1,4 @@
+import { audioLevels } from './audioAnalysis';
 import { Capacitor, registerPlugin } from '@capacitor/core';
 import type { PlayerAccess, PlayerTrack, PlaybackFormat } from '../player';
 
@@ -7,7 +8,6 @@ type NativeWaveform = {
 	cancelWaveform(options: { request: string }): Promise<void>;
 };
 const native = registerPlugin<NativeWaveform>('DNPlayer');
-const bins = 112;
 let source: Source | null = null;
 const cache = new Map<string, number[]>();
 
@@ -60,24 +60,6 @@ export async function identifyAudio(blob: Blob, duration?: number): Promise<Play
 	return info;
 }
 
-async function browserPeaks(blob: Blob, signal: AbortSignal) {
-	// Downsample before scanning. Only one song is decoded, and only when this bar is visible.
-	const context = new OfflineAudioContext(1, 1, 8000);
-	const bytes = await blob.arrayBuffer();
-	if (signal.aborted) return [];
-	const data = await context.decodeAudioData(bytes);
-	if (signal.aborted || !data.length) return [];
-	const peaks = new Array<number>(bins).fill(0);
-	for (let c = 0; c < data.numberOfChannels; c++) {
-		const samples = data.getChannelData(c);
-		for (let i = 0; i < samples.length; i++) {
-			const n = Math.floor((i * bins) / samples.length);
-			peaks[n] = Math.max(peaks[n], Math.abs(samples[i]));
-		}
-	}
-	return peaks;
-}
-
 export async function trackWaveform(
 	account: PlayerAccess,
 	track: PlayerTrack,
@@ -113,9 +95,7 @@ export async function trackWaveform(
 			source.userId !== account.userId
 		)
 			return [];
-		// Avoid materializing unbounded audiobook-sized buffers in the browser process.
-		if (source.blob.size > 128 * 1024 * 1024 || (track.duration ?? 0) > 3600) return [];
-		peaks = await browserPeaks(source.blob, signal);
+		peaks = (await audioLevels(source.blob, 'wave', track.duration, signal))?.levels ?? [];
 	}
 	if (
 		signal.aborted ||

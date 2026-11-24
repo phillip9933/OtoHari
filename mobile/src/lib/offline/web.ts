@@ -1,3 +1,4 @@
+import { audioBlob, maxAudioBlobBytes } from '../player/audioTransfer';
 import type { PlayerTrack } from '../player';
 import { combineSignals } from '../abortSignals';
 import {
@@ -139,8 +140,9 @@ async function automaticRoom(
 		(n, item) => n + (originOf(item) === 'automatic' ? item.bytes : 0),
 		0
 	);
-	if (added + used > options.downloadMiB * 1048576)
-		throw Error('The automatic download limit has been reached.');
+	const available = Math.max(0, options.downloadMiB * 1048576 - used);
+	if (added > available) throw Error('The automatic download limit has been reached.');
+	return available;
 }
 
 async function write(
@@ -343,7 +345,12 @@ export const webOffline: OfflineBridge = {
 			if (!complete(cached)) {
 				if (options.offlineOnly)
 					throw Error('Turn off offline-only playback to download new songs.');
-				return revision(settings, key, a.track.id);
+				return {
+					revision: await revision(settings, key, a.track.id),
+					limit: a.source
+						? Math.min(maxAudioBlobBytes, await automaticRoom(store, key, 0, options))
+						: maxAudioBlobBytes
+				};
 			}
 			if (a.source && originOf(cached) !== 'cached') return null;
 			if (a.source) await automaticRoom(store, key, cached.bytes, options);
@@ -378,14 +385,21 @@ export const webOffline: OfflineBridge = {
 			throw Object.assign(Error('DN could not find this audio file.'), { code: audioNotFound });
 		if (response.status !== 200 || !isAudio(response.headers.get('content-type')))
 			throw Error('DN could not serve this audio file.');
-		const blob = await response.blob();
+		const blob = await audioBlob(response, undefined, started.limit);
 		const expected = response.headers.get('content-length');
 		if (
 			!blob.size ||
 			(expected && !response.headers.get('content-encoding') && Number(expected) !== blob.size)
 		)
 			throw Error('The audio download was incomplete.');
-		await write(a, a.track, blob, a.source ? 'automatic' : 'downloaded', started, a.source);
+		await write(
+			a,
+			a.track,
+			blob,
+			a.source ? 'automatic' : 'downloaded',
+			started.revision,
+			a.source
+		);
 	}
 };
 export function isAudio(value: string | null) {

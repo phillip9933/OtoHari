@@ -209,7 +209,7 @@ final class ManualDownloads {
         }
     }
     private static final class LocalFailure extends IOException {
-        LocalFailure() { super("Could not save this audio file. Check available device storage."); }
+        LocalFailure() { super("Could not save this audio file. Check the 512 MiB per-track limit and available device storage."); }
     }
 
     boolean drain(Run run, Call.Factory http, Progress progress) {

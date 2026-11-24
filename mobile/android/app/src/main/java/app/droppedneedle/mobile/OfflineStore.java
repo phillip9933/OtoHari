@@ -41,6 +41,8 @@ final class OfflineStore {
         return e.optString("origin", e.optBoolean("pinned") ? DOWNLOAD : CACHE);
     }
     private static final long MIB = 1024L * 1024;
+    static final long MAX_AUDIO_BYTES = 512 * MIB;
+    private static final long DISK_RESERVE = 64 * MIB;
     private final Context context;
     private final File dir;
     private final SharedPreferences index;
@@ -704,7 +706,7 @@ final class OfflineStore {
         private final FileOutputStream output;
         private long bytes;
         @Nullable File installedFile;
-        private long nextNetworkCheck = 1_048_576;
+        private long nextNetworkCheck;
         private boolean closed;
         Capture(String key, JSONObject track, String origin, @Nullable String source, long expected, Set<String> protectedIds) throws IOException {
             this.key = key;
@@ -715,7 +717,11 @@ final class OfflineStore {
             this.protectedIds = protectedIds.isEmpty() ? Collections.emptySet() : new HashSet<>(protectedIds);
             generation = index.getLong(AUTOMATIC.equals(origin) ? "automaticGeneration" : "cacheGeneration", 0);
             revision = index.getLong("revision." + key, 0);
-            limit = DOWNLOAD.equals(origin) ? Long.MAX_VALUE : AUTOMATIC.equals(origin) ? automaticBudget() : cacheRoom(protectedIds);
+            limit = Math.min(MAX_AUDIO_BYTES, DOWNLOAD.equals(origin) ? MAX_AUDIO_BYTES :
+                    AUTOMATIC.equals(origin) ? automaticBudget() : cacheRoom(protectedIds));
+            if (expected > limit) throw new IOException("This track exceeds the offline file limit.");
+            if (dir.getUsableSpace() - DISK_RESERVE < Math.max(0, expected))
+                throw new IOException("Insufficient space for this download.");
             temp = File.createTempFile("audio-", ".part", dir);
             try {
                 output = new FileOutputStream(temp);
@@ -729,6 +735,9 @@ final class OfflineStore {
             if (bytes + count > limit || (expected >= 0 && bytes + count > expected))
                 throw new IOException("Audio exceeds the available cache limit.");
             if (bytes + count >= nextNetworkCheck) {
+                // Keep room for the following interval even for chunked audio with no declared size.
+                if (dir.getUsableSpace() - DISK_RESERVE < count + MIB)
+                    throw new IOException("Insufficient space for this download.");
                 if (AUTOMATIC.equals(origin) && (autoGeneration() != generation || !automaticAllowed(source, key)))
                     throw new IOException("The automatic download settings changed.");
                 if (AHEAD.equals(source) ? !readAheadOn(StreamProfiles.active(context)) : !permittedNetwork())
