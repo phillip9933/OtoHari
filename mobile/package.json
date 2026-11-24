@@ -26,6 +26,7 @@
     "@capacitor/ios": "8.6.2",
     "@lucide/svelte": "^1.76.0",
     "@noble/hashes": "2.4.0",
+    "image-size": "2.1.0",
     "postcss": "8.5.33",
     "svelte": "^5.57.1"
   },

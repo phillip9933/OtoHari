@@ -1,3 +1,4 @@
+import { limitedBlob } from './limitedBlob';
 import { Capacitor, registerPlugin } from '@capacitor/core';
 import { combineSignals } from './abortSignals';
 
@@ -16,30 +17,6 @@ const native = registerPlugin<{
 
 const previewBytes = 2 * 1024 * 1024;
 const artworkBytes = 8 * 1024 * 1024;
-
-async function limitedBlob(response: Response, limit: number) {
-	const reader = response.body?.getReader();
-	if (!reader) throw Error('The server returned an empty response.');
-	const chunks: Uint8Array<ArrayBuffer>[] = [];
-	let size = 0;
-	try {
-		if (Number(response.headers.get('content-length')) > limit)
-			throw Error('Response is too large.');
-		for (;;) {
-			const { done, value } = await reader.read();
-			if (done) break;
-			size += value.length;
-			if (size > limit) throw Error('Response is too large.');
-			chunks.push(new Uint8Array(value));
-		}
-		return new Blob(chunks, { type: response.headers.get('content-type') ?? '' });
-	} catch (error) {
-		await reader.cancel().catch(() => {});
-		throw error;
-	} finally {
-		reader.releaseLock();
-	}
-}
 
 function base64(blob: Blob) {
 	return new Promise<string>((resolve, reject) => {

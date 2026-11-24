@@ -145,7 +145,7 @@ public final class DNOfflinePlugin extends Plugin {
                 byte[] bytes = reviewed(call).getBytes(java.nio.charset.StandardCharsets.UTF_8);
                 android.net.Uri uri = result.getData() == null ? null : result.getData().getData();
                 if (result.getResultCode() != Activity.RESULT_OK) throw new IOException();
-                DNPlaylistExportPlugin.writeDocument(getContext().getContentResolver(),uri,new android.os.CancellationSignal(),out -> out.write(bytes));
+                DNPlaylistExportPlugin.writeDocument(getContext(), uri, result.getData().getFlags(), new android.os.CancellationSignal(), out -> out.write(bytes));
                 call.resolve(new JSObject().put("saved",true));
             } catch (Exception unavailable) { call.reject("The report could not be saved at this location."); }
         });

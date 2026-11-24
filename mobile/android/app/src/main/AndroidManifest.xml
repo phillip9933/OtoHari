@@ -6,6 +6,7 @@
     <uses-sdk tools:overrideLibrary="io.github.phillip9933.appupdater" />
 
     <queries>
+        <intent><action android:name="android.content.action.DOCUMENTS_PROVIDER" /></intent>
         <package android:name="com.google.android.projection.gearhead" />
         <package android:name="com.android.car.media" />
         <package android:name="com.android.car.carlauncher" />

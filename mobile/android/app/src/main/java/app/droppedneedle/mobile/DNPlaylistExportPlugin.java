@@ -1,7 +1,11 @@
 package app.droppedneedle.mobile;
 
 import android.app.Activity;
-import android.content.ContentResolver;
+import android.content.Context;
+import android.content.pm.PackageManager;
+import android.content.pm.ProviderInfo;
+import android.os.Process;
+import android.provider.DocumentsContract;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.CancellationSignal;
@@ -177,7 +181,7 @@ public final class DNPlaylistExportPlugin extends Plugin {
                 } else {
                     content = file::copyTo;
                 }
-                writeDocument(getContext().getContentResolver(), uri, signal, content);
+                writeDocument(getContext(), uri, result.getData().getFlags(), signal, content);
                 finish(file);
                 call.resolve(new JSObject().put("saved", true));
             } catch (Exception e) {
@@ -194,11 +198,20 @@ public final class DNPlaylistExportPlugin extends Plugin {
         });
     }
     interface DocumentContent { void write(OutputStream output) throws IOException; }
-    static void writeDocument(ContentResolver resolver, Uri uri, CancellationSignal signal, DocumentContent content)
+    static boolean writableDocument(Context context, Uri uri, int flags) {
+        if (uri == null || !"content".equals(uri.getScheme()) || uri.getAuthority() == null
+            || (flags & Intent.FLAG_GRANT_WRITE_URI_PERMISSION) == 0) return false;
+        ProviderInfo provider = context.getPackageManager().resolveContentProvider(uri.getAuthority(), 0);
+        return provider != null && provider.applicationInfo != null && provider.applicationInfo.uid != Process.myUid()
+            && DocumentsContract.isDocumentUri(context, uri)
+            && context.checkUriPermission(uri, Process.myPid(), Process.myUid(), Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+                == PackageManager.PERMISSION_GRANTED;
+    }
+
+    static void writeDocument(Context context, Uri uri, int flags, CancellationSignal signal, DocumentContent content)
         throws IOException {
-        if (uri == null || !"content".equals(uri.getScheme()))
-            throw new IOException("Choose a document in Files.");
-        ParcelFileDescriptor fd = resolver.openFileDescriptor(uri, "wt", signal);
+        if (!writableDocument(context, uri, flags)) throw new IOException("Choose a writable document in Files.");
+        ParcelFileDescriptor fd = context.getContentResolver().openFileDescriptor(uri, "wt", signal);
         if (fd == null)
             throw new IOException("No writable document was returned.");
         try (OutputStream out = new ParcelFileDescriptor.AutoCloseOutputStream(fd)) {

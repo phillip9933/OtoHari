@@ -14,7 +14,7 @@ import androidx.test.platform.app.InstrumentationRegistry;
 import com.getcapacitor.JSObject;
 import com.getcapacitor.PluginCall;
 import java.io.File;
-import java.io.FileInputStream;
+import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
 import okhttp3.MediaType;
 import okhttp3.OkHttpClient;
@@ -48,20 +48,18 @@ public class PlaylistExportDocumentTest {
         char[] tooLarge = new char[22000];
         java.util.Arrays.fill(tooLarge, '界');
         assertThrows(java.io.IOException.class, () -> DNPlaylistExportPlugin.layoutBytes(new String(tooLarge)));
-        File output = File.createTempFile("layout-test-", ".json", context.getCacheDir());
-        try {
-            Uri uri = FileProvider.getUriForFile(context, context.getPackageName() + ".fileprovider", output);
-            try (java.io.FileOutputStream previous = new java.io.FileOutputStream(output)) { previous.write(new byte[1024]); }
-            DNPlaylistExportPlugin.writeDocument(context.getContentResolver(), uri, new CancellationSignal(),
-                    stream -> stream.write(DNPlaylistExportPlugin.layoutBytes(layout)));
-            byte[] bytes = new byte[(int) output.length()];
-            try (java.io.DataInputStream in = new java.io.DataInputStream(new FileInputStream(output))) { in.readFully(bytes); }
-            assertEquals(layout, new String(bytes, StandardCharsets.UTF_8));
-        } finally { output.delete(); }
+        String authority = context.getPackageName() + ".fileprovider";
+        assertThrows(IllegalArgumentException.class, () -> FileProvider.getUriForFile(context, authority,
+                new File(context.getCacheDir(), "unshared-fixture.json")));
+        Uri own = FileProvider.getUriForFile(context, authority, new File(context.getCacheDir(), "capacitorassets/fixture.json"));
+        assertFalse(DNPlaylistExportPlugin.writableDocument(context, own, Intent.FLAG_GRANT_WRITE_URI_PERMISSION));
+        assertThrows(java.io.IOException.class, () -> DNPlaylistExportPlugin.writeDocument(context, own,
+                Intent.FLAG_GRANT_WRITE_URI_PERMISSION, new CancellationSignal(), out -> fail("Writer should not open")));
+        assertFalse(DNPlaylistExportPlugin.writableDocument(context, own, 0));
     }
 
     @Test
-    public void pickerContainsOnlySuggestedNameAndCopiesUtf8ToTheChosenUri() throws Exception {
+    public void pickerContainsOnlySuggestedNameAndPreparedContentIsUtf8() throws Exception {
         Context ctx = InstrumentationRegistry.getInstrumentation().getTargetContext();
         Intent picker = DNPlaylistExportPlugin.destination("audio/x-mpegurl", "音.m3u8");
         assertEquals(Intent.ACTION_CREATE_DOCUMENT, picker.getAction());
@@ -73,8 +71,6 @@ public class PlaylistExportDocumentTest {
         assertNull(picker.getClipData());
         File dir = new File(ctx.getCacheDir(), "export-test-" + java.util.UUID.randomUUID());
         assertTrue(dir.mkdir());
-        File output = new File(dir, "chosen.m3u8");
-        assertTrue(output.createNewFile());
         String body = "#EXTM3U\n#PLAYLIST:音\nMusic/枝.flac\n";
         PlaylistExportFile stage = new PlaylistExportFile(dir, java.util.UUID.randomUUID().toString(), "m3u8");
         try {
@@ -91,16 +87,11 @@ public class PlaylistExportDocumentTest {
                                     .build();
             stage.prepare(http, "https://fixture.example",
                 "https://fixture.example/api/v3/playlists/example/export?format=m3u8", "fixture");
-            Uri uri = FileProvider.getUriForFile(ctx, ctx.getPackageName() + ".fileprovider", output);
-            DNPlaylistExportPlugin.writeDocument(ctx.getContentResolver(), uri, new CancellationSignal(), stage::copyTo);
-            byte[] data = new byte[(int) output.length()];
-            try (java.io.DataInputStream in = new java.io.DataInputStream(new FileInputStream(output))) {
-                in.readFully(data);
-            }
-            assertEquals(body, new String(data, StandardCharsets.UTF_8));
+            ByteArrayOutputStream copied = new ByteArrayOutputStream();
+            stage.copyTo(copied);
+            assertArrayEquals(body.getBytes(StandardCharsets.UTF_8), copied.toByteArray());
         } finally {
             stage.discard();
-            output.delete();
             dir.delete();
         }
     }

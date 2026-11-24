@@ -1,3 +1,9 @@
+import {
+	coverCrop,
+	CoverAnimationError,
+	CoverFormatError,
+	CoverSizeError
+} from './playlistCoverImage';
 import { readable } from 'svelte/store';
 import { accountId } from '../boards/layout';
 import type { Session } from '../connection';
@@ -93,33 +99,52 @@ export async function forgetPlaylistCover(session: Session, playlist: string) {
 }
 
 export async function coverFromFile(file: File) {
-	if (!['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/avif'].includes(file.type))
+	let crop;
+	try {
+		crop = await coverCrop(file);
+	} catch (error) {
+		if (error instanceof CoverFormatError)
+			throw Error(
+				tr(
+					'Choose a JPEG, PNG, WebP, GIF or AVIF image.',
+					'JPEG、PNG、WebP、GIF、AVIFの画像を選んでください。'
+				),
+				{ cause: error }
+			);
+		if (error instanceof CoverAnimationError)
+			throw Error(
+				tr(
+					'Choose a still image or a shorter animation for your cover.',
+					'カバーには静止画または短いアニメーションを選んでください。'
+				),
+				{ cause: error }
+			);
+		if (error instanceof CoverSizeError)
+			throw Error(
+				tr(
+					'Choose an image up to 12 MiB and 20 megapixels, with each side at most 8192 pixels.',
+					'12 MiB、2,000万画素以下で、各辺が8192ピクセル以内の画像を選んでください。'
+				),
+				{ cause: error }
+			);
 		throw Error(
-			tr(
-				'Choose a JPEG, PNG, WebP, GIF or AVIF image.',
-				'JPEG、PNG、WebP、GIF、AVIFの画像を選んでください。'
-			)
+			tr('Could not read the image dimensions.', '画像のサイズを読み込めませんでした。'),
+			{ cause: error }
 		);
-	const image = await createImageBitmap(file).catch(() => {
+	}
+	const image = await createImageBitmap(file, crop.x, crop.y, crop.side, crop.side, {
+		resizeWidth: crop.output,
+		resizeHeight: crop.output,
+		resizeQuality: 'high'
+	}).catch(() => {
 		throw Error(tr('Could not read this image.', 'この画像を読み込めませんでした。'));
 	});
 	try {
-		const crop = Math.min(image.width, image.height);
 		const canvas = document.createElement('canvas');
-		canvas.width = canvas.height = Math.min(512, crop);
+		canvas.width = canvas.height = crop.output;
 		const ctx = canvas.getContext('2d');
 		if (!ctx) throw Error(tr('Could not prepare this image.', 'この画像を処理できませんでした。'));
-		ctx.drawImage(
-			image,
-			(image.width - crop) / 2,
-			(image.height - crop) / 2,
-			crop,
-			crop,
-			0,
-			0,
-			canvas.width,
-			canvas.height
-		);
+		ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
 		return canvas.toDataURL('image/webp', 0.88);
 	} finally {
 		image.close();

@@ -1,3 +1,4 @@
+import { limitedBlob, ResponseSizeError } from '../limitedBlob';
 import { downloadFile, nativeDocuments } from '../documentFiles';
 import { Capacitor } from '@capacitor/core';
 import { apiAddress, expiredSession, readFileResponse, type Session } from '../connection';
@@ -5,6 +6,7 @@ import { preferredOffline } from '../offline/media';
 import { path } from './catalog';
 
 export type ExportFormat = 'm3u8' | 'csv';
+const maxExportBytes = 64 * 1024 * 1024; // Same limit as the native export writers.
 const mime = { m3u8: 'audio/x-mpegurl', csv: 'text/csv' };
 type Writer = { write(data: Blob): Promise<void>; close(): Promise<void>; abort(): Promise<void> };
 type Picker = (options: {
@@ -182,15 +184,21 @@ export async function prepareExport(
 			response.status === 401 &&
 			response.headers.get('Content-Type')?.toLowerCase().includes('application/json')
 		) {
-			const payload = await response.json().catch(() => null);
+			const payload = await limitedBlob(response, 8192)
+				.then(async (blob) => JSON.parse(await blob.text()))
+				.catch(() => null);
+			signal.throwIfAborted();
 			if (payload?.error?.code === 'UNAUTHORIZED') code = 'DN_UNAUTHORIZED';
 		}
+		if (!response.bodyUsed) await response.body?.cancel().catch(() => {});
 		throw httpError(session, code);
 	}
-	if (response.headers.get('Content-Type')?.split(';')[0].trim().toLowerCase() !== mime[format])
+	if (response.headers.get('Content-Type')?.split(';')[0].trim().toLowerCase() !== mime[format]) {
+		await response.body?.cancel().catch(() => {});
 		throw Error(
 			'DN returned a different file type. Check your server address and sign-in proxy before retrying.'
 		);
+	}
 	const filename = exportFilename(
 			response.headers.get('Content-Disposition') ?? undefined,
 			playlist.name,
@@ -199,9 +207,11 @@ export async function prepareExport(
 		skipped = count(response.headers.get('X-DroppedNeedle-Skipped-Tracks') ?? undefined);
 	let blob: Blob | null;
 	try {
-		blob = await response.blob();
+		blob = await limitedBlob(response, maxExportBytes);
 	} catch (cause) {
 		signal.throwIfAborted();
+		if (cause instanceof ResponseSizeError)
+			throw Error('The playlist export exceeds 64 MiB.', { cause });
 		throw Error(
 			'The export transfer was interrupted. Check your connection and prepare the file again.',
 			{ cause }

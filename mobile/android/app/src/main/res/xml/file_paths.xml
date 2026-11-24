@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <paths xmlns:android="http://schemas.android.com/apk/res/android">
-    <external-path name="my_images" path="." />
-    <cache-path name="my_cache_images" path="." />
+    <!-- Capacitor captures photos in Pictures and stages shared assets in capacitorassets. -->
+    <external-files-path name="pictures" path="Pictures/" />
+    <external-cache-path name="external_assets" path="capacitorassets/" />
+    <cache-path name="cache_assets" path="capacitorassets/" />
 </paths>
