@@ -16,6 +16,7 @@ import { accountId } from '../boards/layout';
 
 type Account = Pick<Session, 'serverUrl' | 'userId'>;
 const native = registerPlugin<{
+	takeSharedSong(): Promise<{ text?: string }>;
 	takePlayerNotification(): Promise<{ open: boolean }>;
 	pinPlaylist(options: Account & { id: string; name: string; remove?: boolean }): Promise<void>;
 	playlistPinned(options: Account & { id: string }): Promise<{ pinned: boolean }>;
@@ -53,6 +54,9 @@ export async function isPlaylistPinned(session: Session, id: string) {
 	if (platform !== 'ios') return false;
 	return (await native.playlistPinned({ serverUrl: session.serverUrl, userId: session.userId, id }))
 		.pinned;
+}
+export function takeSharedSong() {
+	return native.takeSharedSong();
 }
 export function takePlayerNotification() {
 	return native.takePlayerNotification();

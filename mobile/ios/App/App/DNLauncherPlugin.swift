@@ -5,8 +5,15 @@ import UIKit
 @objc(DNLauncherPlugin)
 public final class DNLauncherPlugin: CAPPlugin, CAPBridgedPlugin {
     public let identifier = "DNLauncherPlugin", jsName = "DNLauncher"
-    public let pluginMethods: [CAPPluginMethod] = ["pinPlaylist", "playlistPinned", "takePlaylist", "clearShortcuts"].map {
+    public let pluginMethods: [CAPPluginMethod] = ["pinPlaylist", "playlistPinned", "takePlaylist", "clearShortcuts", "takeSharedSong"].map {
         CAPPluginMethod(name: $0, returnType: CAPPluginReturnPromise)
+    }
+
+    @objc func takeSharedSong(_ call: CAPPluginCall) {
+        do {
+            if let value = try SharedSongInbox.take(from: SharedSongInbox.location()) { call.resolve(["text": value]) }
+            else { call.resolve() }
+        } catch { call.reject("Could not read the shared song.", nil, error) }
     }
 
     private static var pending: (owner: String, id: String)?

@@ -37,6 +37,13 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         completionHandler(handled)
     }
 
+    func sceneDidBecomeActive(_ scene: UIScene) {
+        // Share extensions run independently. Read their saved link only when OtoHari is active.
+        if let player = window?.rootViewController as? PlayerViewController {
+            player.bridge?.triggerWindowJSEvent(eventName: "dn-shared-song")
+        }
+    }
+
     func scene(_ scene: UIScene, openURLContexts URLContexts: Set<UIOpenURLContext>) {
         SceneDelegateProxy.shared.scene(scene, openURLContexts: URLContexts)
     }

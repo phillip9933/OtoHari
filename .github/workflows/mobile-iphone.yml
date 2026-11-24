@@ -52,6 +52,12 @@ jobs:
           xcodebuild -onlyUsePackageVersionsFromResolvedFile -project ios/App/App.xcodeproj -scheme App -configuration Release -destination 'generic/platform=iOS' -archivePath "$archive" CODE_SIGNING_ALLOWED=NO archive
           app="$archive/Products/Applications/App.app"
           test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleDisplayName' "$app/Info.plist")" = OtoHari
+          share="$app/PlugIns/ShareSong.appex/Info.plist"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$share")" = app.dnmusic.mobile.ShareSong
+          test "$(/usr/libexec/PlistBuddy -c 'Print :NSExtension:NSExtensionPointIdentifier' "$share")" = com.apple.share-services
+          for key in CFBundleVersion CFBundleShortVersionString; do
+            test "$(/usr/libexec/PlistBuddy -c "Print :$key" "$share")" = "$(/usr/libexec/PlistBuddy -c "Print :$key" "$app/Info.plist")"
+          done
           bundled="$app/PrivacyInfo.xcprivacy"
           plutil -lint "$bundled"
           python3 -c 'import plistlib, sys; from pathlib import Path; assert plistlib.loads(Path(sys.argv[1]).read_bytes()) == plistlib.loads(Path(sys.argv[2]).read_bytes())' ios/App/App/PrivacyInfo.xcprivacy "$bundled"
@@ -100,34 +106,43 @@ jobs:
       - name: Prepare archive and signing profile
         env:
           PROFILE_B64: ${{ secrets.IOS_APPSTORE_PROFILE_BASE64 }}
+          SHARE_PROFILE_B64: ${{ secrets.IOS_SHARE_APPSTORE_PROFILE_BASE64 }}
         run: |
           set -eu
           umask 077
           cd "$RUNNER_TEMP"
           ditto -x -k iphone-archive.zip .
           printf '%s' "$PROFILE_B64" | base64 -D > app.mobileprovision
+          printf '%s' "$SHARE_PROFILE_B64" | base64 -D > share.mobileprovision
           security cms -D -i app.mobileprovision > profile.plist
+          security cms -D -i share.mobileprovision > share.plist
           bundle=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' OtoHari.xcarchive/Products/Applications/App.app/Info.plist)
           python3 - "$bundle" <<'PYPROFILE'
           import datetime, plistlib, sys
           from pathlib import Path
-          with open('profile.plist', 'rb') as file:
-              profile = plistlib.load(file)
           bundle = sys.argv[1]
-          entitlements = profile['Entitlements']
-          app_id = entitlements['application-identifier']
-          if (app_id != profile['ApplicationIdentifierPrefix'][0] + '.' + bundle
-                  or entitlements.get('get-task-allow') or profile.get('ProvisionedDevices')
-                  or profile.get('ProvisionsAllDevices') or not entitlements.get('beta-reports-active')
-                  or profile['ExpirationDate'] <= datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)):
-              sys.exit('Use an unexpired App Store Connect profile for this app.')
-          uuid = profile['UUID']
           directory = Path.home() / 'Library/Developer/Xcode/UserData/Provisioning Profiles'
           directory.mkdir(parents=True, exist_ok=True)
-          (directory / (uuid + '.mobileprovision')).write_bytes(Path('app.mobileprovision').read_bytes())
+          profiles = {}
+          team = None
+          for name, source, identifier in [('profile', 'app', bundle), ('share', 'share', bundle + '.ShareSong')]:
+              profile = plistlib.loads(Path(name + '.plist').read_bytes())
+              entitlements = profile['Entitlements']
+              if (entitlements['application-identifier'] != profile['ApplicationIdentifierPrefix'][0] + '.' + identifier
+                      or ('group.' + bundle) not in entitlements.get('com.apple.security.application-groups', [])
+                      or entitlements.get('get-task-allow') or profile.get('ProvisionedDevices')
+                      or profile.get('ProvisionsAllDevices') or not entitlements.get('beta-reports-active')
+                      or profile['ExpirationDate'] <= datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)):
+                  sys.exit('Use an unexpired App Store Connect profile with the shared App Group for ' + identifier)
+              if team is not None and team != profile['TeamIdentifier'][0]:
+                  sys.exit('Both profiles must belong to the same team.')
+              team = profile['TeamIdentifier'][0]
+              uuid = profile['UUID']
+              (directory / (uuid + '.mobileprovision')).write_bytes(Path(source + '.mobileprovision').read_bytes())
+              profiles[identifier] = uuid
           options = dict(method='app-store-connect', destination='upload', signingStyle='manual',
-                         signingCertificate='Apple Distribution', teamID=profile['TeamIdentifier'][0],
-                         provisioningProfiles={bundle: uuid}, manageAppVersionAndBuildNumber=False)
+                         signingCertificate='Apple Distribution', teamID=team,
+                         provisioningProfiles=profiles, manageAppVersionAndBuildNumber=False)
           with open('export-options.plist', 'wb') as file:
               plistlib.dump(options, file)
           PYPROFILE
@@ -166,4 +181,4 @@ jobs:
         if: always()
         run: |
           security delete-keychain "$RUNNER_TEMP/testflight.keychain-db" 2>/dev/null || true
-          rm -f "$RUNNER_TEMP/distribution.p12" "$RUNNER_TEMP/upload.p8" "$RUNNER_TEMP/app.mobileprovision" "$RUNNER_TEMP/profile.plist"
+          rm -f "$RUNNER_TEMP/distribution.p12" "$RUNNER_TEMP/upload.p8" "$RUNNER_TEMP/app.mobileprovision" "$RUNNER_TEMP/profile.plist" "$RUNNER_TEMP/share.mobileprovision" "$RUNNER_TEMP/share.plist"

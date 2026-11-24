@@ -24,6 +24,10 @@ const hostBundle = process.argv[2] ?? baseSettings[0].PRODUCT_BUNDLE_IDENTIFIER;
 if (!/^[a-z][a-z0-9-]*(?:\.[a-z0-9-]+)+$/.test(hostBundle)) {
 	throw Error('Supply a reverse-DNS iPhone app bundle identifier in lowercase.');
 }
+const projectConfigs = objects.XCConfigurationList[project.getFirstProject().firstProject.buildConfigurationList];
+for (const { value } of projectConfigs.buildConfigurations) {
+	objects.XCBuildConfiguration[value].buildSettings.SHARE_SONG_HOST_ID = hostBundle;
+}
 const entitlements = 'NowPlayingWidget/Shared.entitlements';
 const quote = JSON.stringify;
 function settings(id) {
@@ -113,8 +117,6 @@ for (const s of settings(widget)) {
 		DN_WIDGET_HOST_ID: hostBundle,
 		INFOPLIST_FILE: extension + '/Info.plist',
 		IPHONEOS_DEPLOYMENT_TARGET: '16.4',
-		MARKETING_VERSION: baseSettings[0].MARKETING_VERSION,
-		CURRENT_PROJECT_VERSION: baseSettings[0].CURRENT_PROJECT_VERSION,
 		SWIFT_ACTIVE_COMPILATION_CONDITIONS: quote('$(inherited) DN_PLAYER_WIDGET'),
 		SWIFT_VERSION: '5.0',
 		TARGETED_DEVICE_FAMILY: '"1,2"'

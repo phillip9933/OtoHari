@@ -4,6 +4,8 @@ import { DnError, getJson, postJson, type Session } from '../connection';
 import type { LibraryContinuation } from '../player/libraryWindow';
 import type { PlayerTrack } from '../player';
 
+import { songLink, type LinkStatus, type ProviderStatus } from './songLinks';
+
 type Schema = components['schemas'];
 export type CatalogTab = 'home' | 'library' | 'discover' | 'search' | 'requests';
 export type OnPlay = (
@@ -169,17 +171,19 @@ export async function search(
 	signal?: AbortSignal
 ) {
 	let result: Pick<Schema['SearchResponse'], 'albums' | 'artists' | 'tracks'>;
-	let partial: boolean;
+	let statuses: ProviderStatus[];
+	let link: LinkStatus | null | undefined;
+	const url = songLink(term);
 	let next: number | null = null;
-	if (scope === 'top') {
-		const response = await getJson<Schema['SearchResponse']>(
+	if (scope === 'top' || url) {
+		const response = await getJson<Schema['SearchResponse'] & { link?: LinkStatus | null }>(
 			session,
 			path(
 				'/api/v3/search',
 				{},
 				{
-					q: term,
-					buckets: 'albums,artists,tracks',
+					q: url ?? term,
+					buckets: url ? 'tracks' : 'albums,artists,tracks',
 					limit_albums: 40,
 					limit_artists: 24,
 					limit_tracks: 24
@@ -187,10 +191,13 @@ export async function search(
 			),
 			signal
 		);
-		result = response;
-		partial = [response.album_status, response.artist_status, response.track_status].some(
-			(s) => s !== 'ok'
-		);
+		link = response.link;
+		result = url
+			? { albums: [], artists: [], tracks: link === 'read' ? response.tracks : [] }
+			: response;
+		statuses = url
+			? [response.track_status]
+			: [response.album_status, response.artist_status, response.track_status];
 	} else {
 		const page = await getJson<Schema['SearchBucketResponse']>(
 			session,
@@ -198,7 +205,7 @@ export async function search(
 			signal
 		);
 		result = { albums: [], artists: [], tracks: [], [scope]: page.results };
-		partial = page.status !== 'ok';
+		statuses = [page.status];
 		next = page.results.length >= bucketSize ? offset + bucketSize : null;
 	}
 	const albums = result.albums
@@ -253,7 +260,8 @@ export async function search(
 		tracks,
 		artists,
 		recordings,
-		partial,
+		link,
+		status: (['error', 'timeout', 'partial', 'stale'] as const).find((s) => statuses.includes(s)),
 		previous: Math.max(0, offset - bucketSize),
 		next
 	};

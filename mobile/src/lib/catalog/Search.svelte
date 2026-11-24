@@ -15,11 +15,14 @@
 	import CollectionDisplayFields from './CollectionDisplayFields.svelte';
 	import BrowseEntries from './BrowseEntries.svelte';
 	import { artistArtwork } from './artistArtwork';
-	import { ChevronLeft, SlidersHorizontal } from '@lucide/svelte';
+	import { ChevronLeft, SlidersHorizontal, ClipboardPaste, ListPlus } from '@lucide/svelte';
 	import { search, errorMessage, type Album, type OnPlay, type SearchScope } from './catalog';
 	import type { Playlist } from './playlists';
 	import SearchCollection from './SearchCollection.svelte';
 	import SearchHints from './SearchHints.svelte';
+	import AddToPlaylist from './AddToPlaylist.svelte';
+	import { hasLink, songLink, providerNotice, linkNotice } from './songLinks';
+	import type { components } from '../../../../frontend/src/lib/api/v3/openapi';
 	import RequestSong from './RequestSong.svelte';
 	import { trackDuration } from './TrackRow.svelte';
 	let {
@@ -49,6 +52,29 @@
 		{ id: 'genres', label: 'Genres' },
 		{ id: 'playlists', label: 'Playlists' }
 	] as const;
+	let recording = $state<components['schemas']['TrackIntake']>();
+	let pasteIssue = $state('');
+	const linkQuery = $derived(hasLink(term));
+	const address = $derived(songLink(term));
+	async function paste() {
+		try {
+			const text = await navigator.clipboard.readText();
+			const link = songLink(text);
+			if (!link) {
+				pasteIssue = tr('Copy a song link first.', '先に曲のリンクをコピーしてください。');
+				return;
+			}
+			term = link;
+			changedQuery();
+			editing = false;
+			pasteIssue = '';
+		} catch {
+			pasteIssue = tr(
+				'Paste the link directly into the search field.',
+				'検索欄にリンクを直接貼り付けてください。'
+			);
+		}
+	}
 	let scope = $state<SearchScope>('top'),
 		offset = $state(0);
 	let displayOpen = $state(false),
@@ -101,7 +127,8 @@
 	let hints = $state<SearchHints>(),
 		editing = $state(false);
 	function remember() {
-		hints?.remember();
+		if (linkQuery && address) hints?.remember(address, 'tracks');
+		else hints?.remember();
 		editing = false;
 	}
 	const playResult: OnPlay = (...args) => {
@@ -137,7 +164,13 @@
 		returnId = '',
 		restoration = 0;
 	const scopeLabel = $derived(uiText(scopes.find((s) => s.id === scope)!.label));
-	const query = $derived({ account: session, q: term.trim(), kind: scope, start: offset, retry });
+	const query = $derived({
+		account: session,
+		q: address ?? term.trim(),
+		kind: linkQuery ? 'top' : scope,
+		start: offset,
+		retry
+	});
 	let completed: typeof query | undefined;
 	$effect(() => {
 		const selected = detail,
@@ -261,7 +294,8 @@
 		}
 		result = null;
 		error = '';
-		const searchable = q.length >= 2 && kind !== 'genres' && kind !== 'playlists';
+		const searchable =
+			(!linkQuery || !!address) && q.length >= 2 && kind !== 'genres' && kind !== 'playlists';
 		busy = searchable;
 		if (!searchable) {
 			if (kind !== 'genres' && kind !== 'playlists') untrack(restore);
@@ -312,33 +346,43 @@
 				}}><SlidersHorizontal size={20} /></button
 			>
 		</div>
-		<input
-			type="search"
-			bind:value={term}
-			oninput={() => {
-				changedQuery();
-				editing = true;
-			}}
-			onfocus={() => (editing = true)}
-			onkeydown={(event) => {
-				if (event.key === 'Enter' && !event.isComposing) {
-					remember();
-					event.currentTarget.blur();
-				}
-			}}
-			enterkeyhint="search"
-			aria-label={uiText('Search music')}
-			placeholder={scope === 'top'
-				? uiText('Search music')
-				: uiFormat('Search {name}', { name: scopeLabel.toLocaleLowerCase('en') })}
-			autocomplete="off"
-		/>
-		<div class="scopes" role="group" aria-label={uiText('Search category')}>
-			{#each scopes as item (item.id)}<button
-					aria-pressed={scope === item.id}
-					onclick={() => choose(item.id)}>{uiText(item.label)}</button
-				>{/each}
+		<div class="search-input">
+			<input
+				type="search"
+				bind:value={term}
+				oninput={() => {
+					pasteIssue = '';
+					changedQuery();
+					editing = true;
+				}}
+				onfocus={() => (editing = true)}
+				onkeydown={(event) => {
+					if (event.key === 'Enter' && !event.isComposing) {
+						remember();
+						event.currentTarget.blur();
+					}
+				}}
+				enterkeyhint="search"
+				aria-label={uiText('Search music')}
+				placeholder={scope === 'top'
+					? uiText('Search music')
+					: uiFormat('Search {name}', { name: scopeLabel.toLocaleLowerCase('en') })}
+				autocomplete="off"
+			/>
+			<button
+				class="icon-button"
+				onclick={paste}
+				aria-label={tr('Paste a song link', '曲のリンクを貼り付け')}
+				><ClipboardPaste size={19} /></button
+			>
 		</div>
+		{#if pasteIssue}<p role="status">{pasteIssue}</p>{/if}
+		{#if !linkQuery}<div class="scopes" role="group" aria-label={uiText('Search category')}>
+				{#each scopes as item (item.id)}<button
+						aria-pressed={scope === item.id}
+						onclick={() => choose(item.id)}>{uiText(item.label)}</button
+					>{/each}
+			</div>{/if}
 		{#if displayOpen}<section
 				class="display-options"
 				aria-label={tr('Result display', '検索結果の表示')}
@@ -353,7 +397,7 @@
 			{term}
 			{scope}
 			{editing}
-			active={active && source.ready && !detail}
+			active={active && source.ready && !detail && !linkQuery}
 			offline={useDevice}
 			model={localModel}
 			onpick={pickHint}
@@ -363,6 +407,18 @@
 				>{uiText('Retry search settings')}</button
 			>
 		{:else if !source.ready}<p role="status">{uiText('Opening search…')}</p>
+		{:else if linkQuery && !address}<p role="status">
+				{tr(
+					'Use a song link from Spotify, Apple Music, Deezer, YouTube or song.link.',
+					'Spotify、Apple Music、Deezer、YouTube、song.linkの曲リンクを使用してください。'
+				)}
+			</p>
+		{:else if linkQuery && useDevice}<p role="status">
+				{tr(
+					'Connect to DroppedNeedle to look up a song link.',
+					'曲のリンクを検索するにはDroppedNeedleに接続してください。'
+				)}
+			</p>
 		{:else if useDevice}
 			<p class="device-source" role="status">
 				{source.unreachable
@@ -400,7 +456,7 @@
 					onrules={() => ruleRevision++}
 				/>
 			{:else if source.storageBusy}<p role="status">{uiText('Opening saved music…')}</p>{/if}
-		{:else if scope === 'genres' || scope === 'playlists'}
+		{:else if !linkQuery && (scope === 'genres' || scope === 'playlists')}
 			<SearchCollection
 				{display}
 				{session}
@@ -467,16 +523,18 @@
 					label={uiText('Songs to request')}
 					items={recordingRows}
 				>
-					{#snippet endAction(idx: number)}{#if result}{@const row =
-								result.recordings[idx]}<RequestSong
-								{session}
-								song={row.song}
-								requested={row.requested}
-							/>{/if}{/snippet}
+					{#snippet endAction(idx: number)}{#if result}{@const row = result.recordings[idx]}<button
+								class="icon-button"
+								aria-label={tr('Add to playlist', 'プレイリストに追加') +
+									' · ' +
+									row.song.track_title}
+								onclick={() => (recording = row.song)}><ListPlus size={17} /></button
+							><RequestSong {session} song={row.song} requested={row.requested} />{/if}{/snippet}
 				</BrowseEntries>{/if}
-			{#if result.partial}<p role="status">{uiText('Some MusicBrainz results are unavailable.')}</p>
+			{#if linkQuery && linkNotice(result.link)}<p role="status">{linkNotice(result.link)}</p>{/if}
+			{#if result.status}<p role="status">{providerNotice(result.status)}</p>
 				<button class="secondary" onclick={() => retry++}>{uiText('Retry search')}</button>{/if}
-			{#if !result.albums.length && !result.tracks.length && !result.artists.length && !result.recordings.length}<p
+			{#if (!linkQuery || result.link === 'read') && !result.albums.length && !result.tracks.length && !result.artists.length && !result.recordings.length}<p
 				>
 					{offset ? uiText('No more matches.') : 'No matches for “' + term.trim() + '”.'}
 				</p>{/if}
@@ -526,7 +584,18 @@
 	{/if}
 </div>
 
+{#if recording}<AddToPlaylist {session} {recording} onclose={() => (recording = undefined)} />{/if}
+
 <style>
+	.search-input {
+		display: flex;
+		align-items: center;
+		gap: 0.45rem;
+	}
+	.search-input input {
+		min-width: 0;
+		flex: 1;
+	}
 	.device-source,
 	.device-back {
 		display: flex;

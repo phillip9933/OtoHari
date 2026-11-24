@@ -21,7 +21,9 @@ test.beforeEach(async ({ page, nativePlatform }) => {
 			DNOutputs: ['choose'],
 			SecureStorage: ['internalGetItem', 'internalSetItem', 'internalRemoveItem'],
 			CapacitorHttp: ['request', 'get'],
+			DNRead: ['read', 'cancel'],
 			DNLauncher: [
+				'takeSharedSong',
 				'takePlayerNotification',
 				'pinPlaylist',
 				'playlistPinned',
@@ -230,7 +232,31 @@ test.beforeEach(async ({ page, nativePlatform }) => {
 						}
 						return;
 					}
+					if (plugin === 'DNRead') {
+						if (method === 'cancel') return {};
+						if (
+							opts.kind === 'search' &&
+							new URL(opts.url).searchParams.get('buckets') === 'tracks'
+						)
+							return {
+								status: 200,
+								type: 'application/json',
+								data: JSON.stringify({
+									link: 'no_match',
+									albums: [],
+									artists: [],
+									tracks: [],
+									track_status: 'ok'
+								})
+							};
+						return { status: 404, type: 'application/json', data: '{}' };
+					}
 					if (plugin === 'DNLauncher') {
+						if (method === 'takeSharedSong') {
+							const text = sessionStorage.getItem('shared-song');
+							sessionStorage.removeItem('shared-song');
+							return { text };
+						}
 						if (method === 'takePlayerNotification') {
 							const open = sessionStorage.getItem('media-tap') === '1';
 							sessionStorage.removeItem('media-tap');
@@ -1099,4 +1125,31 @@ test('slow native polls coalesce and compact updates keep the queue until its ve
 		await new Promise<void>((done) => requestAnimationFrame(() => done()));
 	});
 	await expect(page.getByRole('button', { name: 'Open player for Night service' })).toBeVisible();
+});
+
+test.describe('iPhone Share Sheet', () => {
+	test.use({ nativePlatform: 'ios' });
+	test('a native shared song opens Search after sign-in and again when the app is already open', async ({
+		page
+	}) => {
+		await page.addInitScript(() => {
+			sessionStorage.setItem('reconnected', '1');
+			sessionStorage.setItem('shared-song', 'https://youtu.be/abcdefghijk?si=tracking');
+		});
+		await deliverApproval(page);
+		const input = page.getByRole('searchbox', { name: 'Search music' });
+		await expect(input).toHaveValue('https://youtu.be/abcdefghijk');
+		await expect(
+			page.getByText('No MusicBrainz recording matches this link.', { exact: false })
+		).toBeVisible();
+		await page.getByRole('navigation').getByRole('button', { name: 'Home', exact: true }).click();
+		await page.evaluate(() => {
+			sessionStorage.setItem('shared-song', 'https://music.apple.com/jp/song/sample/12');
+			window.dispatchEvent(new Event('dn-shared-song'));
+		});
+		await expect(input).toHaveValue('https://music.apple.com/jp/song/sample/12');
+		await page.getByRole('navigation').getByRole('button', { name: 'Home', exact: true }).click();
+		await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+		await expect(page.getByRole('heading', { name: 'Home', exact: true })).toBeVisible();
+	});
 });

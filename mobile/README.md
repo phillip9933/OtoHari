@@ -53,7 +53,11 @@ Search results can use a list or artwork grid. Use the display control beside th
 
 Album artwork fills the top of the album page. Shuffle or play from the action row, or tap a numbered track to start there. The **⋮** to the left of Shuffle opens album actions. On an artist page, **⋮** also holds the Home shortcuts for opening the artist and starting their radio station.
 
+Choose OtoHari from the iPhone share sheet, then open OtoHari to search for the shared song. You can also paste its link into Search. Your DN server resolves supported Spotify, Apple Music, Deezer and YouTube links. Play a library match, or request a missing recording and add it to an editable DN playlist. If your server cannot read a link, search by song title and artist.
+
 For library albums, OtoHari uses the edition’s own artwork when DN reports it is available, then falls back to the release-group cover. Discover feedback and undo use the same account history as DN web. Older DN servers can still hide and restore albums.
+
+When supported by DN, Discover records the picks you actually see, open or sample. Samples use audio available from your DN library. Open **Account on DroppedNeedle → Listening → Discover history** to inspect ListenBrainz import status, restart an eligible import or open DN’s ZIP upload page. Forgetting Discover history asks for confirmation and applies to the whole account.
 
 On Home and Discover, the layout editor includes an account visibility switch for sections shared with the web. Grid settings, placement and mobile-only sections stay on the device. Opening the full new releases or concerts list marks it as seen for the account. Open **Concert cities** in the concerts list to manage cities and search radii for both clients. Change your account photo under **Settings → Account → Profile**.
 
@@ -112,7 +116,11 @@ Choose the **App** scheme. For device installation, use the same Apple developme
 
 Open a DN playlist and choose **Export playlist** to save an M3U8 or CSV file. This also works for playlists shared with you as a viewer. For M3U8 you can set the path prefix to match the music folder on the receiving device. The app remembers it for this DN account. Android opens its document picker and iPhone opens Files so you can choose the destination. DN reports how many unavailable entries it skipped.
 
+When importing a playlist, **Only songs already in the library** limits it to playable matches. Servers that support missing songs can keep the other entries, look up their albums, and show progress in the playlist. Owners and editors can request all eligible albums, a single album, or just an eligible song. DN applies the account’s quota and approval rules. DN 3.1 continues to import its local matches.
+
 In **Requests**, switch between **Activity**, **Downloads**, and, for administrators, **Approvals**. Tap an album in Activity to open it, or use the three dots on a row for actions. Expand **Wanted watches** to see what DN is monitoring. You can filter and sort request history in place.
+
+A playlist sent for approval appears as one card on supporting servers. Expand it to choose albums. The confirmation shows how many will be approved and how many will be rejected. Individual requests remain available on DN 3.1.
 
 **Downloads** puts items needing a decision first, followed by in-progress transfers, queued work, scheduled retries, and download history. Tap a row marked **Review matches** or **Review held files** to open it. Match review groups candidates by how well they fit your download settings. Tap a candidate to inspect its files before choosing it.
 
@@ -233,6 +241,8 @@ pnpm sync
 For Android, install JDK 21 and Android SDK Platform 36. Run `./gradlew assembleDebug` from `android/`. The APK is at `android/app/build/outputs/apk/debug/app-debug.apk`. For iOS, open the project with `pnpm exec cap open ios` on a Mac with Xcode and select a simulator or device. Run `pnpm sync` after you change the Svelte app. The native build reads the copied bundle.
 
 ### Build and test the iPhone app
+
+The main iPhone target embeds **ShareSong**. For a signed TestFlight build, enable the App Group `group.app.dnmusic.mobile` for both `app.dnmusic.mobile` and `app.dnmusic.mobile.ShareSong`. The two App Store provisioning profiles must include that group and belong to the same team. The signing workflow expects the updated host profile in `IOS_APPSTORE_PROFILE_BASE64` and the extension profile in `IOS_SHARE_APPSTORE_PROFILE_BASE64`.
 
 The app targets iOS 16.4 or later for the WebKit features used by the shared player and themes. From `mobile/` run `pnpm build && pnpm exec cap sync ios`, then open `ios/App/App.xcodeproj` in Xcode 26 or later. Choose an iPhone simulator and run **App**. For installation on a real iPhone, select your Apple development team in **Signing & Capabilities**. [Capacitor iOS setup](https://capacitorjs.com/docs/ios)
 

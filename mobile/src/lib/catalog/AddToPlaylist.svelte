@@ -3,6 +3,8 @@
 	import InlineChoice from '../controls/InlineChoice.svelte';
 	import { onMount } from 'svelte';
 	import type { Session } from '../connection';
+	import type { components } from '../../../../frontend/src/lib/api/v3/openapi';
+	import { addRecording } from './recordingPlaylist';
 	import type { PlayerTrack } from '../player';
 	import { errorMessage } from './catalog';
 	import { playlists, createPlaylist, addLocalTracks, type Playlist } from './playlists';
@@ -10,13 +12,16 @@
 	import PlaylistNameForm from './PlaylistNameForm.svelte';
 	let {
 		session,
-		tracks,
+		tracks = [],
+		recording,
 		onclose
 	}: {
 		session: Session;
-		tracks: PlayerTrack[];
+		tracks?: PlayerTrack[];
+		recording?: components['schemas']['TrackIntake'];
 		onclose: () => void;
 	} = $props();
+	const count = $derived(recording ? 1 : tracks.length);
 	let items = $state<Playlist[]>([]),
 		selected = $state(''),
 		creating = $state(false);
@@ -51,11 +56,13 @@
 	}
 	async function add() {
 		const target = items.find((item) => item.id === selected);
-		if (busy || !target || !tracks.length) return;
+		if (busy || !target || !count) return;
 		busy = true;
 		error = '';
 		try {
-			const added = await addLocalTracks(session, target.id, tracks);
+			const added = recording
+				? await addRecording(session, target.id, recording)
+				: await addLocalTracks(session, target.id, tracks);
 			const n = added.tracks.length;
 			receipt = 'Added ' + n + (n === 1 ? ' track to ' : ' tracks to ') + target.name + '.';
 		} catch (cause) {
@@ -103,10 +110,10 @@
 		<div class="actions">
 			{#if selected && !failed && !loading}<button
 					class="primary"
-					disabled={busy || !tracks.length}
+					disabled={busy || !count}
 					onclick={add}
 					>{uiText('Add')}
-					{tracks.length === 1 ? uiText('track') : tracks.length + ' tracks'}</button
+					{count === 1 ? uiText('track') : count + ' tracks'}</button
 				>{/if}
 			<button class="secondary" disabled={busy} onclick={onclose}>{uiText('Cancel')}</button>
 		</div>

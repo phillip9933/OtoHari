@@ -19,6 +19,7 @@ run playback OfflineFiles LibraryContinuation PlayerQueueOrder PlaybackArchive
 run history PlaybackHistory PlaybackReportSender OfflineListenJournal OfflineListenReplay
 run artwork OfflineFiles PlaybackArtwork
 run export PlaylistExports
+run share SharedSongInbox
 run reads DNReadPlugin
 run fades TrackFades
 run autoplay OfflineFiles LibraryContinuation PlayerAutoplay
