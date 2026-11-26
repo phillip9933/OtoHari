@@ -22,6 +22,7 @@
 	import HomePinButton from './HomePinButton.svelte';
 	import { albumPin } from './homePins';
 	import RequestSong from './RequestSong.svelte';
+	import { playBuild } from '../distribution';
 	import TrackActions from './TrackActions.svelte';
 	import Favorite from './Favorite.svelte';
 	import AlbumHero from './AlbumHero.svelte';
@@ -136,7 +137,7 @@
 			const found = await albumTracks(session, album);
 			if (!active) return;
 			tracks = found;
-			if (!tracks.length && !album.requested && !album.imported) await loadChoices();
+			if (!playBuild && !tracks.length && !album.requested && !album.imported) await loadChoices();
 		} catch (e) {
 			if (active) error = errorMessage(e);
 		} finally {
@@ -338,11 +339,11 @@
 	{:else if album.imported}
 		<p>{uiText('This requested copy has no playable files in the library.')}</p>
 		<button class="secondary" onclick={load}>{uiText('Refresh album')}</button>
-	{:else if receipt || album.requested}
+	{:else if !playBuild && (receipt || album.requested)}
 		<p role="status">{receipt || uiText('This album has been requested.')}</p>
 		<button class="primary" onclick={onrequests}>{uiText('View requests')}</button>
-	{:else if !album.group}<p>{uiText('This album has no playable tracks.')}</p>{/if}
-	{#if album.group && ((showEditions && tracks.length > 0) || (!busy && !error && !tracks.length && !album.imported && !album.requested && !receipt))}
+	{:else if playBuild || !album.group}<p>{uiText('This album has no playable tracks.')}</p>{/if}
+	{#if album.group && ((showEditions && tracks.length > 0) || (!playBuild && !busy && !error && !tracks.length && !album.imported && !album.requested && !receipt))}
 		{#if editionsError}<p role="alert">{uiText('Editions could not be loaded.')} {editionsError}</p>
 			<button class="secondary" disabled={loadingEditions || sending} onclick={loadChoices}
 				>{uiText('Reload editions')}</button

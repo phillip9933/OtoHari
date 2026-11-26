@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+    <!-- Android 7 uses the status-only bridge; updater code and provider start on 8+. -->
+    <uses-sdk tools:overrideLibrary="io.github.phillip9933.appupdater" />
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <application>
+        <provider
+            android:name="io.github.phillip9933.appupdater.UpdateFileProvider"
+            android:authorities="${applicationId}.android-updates"
+            android:exported="false"
+            android:grantUriPermissions="true"
+            android:enabled="@bool/dn_updates_supported" />
+    </application>
+</manifest>

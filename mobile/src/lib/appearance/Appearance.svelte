@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount, tick } from 'svelte';
+	import { playBuild } from '../distribution';
 	import { Capacitor } from '@capacitor/core';
 	import { uiText, tr, languageChoice, setLanguage, type LanguageChoice } from '../i18n';
 	import InlineChoice from '../controls/InlineChoice.svelte';
@@ -213,7 +214,7 @@
 	onMount(() => {
 		if (initial !== 'menu') page = initial;
 		void readRole();
-		if (android) {
+		if (android && !playBuild) {
 			updateFeed = watchAndroidUpdates(
 				(state) => {
 					updateState = state;
@@ -359,7 +360,7 @@
 				{@render groupHeading('App')}
 				<div class="settings-list" data-surface="panel">
 					{@render link('language', Globe)}
-					{#if android}{@render link('updates', Download)}{/if}
+					{#if android && !playBuild}{@render link('updates', Download)}{/if}
 					{#if session && nativeOffline && session.userId}{@render link(
 							'troubleshooting',
 							Activity
@@ -417,7 +418,7 @@
 				{:else if page === 'sound' && session && supportsPlayerPreferences}<SoundSettings />
 				{:else if page === 'handoff' && session}<LinkedPlayers />
 				{:else if page === 'themes'}<ThemeSettings {session} />
-				{:else if page === 'updates' && android}<UpdateSettings
+				{:else if page === 'updates' && android && !playBuild}<UpdateSettings
 						snapshot={updateState}
 						readError={updateError}
 						onrefresh={() => updateFeed?.refresh()}
