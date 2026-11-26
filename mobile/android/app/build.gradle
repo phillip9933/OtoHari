@@ -1,6 +1,15 @@
 apply plugin: 'com.android.application'
 apply plugin: 'org.jetbrains.kotlin.android'
-apply from: rootProject.file('gradle/android-updater.gradle')
+def playProperty = providers.gradleProperty('otohari.play').getOrElse('false')
+if (!(playProperty in ['true', 'false'])) {
+    throw new GradleException('otohari.play must be true or false.')
+}
+def playBuild = playProperty == 'true'
+def playVersionCode = providers.gradleProperty('otohari.playVersionCode')
+if (!playBuild && playVersionCode.isPresent()) {
+    throw new GradleException('otohari.playVersionCode is only for Play builds.')
+}
+if (!playBuild) apply from: rootProject.file('gradle/android-updater.gradle')
 
 kotlin {
     compilerOptions {
@@ -11,8 +20,15 @@ kotlin {
 android {
     namespace = "app.droppedneedle.mobile"
     sourceSets {
+        main.java.srcDir(playBuild ? 'src/play/java' : 'src/direct/java')
         test.java.srcDir 'src/testSupport/java'
         androidTest.java.srcDir 'src/testSupport/java'
+        if (!playBuild) {
+            test.java.srcDir 'src/directTest/java'
+            androidTest.java.srcDir 'src/directAndroidTest/java'
+            debug.manifest.srcFile 'src/direct/AndroidManifest.xml'
+            release.manifest.srcFile 'src/direct/AndroidManifest.xml'
+        }
     }
     compileSdk = rootProject.ext.compileSdkVersion
     defaultConfig {
@@ -20,6 +36,13 @@ android {
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 36
+        if (playVersionCode.isPresent()) {
+            int candidateCode = playVersionCode.get().toInteger()
+            if (candidateCode <= versionCode || candidateCode > 2100000000) {
+                throw new GradleException('The Play version code must exceed the source code and fit Play limits.')
+            }
+            versionCode candidateCode
+        }
         versionName "0.9.2"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
@@ -48,7 +71,7 @@ dependencies {
     implementation "androidx.coordinatorlayout:coordinatorlayout:$androidxCoordinatorLayoutVersion"
     implementation "androidx.core:core-splashscreen:$coreSplashScreenVersion"
     implementation "androidx.work:work-runtime:2.11.2"
-    implementation 'io.github.phillip9933:android-updater:1.0.0'
+    if (!playBuild) implementation 'io.github.phillip9933:android-updater:1.0.0'
     def media3Version = '1.8.0'
     implementation "androidx.media3:media3-exoplayer:$media3Version"
     implementation "androidx.media3:media3-session:$media3Version"
@@ -65,3 +88,18 @@ dependencies {
 }
 
 apply from: 'capacitor.build.gradle'
+
+tasks.register('verifyDistributionAssets') {
+    doLast {
+        def webAssets = file('src/main/assets/public')
+        def playMarker = new File(webAssets, 'otohari-play-channel.txt')
+        if (playBuild && (!new File(webAssets, 'index.html').isFile() ||
+                !playMarker.isFile() || playMarker.getText('UTF-8') != 'play\n')) {
+            throw new GradleException('Run pnpm build --mode play and pnpm exec cap sync android first.')
+        }
+        if (!playBuild && playMarker.exists()) {
+            throw new GradleException('Play web assets cannot be used for a direct APK. Rebuild and sync without Play mode.')
+        }
+    }
+}
+tasks.named('preBuild').configure { dependsOn('verifyDistributionAssets') }

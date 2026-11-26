@@ -38,10 +38,22 @@ function webPalettes() {
 	}
 	return palettes;
 }
-export default defineConfig({
-	plugins: [svelte()],
+export default defineConfig(({ mode }) => ({
+	plugins: [
+		svelte(),
+		{
+			name: 'otohari-play-marker',
+			generateBundle() {
+				if (mode === 'play')
+					this.emitFile({ type: 'asset', fileName: 'otohari-play-channel.txt', source: 'play\n' });
+			}
+		}
+	],
 	resolve: { dedupe: ['svelte'] },
 	base: './',
-	define: { __DN_WEB_PALETTES__: JSON.stringify(webPalettes()) },
+	define: {
+		__DN_WEB_PALETTES__: JSON.stringify(webPalettes()),
+		__OTOHARI_PLAY_BUILD__: JSON.stringify(mode === 'play')
+	},
 	esbuild: { tsconfigRaw: { compilerOptions: { target: 'ES2022' } } }
-});
+}));

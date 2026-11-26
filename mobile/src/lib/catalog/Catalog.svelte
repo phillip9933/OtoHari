@@ -18,6 +18,7 @@
 	import GenreDetail from './GenreDetail.svelte';
 	import Search from './Search.svelte';
 	import Requests from './Requests.svelte';
+	import { playBuild } from '../distribution';
 	import AlbumDetail from './AlbumDetail.svelte';
 
 	let {
@@ -140,6 +141,7 @@
 		return () => window.removeEventListener('dn-back', systemBack);
 	});
 	function showRequests() {
+		if (playBuild) return;
 		if (!initialCredit) back();
 		onnavigate('requests');
 	}
@@ -189,7 +191,7 @@
 					ongenre={openGenre}
 					bind:term
 				/>{/key}
-		{:else}<Requests {session} onopen={open} />{/if}
+		{:else if !playBuild}<Requests {session} onopen={open} />{/if}
 	</div>
 	{#if genre}<div hidden={!!(album || artist || localArtist)}>
 			<button class="text-button" onclick={back}

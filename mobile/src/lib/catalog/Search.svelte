@@ -24,6 +24,7 @@
 	import { hasLink, songLink, providerNotice, linkNotice } from './songLinks';
 	import type { components } from '../../../../frontend/src/lib/api/v3/openapi';
 	import RequestSong from './RequestSong.svelte';
+	import { playBuild } from '../distribution';
 	import { trackDuration } from './TrackRow.svelte';
 	let {
 		session,
@@ -515,7 +516,7 @@
 						}
 					}}
 				/>{/if}
-			{#if recordingRows.length}<h2>{uiText('Songs to request')}</h2>
+			{#if !playBuild && recordingRows.length}<h2>{uiText('Songs to request')}</h2>
 				<BrowseEntries
 					{session}
 					{...display}

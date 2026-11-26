@@ -1,4 +1,5 @@
 import { get, writable } from 'svelte/store';
+import { playBuild } from '../distribution';
 import { tick } from 'svelte';
 import type { Session } from '../connection';
 import {
@@ -23,13 +24,14 @@ export const libraryDestinations = [
 	{ id: 'tracks', label: 'Tracks', icon: Music2 },
 	{ id: 'genres', label: 'Genres', icon: Tags }
 ] as const;
-export const shortcuts = [
+const allShortcuts = [
 	{ id: 'home', label: 'Home', icon: House },
 	{ id: 'library', label: 'Library', icon: LibraryBig },
 	{ id: 'search', label: 'Search', icon: Search },
 	{ id: 'discover', label: 'Discover', icon: Compass },
 	{ id: 'requests', label: 'Requests', icon: ListChecks }
 ] as const;
+export const shortcuts = allShortcuts.filter((item) => !playBuild || item.id !== 'requests');
 export const destinations = [
 	...shortcuts,
 	...libraryDestinations,
@@ -130,7 +132,7 @@ export const defaultInterface: InterfacePreferences = {
 	surface: 'solid',
 	blur: 14,
 	bar: 'docked',
-	tabs: ['home', 'library', 'search', 'discover', 'requests'],
+	tabs: playBuild ? ['home', 'library', 'search', 'discover'] : ['home', 'library', 'search', 'discover', 'requests'],
 	motion: 'quick'
 };
 function normalize(value: Partial<InterfacePreferences> | null): InterfacePreferences {

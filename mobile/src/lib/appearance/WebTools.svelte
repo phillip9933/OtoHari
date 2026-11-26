@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { japaneseText, tr, uiText } from '../i18n';
 	import { Browser } from '@capacitor/browser';
+	import { playBuild } from '../distribution';
 	import { ExternalLink } from '@lucide/svelte';
 	import { SvelteSet } from 'svelte/reactivity';
 	import type { Session } from '../connection';
@@ -48,19 +49,19 @@
 							links: [
 								tab('Library', 'library'),
 								tab('Editions', 'editions'),
-								tab('Download client', 'download-client'),
-								tab('Indexers and Prowlarr', 'indexers'),
-								tab('Lidarr import', 'lidarr-import'),
+								...(!playBuild ? [tab('Download client', 'download-client')] : []),
+								...(!playBuild ? [tab('Indexers and Prowlarr', 'indexers')] : []),
+								...(!playBuild ? [tab('Lidarr import', 'lidarr-import')] : []),
 								tab('Connected apps', 'connect-apps'),
 								tab('Jellyfin', 'jellyfin'),
 								tab('Navidrome', 'navidrome'),
 								tab('Plex', 'plex'),
-								tab('YouTube', 'youtube'),
+								...(!playBuild ? [tab('YouTube', 'youtube')] : []),
 								tab('Last.fm', 'lastfm'),
 								tab('ListenBrainz', 'listenbrainz'),
 								tab('Spotify', 'spotify'),
 								tab('Live events', 'events'),
-								tab('Get it', 'get-it')
+								...(!playBuild ? [tab('Get it', 'get-it')] : [])
 							]
 						},
 						{
@@ -68,7 +69,7 @@
 							links: [
 								tab('Release types', 'settings'),
 								tab('Web appearance', 'appearance'),
-								tab('Music source', 'music-source'),
+								...(!playBuild ? [tab('Music source', 'music-source')] : []),
 								tab('Sidebar', 'sidebar'),
 								tab('Home', 'home'),
 								tab('Discover', 'discover')

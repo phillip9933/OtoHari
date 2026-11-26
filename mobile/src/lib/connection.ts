@@ -1,3 +1,4 @@
+import { playBuild, serverAcquisitionRoute } from './distribution';
 import { readSmallResponse } from './readSmallResponse';
 import { Capacitor, CapacitorHttp } from '@capacitor/core';
 import { combineSignals } from './abortSignals';
@@ -148,6 +149,8 @@ async function request<T>(
 	const { session, method = 'GET', body, artwork, signal } = options;
 	signal?.throwIfAborted();
 	const url = apiAddress(server, path);
+	if (playBuild && serverAcquisitionRoute(new URL(url).pathname))
+		throw new Error('Server music requests are not available in this distribution.');
 	const headers: Record<string, string> = { Accept: artwork ? 'image/*' : 'application/json' };
 	if (session) headers.Authorization = 'Bearer ' + session.token;
 	if (body !== undefined) headers['Content-Type'] = 'application/json';

@@ -1,4 +1,5 @@
 import { japaneseText } from '../locales/japaneseText';
+import { playBuild } from '../distribution';
 
 const appearance = 'Appearance & layout';
 const playback = 'Playback';
@@ -365,7 +366,7 @@ function available(entry: Entry, access: Access) {
 		return false;
 	if ((entry.deviceOnly || page === 'history' || page === 'troubleshooting') && !supportedDevice)
 		return false;
-	if (page === 'updates' && !access.android) return false;
+	if (page === 'updates' && (!access.android || playBuild)) return false;
 	if (page === 'outputs' && !access.android && !access.ios) return false;
 	if (access.ios && (page === 'handoff' || page === 'sound' || entry.anchor === 'queue-autoplay'))
 		return false;

@@ -1,3 +1,4 @@
+import { playBuild } from '../distribution';
 import { SvelteMap } from 'svelte/reactivity';
 import { DnError, getJson, postJson, type Session } from '../connection';
 import { tr } from '../i18n';
@@ -104,7 +105,7 @@ export function playlistRequests(
 		state = undefined;
 		readingError = receipt = actionError = '';
 		sending = false;
-		if (!playlistId) return;
+		if (playBuild || !playlistId) return;
 		const base = path('/api/v3/playlists/{playlist_id}', { playlist_id: playlistId });
 		const lifetime = new AbortController();
 		let timer: ReturnType<typeof setTimeout>;
