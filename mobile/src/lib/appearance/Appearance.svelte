@@ -442,7 +442,7 @@
 					{#if playBuild}
 						<details>
 							<summary>{tr('Privacy policy', 'プライバシーポリシー')}</summary>
-							{#each playPrivacyParagraphs as paragraph}
+							{#each playPrivacyParagraphs as paragraph (paragraph)}
 								{#if paragraph.startsWith('## ')}<h3>{paragraph.slice(3)}</h3>
 								{:else}<p>{paragraph}</p>{/if}
 							{/each}
