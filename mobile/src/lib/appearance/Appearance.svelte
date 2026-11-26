@@ -442,6 +442,13 @@
 					{#if playBuild}
 						<details>
 							<summary>{tr('Privacy policy', 'プライバシーポリシー')}</summary>
+							<p>
+								<a
+									href="https://github.com/phillip9933/OtoHari/blob/main/mobile/PRIVACY-PLAY.md"
+									target="_blank"
+									rel="noopener noreferrer"
+								>{tr('Read the privacy policy online', 'プライバシーポリシーをオンラインで読む')}</a>
+							</p>
 							{#each playPrivacyParagraphs as paragraph (paragraph)}
 								{#if paragraph.startsWith('## ')}<h3>{paragraph.slice(3)}</h3>
 								{:else}<p>{paragraph}</p>{/if}

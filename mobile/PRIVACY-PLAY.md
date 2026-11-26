@@ -14,4 +14,4 @@ You may export or share lists, links or a troubleshooting report. Review reports
 
 ## Removal and contact
 
-Sign out to remove the active session from the app. Use Device storage to remove offline music. Uninstalling removes app-private data, but not files you exported or data kept on your server. For server account deletion or server-side history, contact your server administrator. For app privacy questions, contact the contact email listed on the OtoHari Google Play page. Do not email passwords, session tokens or private files.
+Sign out to remove the active session from the app. Use Device storage to remove offline music. Uninstalling removes app-private data, but not files you exported or data kept on your server. For server account deletion or server-side history, contact your server administrator. For app privacy questions, use the developer email listed on the OtoHari Google Play page. Before the app is listed, you can reach the maintainer through the OtoHari repository at https://github.com/phillip9933/OtoHari/issues. That tracker is public; do not post passwords, session tokens or private files.

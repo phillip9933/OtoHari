@@ -19,6 +19,16 @@ args = parser.parse_args()
 require("io.github.phillip9933:android-updater" not in args.runtime_dependencies.read_text(),
         "The release runtime classpath includes the direct updater.")
 with ZipFile(args.bundle) as bundle:
+    require(bundle.testzip() is None, "The bundle has invalid ZIP entries.")
+    names = bundle.namelist()
+    signed_entries = [name for name in names if
+                      name.upper().startswith("META-INF/") and
+                      name.upper().endswith((".SF", ".RSA", ".DSA", ".EC"))]
+    require(not signed_entries, "The validation bundle unexpectedly contains a JAR signature.")
+    native_libs = [name for name in names if "/lib/" in name and name.endswith(".so")]
+    print(f"Unsigned validation ZIP contains {len(native_libs)} native shared libraries.")
+    if native_libs:
+        print("Check all native ELF segments and APK ZIP alignment on generated device splits.")
     marker = "base/assets/public/otohari-play-channel.txt"
     require(marker in bundle.namelist() and bundle.read(marker) == b"play\n",
             "The bundle does not contain Play-mode web assets.")
