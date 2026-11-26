@@ -2,9 +2,9 @@
 
 OtoHari is an independent Android and iPhone music player for your own DroppedNeedle server. Browse your library, build a queue, save music offline and customize Now Playing. The interface uses Svelte and Capacitor with native audio playback on each platform.
 
-<a href="https://github.com/phillip9933/OtoHari/releases/tag/android-v0.9.2"><img src="docs/badges/github-releases.svg" alt="Download OtoHari Android 0.9.2 beta from GitHub Releases" height="40"></a>
-
-[iPhone TestFlight beta](https://testflight.apple.com/join/ep112gZM)
+<a href="https://github.com/phillip9933/OtoHari/releases/tag/android-v0.9.2"><img src="docs/badges/android-beta.svg" alt="Download OtoHari Android 0.9.2 beta from GitHub Releases" height="40"></a>
+&nbsp;&nbsp;&nbsp;
+<a href="https://testflight.apple.com/join/ep112gZM"><img src="docs/badges/iphone-beta.svg" alt="Join the OtoHari iPhone beta on TestFlight" height="40"></a>
 
 **Support:** [Buy me a coffee](https://buymeacoffee.com/phillip9933) · [GitHub Sponsors](https://github.com/sponsors/phillip9933)
 
