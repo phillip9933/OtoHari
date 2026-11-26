@@ -72,6 +72,7 @@ jobs:
           distribution: temurin
           java-version: '21'
       - run: pnpm install --frozen-lockfile
+      - run: node --test scripts/play-distribution.test.mjs
       - run: pnpm check && pnpm build --mode play && pnpm exec cap sync android
       - name: Build and test the unsigned Play candidate
         run: >
@@ -84,3 +85,11 @@ jobs:
           ./gradlew -Potohari.play=true :app:dependencies --configuration releaseRuntimeClasspath > play-dependencies.txt
           python3 ../scripts/verify-play-bundle.py app/build/outputs/bundle/release/app-release.aab play-dependencies.txt
         working-directory: mobile/android
+      - name: Save the unsigned Play validation bundle
+        uses: actions/upload-artifact@v7
+        with:
+          name: otohari-play-unsigned-${{ github.sha }}
+          path: mobile/android/app/build/outputs/bundle/release/app-release.aab
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 7

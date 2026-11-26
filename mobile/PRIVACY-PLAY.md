@@ -1,6 +1,6 @@
 # OtoHari Android privacy policy
 
-**Scope:** OtoHari for Android distributed through Google Play. OtoHari is an independent player for a DroppedNeedle server that you or someone you trust operates. It does not provide a hosted music account.
+Scope: OtoHari for Android distributed through Google Play. OtoHari is an independent player for a DroppedNeedle server that you or someone you trust operates. It does not provide a hosted music account.
 
 ## Connection and playback
 

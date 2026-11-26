@@ -51,6 +51,8 @@
 	import Statistics from './Statistics.svelte';
 	import ServerSections from './ServerSections.svelte';
 	import pkg from '../../../package.json';
+	import playPrivacy from '../../../PRIVACY-PLAY.md?raw';
+	const playPrivacyParagraphs = playBuild ? playPrivacy.trim().split(/\n\s*\n/).slice(1) : [];
 	let {
 		session,
 		onnavigate,
@@ -437,6 +439,15 @@
 					/>
 				{:else if page === 'about'}
 					<p>{uiText('OtoHari is an unofficial music player for DroppedNeedle.')}</p>
+					{#if playBuild}
+						<details>
+							<summary>{tr('Privacy policy', 'プライバシーポリシー')}</summary>
+							{#each playPrivacyParagraphs as paragraph}
+								{#if paragraph.startsWith('## ')}<h3>{paragraph.slice(3)}</h3>
+								{:else}<p>{paragraph}</p>{/if}
+							{/each}
+						</details>
+					{/if}
 					<dl class="settings-facts" data-surface="panel">
 						<div>
 							<dt>{uiText('OtoHari version')}</dt>
